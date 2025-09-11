@@ -853,33 +853,8 @@ void gw_downfold(eri_t &eri, ptree const& pt) {
 }
 
 void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
-                nda::array<ComplexType, 5> const& C_ksIai,
-                nda::array<long, 3> const& band_window,
-                nda::array<RealType, 2> const& kpts_crys,
                 std::optional<std::map<std::string, nda::array<ComplexType, 4> > > local_hf_potentials,
                 std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_selfenergies) {
-  std::string err = std::string("dmft_embed - Incorrect input - ");
-  auto prefix = io::get_value<std::string>(pt,"prefix",err+"prefix");
-  auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
-  auto qp_approx_mbpt = io::get_value_with_default<bool>(pt,"qp_approx_mbpt",false);
-  auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
-  auto corr_only = io::get_value_with_default<bool>(pt,"corr_only",false);
-
-  auto iter_solver = iter_scf::make_iter_scf(pt, 1.0);
-
-  imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(outdir+"/"+prefix+".mbpt.h5", false));
-  MBState mb_state(ft, outdir+"/"+prefix, mf, C_ksIai, band_window, kpts_crys, trans_home_cell, false);
-  if (local_hf_potentials and local_selfenergies) {
-    mb_state.set_local_hf_potentials(std::move(local_hf_potentials.value()));
-    mb_state.set_local_selfenergies(std::move(local_selfenergies.value()));
-    local_hf_potentials.reset();
-    local_selfenergies.reset();
-  }
-  embed_t embed(*mf);
-  embed.dmft_embed(mb_state, &iter_solver, qp_approx_mbpt, corr_only);
-}
-
-void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt) {
   std::string err = std::string("dmft_embed - Incorrect input - ");
   auto prefix = io::get_value<std::string>(pt,"prefix",err+"prefix");
   auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
@@ -891,10 +866,19 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt) {
   auto iter_solver = iter_scf::make_iter_scf(pt, 1.0);
 
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(outdir+"/"+prefix+".mbpt.h5", false));
+
   MBState mb_state(ft, outdir+"/"+prefix, mf, wannier_file, trans_home_cell, false);
+  if (local_hf_potentials and local_selfenergies) {
+    mb_state.set_local_hf_potentials(std::move(local_hf_potentials.value()));
+    mb_state.set_local_selfenergies(std::move(local_selfenergies.value()));
+    local_hf_potentials.reset();
+    local_selfenergies.reset();
+  }
+
   embed_t embed(*mf);
   embed.dmft_embed(mb_state, &iter_solver, qp_approx_mbpt, corr_only);
 }
+
 
 // instantiations
 using mpi3::communicator;

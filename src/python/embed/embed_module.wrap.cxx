@@ -48,27 +48,16 @@ using c2py::operator""_a;
 // ==================== module functions ====================
 
 // dmft_embed
-static auto const fun_0 = c2py::dispatcher_f_kw_t{
-    c2py::cfun(
-        [](const coqui_py::Mf &mf, const std::string &embed_params,
-           const nda::array<ComplexType, 5> &C_ksIai,
-           const nda::array<long, 3> &band_window,
-           const nda::array<double, 2> &kpts_crys,
-           std::optional<std::map<std::string, nda::array<ComplexType, 4>>>
-               local_hf_potentials,
-           std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
-               local_selfenergies) {
-          return coqui_py::dmft_embed(mf, embed_params, C_ksIai, band_window,
-                                      kpts_crys, local_hf_potentials,
-                                      local_selfenergies);
-        },
-        "mf", "embed_params", "C_ksIai", "band_window", "kpts_crys",
-        "local_hf_potentials", "local_selfenergies"),
-    c2py::cfun(
-        [](const coqui_py::Mf &mf, const std::string &embed_params) {
-          return coqui_py::dmft_embed(mf, embed_params);
-        },
-        "mf", "embed_params")};
+static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cfun(
+    [](const coqui_py::Mf &mf, const std::string &embed_params,
+       std::optional<std::map<std::string, nda::array<ComplexType, 4>>>
+           local_hf_potentials,
+       std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
+           local_selfenergies) {
+      return coqui_py::dmft_embed(mf, embed_params, local_hf_potentials,
+                                  local_selfenergies);
+    },
+    "mf", "embed_params", "local_hf_potentials", "local_selfenergies")};
 
 // downfold_1e
 static auto const fun_1 = c2py::dispatcher_f_kw_t{c2py::cfun(

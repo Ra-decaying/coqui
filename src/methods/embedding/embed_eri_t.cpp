@@ -103,19 +103,24 @@ namespace methods {
     long g_iter = (embed_iter!=-1)? embed_iter : gw_iter;
     std::string g_grp = (embed_iter!=-1)? "embed" : "scf";
     if (embed_iter==-1) {
-      app_log(2, "  The dataset \"embed\" does not exist in the checkpoint file, \n"
+      app_log(1, "  The dataset \"embed\" does not exist in the checkpoint file, \n"
                  "  indicating that this is the initial DMFT iteration based on \n"
                  "  the weakly correlated solution in \"scf/iter{}\". \n\n"
                  "    a) The downfolded Coulomb interactions will be calculated using the Green's function from"
                  " \"{}/iter{}\". \n\n"
                  "    b) All the results will be written to \"downfold_2e/iter{}\".\n",
               gw_iter, g_grp, g_iter, g_iter+1);
-      if (weiss_b_iter!=-1)
-        app_log(2, "  [WARNING] \"downfold_2e\" exists before the first DMFT iteration. \n"
-                   "             The existing dataset will be overwritten. \n"
-                   "             Please check if this is what you want!\n");
+      if (weiss_b_iter!=-1) {
+        app_log(1, "");
+        app_log(1, "╔═══════════════════════════════════════════════════════╗");
+        app_log(1, "║ [ WARNING ]                                           ║");
+        app_log(1, "║ \"downfold_2e\" exists before the first DMFT iteration. ║");
+        app_log(1, "║ The existing dataset will be overwritten.             ║");
+        app_log(1, "║ Check if this is what you want!                       ║");
+        app_log(1, "╚═══════════════════════════════════════════════════════╝\n");
+      }
     } else {
-     app_log(2, "  We are at DMFT iteration {}: \n\n"
+     app_log(1, "  We are at DMFT iteration {}: \n\n"
                 "    a) The downfolded Coulomb interactions will be calculated using the Green's function from"
                 " \"{}/iter{}\". \n\n"
                 "    b) All the results will be written to \"downfold_2e/iter{}\".\n",
@@ -125,7 +130,7 @@ namespace methods {
   }
 
   void embed_eri_t::downfold_2e_logic(std::string g_grp, long g_iter, long gw_iter, long embed_iter) {
-    app_log(2, "Checking the dataset in the coqui checkpoint file...\n");
+    app_log(2, "Checking the dataset in the CoQuí checkpoint file...\n");
     if (g_grp == "scf")
       utils::check(g_iter <= gw_iter and g_iter >= 0,
                    "downfold_2e logic fail: the input dataset {}/iter{} does not exist!",
@@ -136,11 +141,6 @@ namespace methods {
                    g_grp, g_iter);
     else
       utils::check(false, "downfold_2e logic fail: the input dataset {} does not exist!", g_grp);
-
-    app_log(2, "  a) The downfolded Coulomb interactions will be calculated using the Green's function from "
-               "\"{}/iter{}\". \n\n "
-               "  b) All the results will be written to \"downfold_2e/iter{}\".\n",
-               g_grp, g_iter, g_iter+1);
   }
 
   template<bool return_wt, THC_ERI thc_t>
@@ -349,21 +349,24 @@ namespace methods {
                "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌┬┐┬ ┬┌─┐   ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
                "║  ║ ║║═╬╗║ ║║   │ ││││ │───├┤    │││ │││││││├┤ │ ││   ││\n"
                "╚═╝╚═╝╚═╝╚╚═╝╩   ┴ └┴┘└─┘   └─┘  ─┴┘└─┘└┴┘┘└┘└  └─┘┴─┘─┴┘\n");
-    app_log(1, "  - coqui checkpoint file:                     {}", filename);
+    app_log(1, "  QoQuí checkpoint file:                     {}", filename);
     if (g_grp == "" or g_iter == -1)
-      app_log(1, "  - use default logic to determine the input G^k_ij(tau)");
+      app_log(1, "    - Use default logic to determine the input G^k_ij(tau) / output");
     else {
-      app_log(1, "  - Input Green's function: ");
-      app_log(1, "      HDF5 group:                              {}", g_grp);
-      app_log(1, "      iteration:                               {}", g_iter);
+      app_log(1, "    - Input Green's function ");
+      app_log(1, "      HDF5 group:                            {}", g_grp);
+      app_log(1, "      iteration:                             {}", g_iter);
+      app_log(1, "    - Output HDF5 group:                     downfold_2e/iter{}", g_iter+1);
     }
-    app_log(1, "  - transformation matrices:                   {}", proj_boson.C_file());
-    app_log(1, "  - number of impurities:                      {}", proj_boson.nImps());
-    app_log(1, "  - number of local orbitals per impurity:     {}", proj_boson.nImpOrbs());
-    app_log(1, "  - range of primary orbitals for local basis: [{}, {})",
+    app_log(1, "");
+    app_log(1, "  Transformation matrices:                   {}", proj_boson.C_file());
+    app_log(1, "  Number of impurities:                      {}", proj_boson.nImps());
+    app_log(1, "  Number of local orbitals per impurity:     {}", proj_boson.nImpOrbs());
+    app_log(1, "  Range of primary orbitals for local basis: [{}, {})",
             proj_boson.W_rng()[0].first(), proj_boson.W_rng()[0].last());
-    app_log(1, "  - type of the bosonic weiss field u(iw):     {}", screen_type);
-    app_log(1, "  - permutation symmetry:                      {}\n", permut_symm);
+    app_log(1, "");
+    app_log(1, "  Screening type:                            {}", screen_type);
+    app_log(1, "  Permutation symmetry:                      {}\n", permut_symm);
 
     utils::check(_output_type == "default", "Error in eri::downfolding: "
                                           "edmft_downfolding is only available with output_type=default.");
@@ -412,26 +415,32 @@ namespace methods {
                "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌┬┐┬ ┬┌─┐   ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
                "║  ║ ║║═╬╗║ ║║   │ ││││ │───├┤    │││ │││││││├┤ │ ││   ││\n"
                "╚═╝╚═╝╚═╝╚╚═╝╩   ┴ └┴┘└─┘   └─┘  ─┴┘└─┘└┴┘┘└┘└  └─┘┴─┘─┴┘\n");
-    app_log(1, "  - coqui checkpoint file:                    {}", filename);
-    if(_output_type.substr(0,5) == "model")
-      app_log(1, "  - output file with model hamiltonian:       {}", mb_state.coqui_prefix+".model.h5");
-    app_log(1, "  - transformation matrices:                   {}", proj_boson.C_file());
-    app_log(1, "  - number of impurities:                      {}", proj_boson.nImps());
-    app_log(1, "  - number of local orbitals per impurity:     {}", proj_boson.nImpOrbs());
-    app_log(1, "  - range of primary orbitals for local basis: [{}, {})",
-            proj_boson.W_rng()[0].first(), proj_boson.W_rng()[0].last());
+    app_log(1, "  CoQuí checkpoint file:                    {}", filename);
     if (screen_type != "bare") {
-      app_log(1, "  - type of the bosonic weiss field u(iw):     {}", screen_type);
       if (g_grp == "" or g_iter == -1)
-        app_log(1, "  - use default logic to determine the input G^k_ij(tau)");
+        app_log(1, "    - Use default logic to determine the input G^k_ij(tau) / output");
       else {
-        app_log(1, "  - Input Green's function: ");
-        app_log(1, "      HDF5 group:                              {}", g_grp);
-        app_log(1, "      iteration:                               {}", g_iter);
+        app_log(1, "    - Input Green's function: ");
+        app_log(1, "      HDF5 group:                            {}", g_grp);
+        app_log(1, "      iteration:                             {}", g_iter);
+        if (_output_type.substr(0,5) != "model")
+          app_log(1, "    - Output HDF5 group:                     downfold_2e/iter{}", g_iter+1);
       }
     }
-    app_log(1, "  - factorization type:                        {}", factorization_type);
-    app_log(1, "  - permutation symmetry:                      {}\n", permut_symm);
+    if(_output_type.substr(0,5) == "model")
+      app_log(1, "  Output file with model hamiltonian:        {}", mb_state.coqui_prefix+".model.h5");
+    app_log(1, "");
+    app_log(1, "  Transformation matrices:                   {}", proj_boson.C_file());
+    app_log(1, "  Number of impurities:                      {}", proj_boson.nImps());
+    app_log(1, "  Number of local orbitals per impurity:     {}", proj_boson.nImpOrbs());
+    app_log(1, "  Range of primary orbitals for local basis: [{}, {})",
+            proj_boson.W_rng()[0].first(), proj_boson.W_rng()[0].last());
+    app_log(1, "");
+    if (screen_type != "bare") {
+      app_log(1, "  Screening type:                            {}", screen_type);
+    }
+    app_log(1, "  factorization type:                        {}", factorization_type);
+    app_log(1, "  permutation symmetry:                      {}\n", permut_symm);
 
     // switch to cholesky_from_4index in small problems. embed_cholesky requires nproc >= nImp*nImp
     if( (factorization_type == "cholesky" or factorization_type == "cholesky_high_memory" ) and
@@ -680,9 +689,8 @@ namespace methods {
     bool pi_local_given = (!mb_state.sPi_imp_wabcd or !mb_state.sPi_dc_wabcd)?
         mb_state.read_local_polarizabilities(weiss_b_iter) : true;
 
-    auto& sPi_imp_wabcd = mb_state.sPi_imp_wabcd.value();
-    auto& sPi_dc_wabcd = mb_state.sPi_dc_wabcd.value();
     if (pi_local_given) {
+      auto& sPi_imp_wabcd = mb_state.sPi_imp_wabcd.value();
       int nts_half = (ft.nt_b()%2==0)? ft.nt_b()/2 : ft.nt_b()/2+1;
       nda::array<ComplexType, 5> X_tabcd(nts_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs);
       ft.w_to_tau_PHsym(sPi_imp_wabcd.local(), X_tabcd);
@@ -693,7 +701,6 @@ namespace methods {
     _Timer.stop("DF_READ");
 
     _Timer.start("DF_DONWFOLD");
-    auto Pi_dc = sPi_dc_wabcd.local();
     // evaluate local screened interaction W(iw) with given screen_type
     auto [V_abcd, W_wabcd, eps_inv_head_wq, eps_inv_head_w, pi_head_wq] =
         local_eri_impl<true>(mb_state, eri, ft, screen_type);
@@ -739,6 +746,7 @@ namespace methods {
 
     } else {
 
+      auto& sPi_imp_wabcd = mb_state.sPi_imp_wabcd.value();
       u_bosonic_weiss_edmft_in_place(W_wabcd, V_abcd, sPi_imp_wabcd);
       U_wabcd() = sPi_imp_wabcd.local();
 
@@ -751,20 +759,30 @@ namespace methods {
     }
 
     // TODO Option to not evaluate Pi_DC since it will be evaluated outside downfold_2e
-    app_log(2, "\nEvaluating double counting polarizability with\n"
+    app_log(1, "\nEvaluating double counting polarizability with\n"
              "  - Gloc from {}/iter{}\n"
-             "  - density-density only: {}\n"
-             "  - Mixing for the current iteration = {}\n",
+             "  - density-density only: {}\n",
           g_grp, g_iter, density_only, dc_pi_mixing);
     auto sPi_dc_wabcd_new = eval_Pi_rpa_dc<true>(*mpi, G_tsIab, ft, density_only);
-    sPi_dc_wabcd_new.win().fence();
+
     // mixing pi_dc with the previous value
-    if (dc_pi_mixing<1.0 and mpi->node_comm.root()) {
-      auto Pi_dc_new = sPi_dc_wabcd_new.local();
-      Pi_dc_new *= dc_pi_mixing;
-      Pi_dc_new += (1 - dc_pi_mixing) * Pi_dc;
+    if (mb_state.sPi_dc_wabcd and dc_pi_mixing<1.0) {
+      app_log(1, "  - Mixing for the current iteration: {}\n", dc_pi_mixing);
+      utils::check(mb_state.sPi_dc_wabcd->shape() == sPi_dc_wabcd_new.shape(),
+                   "Error in downfold_2e: shape of Pi_dc given in MBState is different from the newly evaluated one.");
+      sPi_dc_wabcd_new.win().fence();
+      if (mpi->node_comm.root()) {
+        //auto& sPi_imp_wabcd = mb_state.sPi_dc_wabcd.value();
+        auto Pi_dc = mb_state.sPi_dc_wabcd.value().local();
+        auto Pi_dc_new = sPi_dc_wabcd_new.local();
+        Pi_dc_new *= dc_pi_mixing;
+        Pi_dc_new += (1 - dc_pi_mixing) * Pi_dc;
+      }
+      sPi_dc_wabcd_new.win().fence();
+
+    } else if (not mb_state.sPi_dc_wabcd and dc_pi_mixing<1.0) {
+      app_log(1, "  - dc_pi_mixing<1.0 while no Pi_dc is found in MBState. Ignoring mixing.\n");
     }
-    sPi_dc_wabcd_new.win().fence();
     mpi->comm.barrier();
 
     _Timer.stop("DF_DOWNFOLD");
@@ -791,18 +809,18 @@ namespace methods {
     auto[U, Up, J_pair_scr, J_spin_scr] = orbital_average_int(U_wabcd(0,nda::ellipsis{}));
 
     double hartree_to_eV = 27.211386245988;
-    app_log(2, "\ndownfold_2e summary");
-    app_log(2, "-------------------");
-    app_log(2, "bare interactions (orbital-average):");
-    app_log(2, "  - intra-orbital = {} eV", V*hartree_to_eV);
-    app_log(2, "  - inter-orbital = {} eV", Vp*hartree_to_eV);
-    app_log(2, "  - Hund's coupling (spin-flip) = {} eV", J_spin_bare*hartree_to_eV);
-    app_log(2, "  - Hund's coupling (pair-hopping) = {} eV", J_pair_bare*hartree_to_eV);
-    app_log(2, "static screened interactions (orbital-average):");
-    app_log(2, "  - intra-orbital = {} eV", (V+U)*hartree_to_eV);
-    app_log(2, "  - inter-orbital = {} eV", (Vp+Up)*hartree_to_eV);
-    app_log(2, "  - Hund's coupling (spin-flip) = {} eV", (J_spin_bare+J_spin_scr)*hartree_to_eV);
-    app_log(2, "  - Hund's coupling (pair-hopping) = {} eV\n", (J_pair_bare+J_pair_scr)*hartree_to_eV);
+    app_log(1, "\ndownfold_2e summary");
+    app_log(1, "-------------------");
+    app_log(1, "bare interactions (orbital-average):");
+    app_log(1, "  - intra-orbital = {} eV", V*hartree_to_eV);
+    app_log(1, "  - inter-orbital = {} eV", Vp*hartree_to_eV);
+    app_log(1, "  - Hund's coupling (spin-flip) = {} eV", J_spin_bare*hartree_to_eV);
+    app_log(1, "  - Hund's coupling (pair-hopping) = {} eV", J_pair_bare*hartree_to_eV);
+    app_log(1, "static screened interactions (orbital-average):");
+    app_log(1, "  - intra-orbital = {} eV", (V+U)*hartree_to_eV);
+    app_log(1, "  - inter-orbital = {} eV", (Vp+Up)*hartree_to_eV);
+    app_log(1, "  - Hund's coupling (spin-flip) = {} eV", (J_spin_bare+J_spin_scr)*hartree_to_eV);
+    app_log(1, "  - Hund's coupling (pair-hopping) = {} eV\n", (J_pair_bare+J_pair_scr)*hartree_to_eV);
 
     _Timer.start("DF_WRITE");
     if (mpi->comm.root()) {
@@ -957,18 +975,18 @@ namespace methods {
     auto[U, Up, J_pair_scr, J_spin_scr] = orbital_average_int(U_wabcd(0,nda::ellipsis{}));
 
     double hartree_to_eV = 27.211386245988;
-    app_log(2, "\ndownfold_2e summary (screening = {})", screen_type);
-    app_log(2, "-------------------");
-    app_log(2, "bare interactions (orbital-average):");
-    app_log(2, "  - intra-orbital = {} eV", V*hartree_to_eV);
-    app_log(2, "  - inter-orbital = {} eV", Vp*hartree_to_eV);
-    app_log(2, "  - Hund's coupling (spin-flip) = {} eV", J_spin_bare*hartree_to_eV);
-    app_log(2, "  - Hund's coupling (pair-hopping) = {} eV", J_pair_bare*hartree_to_eV);
-    app_log(2, "static screened interactions (orbital-average):");
-    app_log(2, "  - intra-orbital = {} eV", (V+U)*hartree_to_eV);
-    app_log(2, "  - inter-orbital = {} eV", (Vp+Up)*hartree_to_eV);
-    app_log(2, "  - Hund's coupling (spin-flip) = {} eV", (J_spin_bare+J_spin_scr)*hartree_to_eV);
-    app_log(2, "  - Hund's coupling (pair-hopping) = {} eV\n", (J_pair_bare+J_pair_scr)*hartree_to_eV);
+    app_log(1, "\ndownfold_2e summary (screening = {})", screen_type);
+    app_log(1, "-------------------");
+    app_log(1, "bare interactions (orbital-average):");
+    app_log(1, "  - intra-orbital = {} eV", V*hartree_to_eV);
+    app_log(1, "  - inter-orbital = {} eV", Vp*hartree_to_eV);
+    app_log(1, "  - Hund's coupling (spin-flip) = {} eV", J_spin_bare*hartree_to_eV);
+    app_log(1, "  - Hund's coupling (pair-hopping) = {} eV", J_pair_bare*hartree_to_eV);
+    app_log(1, "static screened interactions (orbital-average):");
+    app_log(1, "  - intra-orbital = {} eV", (V+U)*hartree_to_eV);
+    app_log(1, "  - inter-orbital = {} eV", (Vp+Up)*hartree_to_eV);
+    app_log(1, "  - Hund's coupling (spin-flip) = {} eV", (J_spin_bare+J_spin_scr)*hartree_to_eV);
+    app_log(1, "  - Hund's coupling (pair-hopping) = {} eV\n", (J_pair_bare+J_pair_scr)*hartree_to_eV);
 
     _Timer.start("DF_WRITE");
     if (mpi->comm.root()) {

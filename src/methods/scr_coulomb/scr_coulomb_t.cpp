@@ -76,6 +76,19 @@ namespace solvers {
     utils::check(thc.mpi() == mb_state.mpi,
                  "scr_coulomb_t::update_w: THC_ERI and MBState should have the same MPI context.");
 
+    if (_screen_type.find("edmft") != std::string::npos) {
+      if (!mb_state.sPi_imp_wabcd or !mb_state.sPi_dc_wabcd) {
+        if (mb_state.read_local_polarizabilities()) {
+          app_log(1, "scr_coulomb_t::update_w: "
+                     "No local polarizabilities found in MBState \n"
+                     "-> reading from checkpoint file.\n");
+        } else {
+          app_log(1, "scr_coulomb_t::update_w: "
+                     "No local polarizabilities found in MBState or checkpoint file \n"
+                     "-> Setting to zero.\n");
+        }
+      }
+    }
     auto dPi_tqPQ = eval_Pi_qdep(mb_state, thc);
 
     // evaluate screened interaction (dW_tqPQ) and reset polarizability (dPi_tqPQ)
@@ -226,6 +239,7 @@ namespace solvers {
 
   }
 
+  // CNY: This will be deprecated soon.
   auto scr_coulomb_t::eval_Pi_qdep(const nda::MemoryArrayOfRank<5> auto &G_tskij, THC_ERI auto &thc,
                                    const projector_boson_t* proj,
                                    const nda::array_view<ComplexType, 5> *pi_imp,
@@ -321,17 +335,7 @@ namespace solvers {
 
       utils::check(mb_state.proj_boson.has_value(), "scr_coulomb_t::eval_Pi_qdep: projector is missing in edmft mode.");
 
-      bool pi_local_given = false;
       if (!mb_state.sPi_imp_wabcd or !mb_state.sPi_dc_wabcd) {
-        pi_local_given = mb_state.read_local_polarizabilities();
-        if (pi_local_given)
-          app_log(2, "Found local polarizabilities in the checkpoint file: {}", mb_state.coqui_prefix + ".mbpt.h5");
-      } else {
-        app_log(2, "Found Local polarizabilities already set in MBState.");
-        pi_local_given = true;
-      }
-
-      if (!pi_local_given) {
         app_log(1, "");
         app_log(1, "╔══════════════════════════════════════════════════════════╗");
         app_log(1, "║ [ NOTE ]                                                 ║");

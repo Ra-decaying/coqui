@@ -43,8 +43,6 @@ def downfold_local_coulomb(h_int, params, *, projector_info=None, local_polariza
         missing = required_keys - local_polarizabilities.keys()
         if missing:
             raise ValueError(f"Missing keys: {missing}")
-    else:
-        local_polarizabilities = None
 
     if projector_info is None:
         return embed_cxx.downfold_wloc(
@@ -70,34 +68,34 @@ def downfold_2e(h_int, params, *, local_polarizabilities = None):
         missing = required_keys - local_polarizabilities.keys()
         if missing:
             raise ValueError(f"Missing keys: {missing}")
-    else:
-        local_polarizabilities = None
 
     embed_cxx.downfold_2e(h_int, json.dumps(params),
                           local_polarizabilities=local_polarizabilities)
 
 
-def dmft_embed(mf, params, *, projector_info,
-               local_hf_potentials, local_sigma_dynamic):
+def dmft_embed(mf, params, *, local_hf_potentials=None, local_sigma_dynamic=None):
 
-    required_keys = {"imp", "dc"}
-    missing = required_keys - local_sigma_dynamic.keys()
-    if missing:
-        raise ValueError(f"Missing keys in local_hf_potentials: {missing}")
-    missing = required_keys - local_hf_potentials.keys()
-    if missing:
-        raise ValueError(f"Missing keys in local_sigma_dynamic: {missing}")
+    if local_sigma_dynamic is not None and local_hf_potentials is not None:
+        required_keys = {"imp", "dc"}
+        missing = required_keys - local_sigma_dynamic.keys()
+        if missing:
+            raise ValueError(f"Missing keys in local_sigma_dynamic: {missing}")
+        missing = required_keys - local_hf_potentials.keys()
+        if missing:
+            raise ValueError(f"Missing keys in local_hf_potentials: {missing}")
 
-    # Append additional axis for the number of impurities
-    for key in required_keys:
-        if len(local_hf_potentials[key].shape) == 3:
-            local_hf_potentials[key] = np.expand_dims(local_hf_potentials[key], axis=1)
-        if len(local_sigma_dynamic[key].shape) == 4:
-            local_sigma_dynamic[key] = np.expand_dims(local_sigma_dynamic[key], axis=2)
+        # Append additional axis for the number of impurities
+        for key in required_keys:
+            if len(local_hf_potentials[key].shape) == 3:
+                local_hf_potentials[key] = np.expand_dims(local_hf_potentials[key], axis=1)
+            if len(local_sigma_dynamic[key].shape) == 4:
+                local_sigma_dynamic[key] = np.expand_dims(local_sigma_dynamic[key], axis=2)
+    else:
+        local_hf_potentials = None
+        local_sigma_dynamic = None
 
-    proj_mat = projector_info.get("proj_mat")
-    band_window = projector_info.get("band_window")
-    kpts_w90 = projector_info.get("kpts_w90")
+    embed_cxx.dmft_embed(
+        mf, json.dumps(params),
+        local_hf_potentials, local_sigma_dynamic
+    )
 
-    embed_cxx.dmft_embed(mf, json.dumps(params), proj_mat, band_window, kpts_w90,
-                         local_hf_potentials, local_sigma_dynamic)

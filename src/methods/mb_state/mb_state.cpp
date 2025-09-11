@@ -60,15 +60,22 @@ namespace methods {
     utils::check(proj_boson.has_value(),
                  "MBState::read_local_polarizabilities: proj_boson is not initialized.");
 
-    // 1) if the pi_imp and pi_dc are not set, we read them from the file
-    // 2) if the file does not contain them, we set them to empty arrays
+    // 1) if the pi_imp and pi_dc are not set, we read them from chkpt file
+    // 2) if the file does not contain them, we set them to std::nullopt
     long nw = ft->nw_b();
     long nw_half = (nw%2==0)? nw/2 : nw/2+1;
     long nImpOrbs = proj_boson.value().nImpOrbs();
     sPi_imp_wabcd.emplace(make_shared_array<nda::array_view<ComplexType, 5>>(*mpi, {nw_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs}));
     sPi_dc_wabcd.emplace(make_shared_array<nda::array_view<ComplexType, 5>>(*mpi, {nw_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs}));
 
-    return chkpt::read_pi_local(sPi_imp_wabcd.value(), sPi_dc_wabcd.value(), coqui_prefix+".mbpt.h5", weiss_b_iter);
+    bool pi_local_found = chkpt::read_pi_local(sPi_imp_wabcd.value(), sPi_dc_wabcd.value(), coqui_prefix+".mbpt.h5", weiss_b_iter);
+
+    if (!pi_local_found) {
+      sPi_imp_wabcd.reset();
+      sPi_dc_wabcd.reset();
+    }
+    mpi->comm.barrier();
+    return pi_local_found;
   }
 
   void MBState::set_local_polarizabilities(std::map<std::string, nda::array<ComplexType, 5>> local_polarizabilities) {

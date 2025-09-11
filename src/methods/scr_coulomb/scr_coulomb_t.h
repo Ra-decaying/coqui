@@ -44,7 +44,6 @@ namespace methods {
 namespace solvers {
   // TODO
   //    1. timer
-  //    2. banner and log
   /**
    * @brief scr_coulomb_t class
    *

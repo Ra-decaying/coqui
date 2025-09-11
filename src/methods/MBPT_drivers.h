@@ -120,13 +120,8 @@ void gw_downfold(eri_t &eri, ptree const& pt);
  * @brief Embedding (i.e. upfolding) of local DMFT self-energy corrections to a MBPT solution stored in the checkpoint file.
  */
 void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
-                nda::array<ComplexType, 5> const& C_ksIai,
-                nda::array<long, 3> const& band_window,
-                nda::array<RealType, 2> const& kpts_crys,
                 std::optional<std::map<std::string, nda::array<ComplexType, 4> > > local_hf_potentials=std::nullopt,
                 std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_selfenergies=std::nullopt);
-
-void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt);
 
 }
 #endif
