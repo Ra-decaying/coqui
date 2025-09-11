@@ -50,6 +50,36 @@ import itertools
 from triqs.gf import Gf, make_gf_dlr, BlockGf, Block2Gf
 from triqs.operators import c_dag, c, Operator, util
 
+
+def make_h5_sumk_format(mlwf_h5, orb_list=None):
+    l, SO = 2, 0
+    n_inequiv_shells = 1
+    with HDFArchive(mlwf_h5, 'a') as ar:
+        dft_inp = ar["dft_input"]
+
+        # modify proj_mat and band_window
+        if orb_list is not None:
+            proj_mat = dft_inp["proj_mat"]
+            dft_inp["proj_mat"] = proj_mat[:, :, :, orb_list]
+
+        # dummy values that are unused but required by SumkDFT
+        kpts_w90 = dft_inp['kpts']
+        dft_inp["n_k"] = kpts_w90.shape[0]
+        dft_inp["k_dep_projection"] = 0
+        dft_inp["n_shells"] = n_inequiv_shells
+        dft_inp["n_corr_shells"] = n_inequiv_shells
+        dft_inp["n_inequiv_shells"] = n_inequiv_shells
+        dft_inp["corr_to_inequiv"] = [0]
+        dft_inp["inequiv_to_corr"] = [0]
+
+        dft_inp["n_reps"] = [1 for i in range(n_inequiv_shells)]
+        dft_inp["dim_reps"] = [0 for i in range(n_inequiv_shells)]
+
+        ll = 2 * l + 1
+        lmax = ll * (SO + 1)
+        dft_inp["T"] = [np.zeros([lmax, lmax], dtype=complex) for i in range(n_inequiv_shells)]
+
+
 def read_proj_info(wannier_h5):
   with HDFArchive(wannier_h5, 'r') as ar:
     C_ksIai = ar['dft_input/proj_mat']

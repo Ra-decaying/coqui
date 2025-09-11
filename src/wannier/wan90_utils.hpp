@@ -433,7 +433,7 @@ void write_wan90_h5(mf::MF &mf, ptree pt, nda::array<int,1> const& band_list,
 
   // n_orbitals, need to partition over impurities
   {
-    // in principle this can be customized, right now assume most general case
+    // in principle, this can be customized, right now assume most general case
     nda::array<long,2> norbs(nkpts,nspin);
     norbs() = nband;
     nda::h5_write(dgrp, "n_orbitals", norbs);
@@ -445,10 +445,14 @@ void write_wan90_h5(mf::MF &mf, ptree pt, nda::array<int,1> const& band_list,
   // corr_shell
   {
     h5::group cgrp1 = dgrp.create_group("corr_shells"); 
-    h5::group cgrp2 = dgrp.create_group("shells"); 
+    h5::group cgrp2 = dgrp.create_group("shells");
+    // attribute to mark this a list
+    h5::h5_write_attribute(cgrp1, "Format", "List");
+    h5::h5_write_attribute(cgrp2, "Format", "List");
     for(int i=0; i<nshell; ++i) {
       {
-        h5::group sgrp = cgrp1.create_group(std::to_string(i)); 
+        h5::group sgrp = cgrp1.create_group(std::to_string(i));
+        h5::h5_write_attribute(sgrp, "Format", "Dict");
         h5::h5_write(sgrp,"atom",shells(i,0));
         h5::h5_write(sgrp,"sort",shells(i,1));
         h5::h5_write(sgrp,"l",shells(i,2));
@@ -458,6 +462,7 @@ void write_wan90_h5(mf::MF &mf, ptree pt, nda::array<int,1> const& band_list,
       }
       {  // mimicking dfttools wannier90 converter, no real reason to do this in principle
         h5::group sgrp = cgrp2.create_group(std::to_string(i));
+        h5::h5_write_attribute(sgrp, "Format", "Dict");
         h5::h5_write(sgrp,"atom",shells(i,0));
         h5::h5_write(sgrp,"sort",shells(i,1));
         h5::h5_write(sgrp,"l",shells(i,2));
@@ -519,7 +524,8 @@ void write_wan90_h5(mf::MF &mf, ptree pt, nda::array<int,1> const& band_list,
   // rot_mat
   {
     h5::h5_write(dgrp,"use_rotations",0l);
-    h5::group cgrp = dgrp.create_group("rot_mat"); 
+    h5::group cgrp = dgrp.create_group("rot_mat");
+    h5::h5_write_attribute(cgrp, "Format", "List");
     for(int i=0; i<nshell; i++) {
       nda::array<ComplexType,2> rot_mat(shell_dim[i],shell_dim[i]);
       rot_mat() = ComplexType(0.0); 
@@ -529,6 +535,7 @@ void write_wan90_h5(mf::MF &mf, ptree pt, nda::array<int,1> const& band_list,
   }
   {
     h5::group cgrp = dgrp.create_group("rot_mat_time_inv");
+    h5::h5_write_attribute(cgrp, "Format", "List");
     for(int i=0; i<nshell; i++) {
       h5::h5_write(cgrp,std::to_string(i),0l);
     }

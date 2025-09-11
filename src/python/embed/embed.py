@@ -60,46 +60,21 @@ def downfold_local_coulomb(h_int, params, *, projector_info=None, local_polariza
         )
 
 
-def downfold_1e(mf, params,
-                *, projector_info = None, local_selfenergies = None):
-    if local_selfenergies is not None:
-        required_keys = {"sigma_imp", "sigma_dc", "vhf_imp", "vhf_dc"}
-        missing = required_keys - local_selfenergies.keys()
+def downfold_1e(mf, params):
+    embed_cxx.downfold_1e(mf, json.dumps(params))
+
+
+def downfold_2e(h_int, params, *, local_polarizabilities = None):
+    if local_polarizabilities is not None:
+        required_keys = {"imp", "dc"}
+        missing = required_keys - local_polarizabilities.keys()
         if missing:
             raise ValueError(f"Missing keys: {missing}")
     else:
-        local_selfenergies = None
+        local_polarizabilities = None
 
-    if projector_info is not None:
-        proj_mat = projector_info.get("proj_mat")
-        band_window = projector_info.get("band_window")
-        kpts_w90 = projector_info.get("kpts_w90")
-        embed_cxx.downfold_1e(mf, json.dumps(params),
-                              proj_mat, band_window, kpts_w90,
-                              local_selfenergies = local_selfenergies)
-    else:
-        embed_cxx.downfold_1e(mf, json.dumps(params),
-                              local_selfenergies = local_selfenergies)
-
-
-def downfold_2e(h_int, params,
-                *, projector_info = None, pi_imp_and_dc = None):
-    if pi_imp_and_dc is None:
-        pi_imp, pi_dc = None, None
-    else:
-        pi_imp = pi_imp_and_dc.get("pi_imp", None)
-        pi_dc = pi_imp_and_dc.get("pi_dc", None)
-
-    if projector_info is not None:
-        proj_mat = projector_info.get("proj_mat")
-        band_window = projector_info.get("band_window")
-        kpts_w90 = projector_info.get("kpts_w90")
-        embed_cxx.downfold_2e(h_int, json.dumps(params),
-                              proj_mat, band_window, kpts_w90,
-                              pi_imp_opt=pi_imp, pi_dc_opt=pi_dc)
-    else:
-        embed_cxx.downfold_2e(h_int, json.dumps(params),
-                              pi_imp_opt=pi_imp, pi_dc_opt=pi_dc)
+    embed_cxx.downfold_2e(h_int, json.dumps(params),
+                          local_polarizabilities=local_polarizabilities)
 
 
 def dmft_embed(mf, params, *, projector_info,

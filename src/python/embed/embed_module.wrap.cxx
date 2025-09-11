@@ -71,78 +71,30 @@ static auto const fun_0 = c2py::dispatcher_f_kw_t{
         "mf", "embed_params")};
 
 // downfold_1e
-static auto const fun_1 = c2py::dispatcher_f_kw_t{
-    c2py::cfun(
-        [](const coqui_py::Mf &mf, const std::string &df_params,
-           const nda::array<ComplexType, 5> &C_ksIai,
-           const nda::array<long, 3> &band_window,
-           const nda::array<double, 2> &kpts_crys,
-           std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
-               local_selfenergies,
-           std::optional<std::map<std::string, nda::array<ComplexType, 4>>>
-               local_hf_potentials) {
-          return coqui_py::downfold_1e(mf, df_params, C_ksIai, band_window,
-                                       kpts_crys, local_selfenergies,
-                                       local_hf_potentials);
-        },
-        "mf", "df_params", "C_ksIai", "band_window", "kpts_crys",
-        "local_selfenergies", "local_hf_potentials"),
-    c2py::cfun(
-        [](const coqui_py::Mf &mf, const std::string &df_params,
-           std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
-               local_selfenergies,
-           std::optional<std::map<std::string, nda::array<ComplexType, 4>>>
-               local_hf_potentials) {
-          return coqui_py::downfold_1e(mf, df_params, local_selfenergies,
-                                       local_hf_potentials);
-        },
-        "mf", "df_params", "local_selfenergies", "local_hf_potentials")};
+static auto const fun_1 = c2py::dispatcher_f_kw_t{c2py::cfun(
+    [](const coqui_py::Mf &mf, const std::string &df_params) {
+      return coqui_py::downfold_1e(mf, df_params);
+    },
+    "mf", "df_params")};
 
 // downfold_2e
-static auto const fun_2 = c2py::dispatcher_f_kw_t{
-    c2py::cfun(
-        [](coqui_py::ThcCoulomb &eri, const std::string &df_params,
-           const nda::array<ComplexType, 5> &C_ksIai,
-           const nda::array<long, 3> &band_window,
-           const nda::array<double, 2> &kpts_crys,
-           std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
-               local_polarizabilities) {
-          return coqui_py::downfold_2e(eri, df_params, C_ksIai, band_window,
-                                       kpts_crys, local_polarizabilities);
-        },
-        "eri", "df_params", "C_ksIai", "band_window", "kpts_crys",
-        "local_polarizabilities"),
-    c2py::cfun(
-        [](coqui_py::ThcCoulomb &eri, const std::string &df_params,
-           std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
-               local_polarizabilities) {
-          return coqui_py::downfold_2e(eri, df_params, local_polarizabilities);
-        },
-        "eri", "df_params", "local_polarizabilities")};
+static auto const fun_2 = c2py::dispatcher_f_kw_t{c2py::cfun(
+    [](coqui_py::ThcCoulomb &eri, const std::string &df_params,
+       std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
+           local_polarizabilities) {
+      return coqui_py::downfold_2e(eri, df_params, local_polarizabilities);
+    },
+    "eri", "df_params", "local_polarizabilities")};
 
 // downfold_2e_return_vw
-static auto const fun_3 = c2py::dispatcher_f_kw_t{
-    c2py::cfun(
-        [](coqui_py::ThcCoulomb &eri, const std::string &df_params,
-           const nda::array<ComplexType, 5> &C_ksIai,
-           const nda::array<long, 3> &band_window,
-           const nda::array<double, 2> &kpts_crys,
-           std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
-               local_polarizabilities) {
-          return coqui_py::downfold_2e_return_vw(eri, df_params, C_ksIai,
-                                                 band_window, kpts_crys,
-                                                 local_polarizabilities);
-        },
-        "eri", "df_params", "C_ksIai", "band_window", "kpts_crys",
-        "local_polarizabilities"),
-    c2py::cfun(
-        [](coqui_py::ThcCoulomb &eri, const std::string &df_params,
-           std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
-               local_polarizabilities) {
-          return coqui_py::downfold_2e_return_vw(eri, df_params,
-                                                 local_polarizabilities);
-        },
-        "eri", "df_params", "local_polarizabilities")};
+static auto const fun_3 = c2py::dispatcher_f_kw_t{c2py::cfun(
+    [](coqui_py::ThcCoulomb &eri, const std::string &df_params,
+       std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
+           local_polarizabilities) {
+      return coqui_py::downfold_2e_return_vw(eri, df_params,
+                                             local_polarizabilities);
+    },
+    "eri", "df_params", "local_polarizabilities")};
 
 // downfold_gloc
 static auto const fun_4 = c2py::dispatcher_f_kw_t{

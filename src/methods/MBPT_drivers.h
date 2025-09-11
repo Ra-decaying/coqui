@@ -76,16 +76,7 @@ auto downfold_gloc(std::shared_ptr<mf::MF> mf, ptree const& pt,
  * This is currently used in the GW+EDMFT calculations in the toml input mode.
  * Note: This functions is doing too many things at once, it will be refactored in the future.
  */
-void downfolding_1e(std::shared_ptr<mf::MF> mf, ptree const& pt,
-                    std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_selfenergies=std::nullopt,
-                    std::optional<std::map<std::string, nda::array<ComplexType, 4> > > local_hf_potentials=std::nullopt);
-
-void downfolding_1e(std::shared_ptr<mf::MF> mf, ptree const& pt,
-                    nda::array<ComplexType, 5> const& C_ksIai,
-                    nda::array<long, 3> const& band_window,
-                    nda::array<RealType, 2> const& kpts_crys,
-                    std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_selfenergies=std::nullopt,
-                    std::optional<std::map<std::string, nda::array<ComplexType, 4> > > local_hf_potentials=std::nullopt);
+void downfolding_1e(std::shared_ptr<mf::MF> mf, ptree const& pt);
 
 /**
  * @brief Downfolding of the local Coulomb interactions
@@ -118,16 +109,6 @@ template<bool return_vw=false, typename eri_t>
 std::conditional_t<return_vw, std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5>>, void>
 downfolding_2e(eri_t &eri, ptree const& pt,
                std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_polarizabilities=std::nullopt);
-
-template<bool return_vw=false, typename eri_t>
-std::conditional_t<return_vw, std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5>>, void>
-downfolding_2e(eri_t &eri, ptree const& pt,
-               nda::array<ComplexType, 5> const& C_ksIai,
-               nda::array<long, 3> const& band_window,
-               nda::array<RealType, 2> const& kpts_crys,
-               std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_polarizabilities=std::nullopt);
-
-
 
 template<typename eri_t>
 void hf_downfold(eri_t &eri, ptree const& pt);
