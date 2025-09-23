@@ -320,10 +320,12 @@ namespace methods {
 
     // sanity checks
     std::unordered_set<std::string> valid_screen_types = {
-      "gw_edmft", "gw_edmft_rpa", "gw_edmft_rpa_density", "gw_edmft_density",};
+        "gw_edmft", "gw_edmft_density",
+        "gw_edmft_rpa", "gw_edmft_rpa_density",
+        "gw_edmft_zero_pi_imp", "gw_edmft_zero_pi_imp_density"
+    };
     utils::check(valid_screen_types.count(screen_type),
-               "embed_2e_t::downfolding: invalid screen_type: {}. "
-               "Acceptable options are \"gw_edmft\", \"gw_edmft_rpa\", \"gw_edmft_density\".",
+               "embed_2e_t::downfolding: invalid screen_type: {}. ",
                screen_type);
     utils::check(_context == eri.mpi() and _context == mb_state.mpi,
                  "embed_2e_t::downfolding_edmft: eri.mpi() and mb_state.mpi() must be the same as _context.");
@@ -685,6 +687,11 @@ namespace methods {
     if (!mb_state.sG_tskij)
       mb_state.sG_tskij.emplace(read_greens_function(*mpi, _MF, filename, g_iter, g_grp));
     auto& sG_tskij = mb_state.sG_tskij.value();
+    auto G_tsIab = (permut_symm=="8-fold")?
+                   proj_boson.proj_fermi().downfold_loc<true>(sG_tskij, "Gloc for DC polarizability") :
+                   proj_boson.proj_fermi().downfold_loc<false>(sG_tskij, "Gloc for DC polarizability");
+
+    bool density_only = (screen_type.find("density")==std::string::npos)? false : true;
 
     bool pi_local_given = (!mb_state.sPi_imp_wabcd or !mb_state.sPi_dc_wabcd)?
         mb_state.read_local_polarizabilities(weiss_b_iter) : true;
@@ -696,6 +703,22 @@ namespace methods {
       ft.w_to_tau_PHsym(sPi_imp_wabcd.local(), X_tabcd);
       ft.check_leakage_PHsym(X_tabcd, imag_axes_ft::boson,
                            std::addressof(mpi->comm), "impurity polarizability");
+
+      if (screen_type.find("zero_pi_imp")!=std::string::npos) {
+        app_log(2, "Ignoring the input impurity polarizability since scree_type = {}\n", screen_type);
+        mb_state.sPi_imp_wabcd.value().set_zero();
+      }
+    } else if (screen_type.find("zero_pi_imp")!=std::string::npos) {
+      app_log(2, "Screen_type = {}", screen_type);
+      app_log(2, "-> Initializing impurity polarizability to zero and dc polarizability to RPA.\n");
+      mb_state.sPi_dc_wabcd.emplace(eval_Pi_rpa_dc<true>(*mpi, G_tsIab, ft, density_only));
+      mb_state.sPi_imp_wabcd.emplace(
+          make_shared_array<nda::array_view<ComplexType, 5>>(
+              *mpi, mb_state.sPi_dc_wabcd.value().shape()
+          )
+      );
+      mb_state.sPi_imp_wabcd.value().set_zero();
+      pi_local_given = true;
     }
     mpi->comm.barrier();
     _Timer.stop("DF_READ");
@@ -706,7 +729,6 @@ namespace methods {
         local_eri_impl<true>(mb_state, eri, ft, screen_type);
 
     // prune Vloc and Wloc if density-density approximations are applied
-    bool density_only = (screen_type.find("density")==std::string::npos)? false : true;
     if (density_only) {
       if (mpi->node_comm.root()) {
         nda::array<ComplexType, 4> V_tmp(V_abcd.shape());
@@ -733,16 +755,15 @@ namespace methods {
       mpi->node_comm.broadcast_n(W_wabcd.data(), W_wabcd.size(), 0);
     }
 
-    auto G_tsIab = (permut_symm=="8-fold")?
-                 proj_boson.proj_fermi().downfold_loc<true>(sG_tskij, "Gloc for EDMFT polarizability") :
-                 proj_boson.proj_fermi().downfold_loc<false>(sG_tskij, "Gloc for EDMFT polarizability");
-
-    // TODO Option to not evaluate the Weiss field U_wabcd and Pi_dc_wabcd
     nda::array<ComplexType, 5> U_wabcd(W_wabcd.shape());
     if (screen_type.find("gw_edmft_rpa")!=std::string::npos or not pi_local_given) {
 
       auto sU_wabcd = u_bosonic_weiss_rpa(G_tsIab, W_wabcd, V_abcd, ft, density_only);
       U_wabcd() = sU_wabcd.local();
+
+    } else if (screen_type.find("zerp_pi_imp")!=std::string::npos) {
+
+      U_wabcd() = W_wabcd;
 
     } else {
 
@@ -758,7 +779,6 @@ namespace methods {
 
     }
 
-    // TODO Option to not evaluate Pi_DC since it will be evaluated outside downfold_2e
     app_log(1, "\nEvaluating double counting polarizability with\n"
              "  - Gloc from {}/iter{}\n"
              "  - density-density only: {}\n",
@@ -772,7 +792,6 @@ namespace methods {
                    "Error in downfold_2e: shape of Pi_dc given in MBState is different from the newly evaluated one.");
       sPi_dc_wabcd_new.win().fence();
       if (mpi->node_comm.root()) {
-        //auto& sPi_imp_wabcd = mb_state.sPi_dc_wabcd.value();
         auto Pi_dc = mb_state.sPi_dc_wabcd.value().local();
         auto Pi_dc_new = sPi_dc_wabcd_new.local();
         Pi_dc_new *= dc_pi_mixing;

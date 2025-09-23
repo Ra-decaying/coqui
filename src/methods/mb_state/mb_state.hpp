@@ -78,6 +78,7 @@ public:
 
   ~MBState(){}
 
+  void set_zero_local_polarizabilities();
   bool read_local_polarizabilities(long weiss_b_iter=-1);
   void set_local_polarizabilities(std::map<std::string, nda::array<ComplexType, 5>> local_polarizabilities);
   void set_local_hf_potentials(std::map<std::string, nda::array<ComplexType, 4>> local_hf_potentials);

@@ -36,11 +36,14 @@ namespace solvers {
     _ft(ft), _screen_type(screen_type),
     _div_treatment(div), _Timer() {
 
-    const std::unordered_set<std::string> valid_pi_scheme = {"rpa", "rpa_r", "rpa_k",
-                                                             "crpa", "crpa_ks", "crpa_vasp",
-                                                             "gw_edmft", "gw_edmft_rpa",
-                                                             "gw_edmft_density", "gw_edmft_rpa_density",
-                                                             "crpa_edmft", "crpa_edmft_density"};
+    const std::unordered_set<std::string> valid_pi_scheme = {
+        "rpa", "rpa_r", "rpa_k",
+        "crpa", "crpa_ks", "crpa_vasp",
+        "gw_edmft", "gw_edmft_density",
+        "gw_edmft_rpa", "gw_edmft_rpa_density",
+        "gw_edmft_zero_pi_imp", "gw_edmft_zero_pi_imp_density",
+        "crpa_edmft", "crpa_edmft_density"
+    };
     utils::check(valid_pi_scheme.find(_screen_type)!=valid_pi_scheme.end(),
                  "scr_coulomb_t: unknown type of polarizability.");
 

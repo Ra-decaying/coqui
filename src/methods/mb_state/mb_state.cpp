@@ -54,20 +54,25 @@ namespace methods {
       }
   }
 
-  bool MBState::read_local_polarizabilities(long weiss_b_iter) {
+  void MBState::set_zero_local_polarizabilities() {
     using math::shm::make_shared_array;
 
     utils::check(proj_boson.has_value(),
                  "MBState::read_local_polarizabilities: proj_boson is not initialized.");
 
-    // 1) if the pi_imp and pi_dc are not set, we read them from chkpt file
-    // 2) if the file does not contain them, we set them to std::nullopt
     long nw = ft->nw_b();
     long nw_half = (nw%2==0)? nw/2 : nw/2+1;
     long nImpOrbs = proj_boson.value().nImpOrbs();
     sPi_imp_wabcd.emplace(make_shared_array<nda::array_view<ComplexType, 5>>(*mpi, {nw_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs}));
     sPi_dc_wabcd.emplace(make_shared_array<nda::array_view<ComplexType, 5>>(*mpi, {nw_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs}));
+  }
 
+  bool MBState::read_local_polarizabilities(long weiss_b_iter) {
+
+    set_zero_local_polarizabilities();
+
+    // 1) Read pi_imp and pi_dc from chkpt file
+    // 2) if the file does not contain them, we set them to std::nullopt
     bool pi_local_found = chkpt::read_pi_local(sPi_imp_wabcd.value(), sPi_dc_wabcd.value(), coqui_prefix+".mbpt.h5", weiss_b_iter);
 
     if (!pi_local_found) {
@@ -79,16 +84,9 @@ namespace methods {
   }
 
   void MBState::set_local_polarizabilities(std::map<std::string, nda::array<ComplexType, 5>> local_polarizabilities) {
-    using math::shm::make_shared_array;
 
-    utils::check(proj_boson.has_value(),
-                 "MBState::set_local_polarizabilities: proj_boson is not initialized.");
+    set_zero_local_polarizabilities();
 
-    long nw = ft->nw_b();
-    long nw_half = (nw%2==0)? nw/2 : nw/2+1;
-    long nImpOrbs = proj_boson.value().nImpOrbs();
-    sPi_imp_wabcd.emplace(make_shared_array<nda::array_view<ComplexType, 5>>(*mpi, {nw_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs}));
-    sPi_dc_wabcd.emplace(make_shared_array<nda::array_view<ComplexType, 5>>(*mpi, {nw_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs}));
     if (mpi->node_comm.root()) {
       auto Pi_imp = sPi_imp_wabcd.value().local();
       auto Pi_dc = sPi_dc_wabcd.value().local();
