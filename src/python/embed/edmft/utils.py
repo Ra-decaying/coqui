@@ -62,6 +62,14 @@ def make_h5_sumk_format(mlwf_h5, orb_list=None):
             proj_mat = dft_inp["proj_mat"]
             dft_inp["proj_mat"] = proj_mat[:, :, :, orb_list]
 
+            shell = dft_inp["corr_shells"]
+            shell[0]["dim"] = len(orb_list)
+            dft_inp["corr_shells"] = shell
+
+            shell = dft_inp["shells"]
+            shell[0]["dim"] = len(orb_list)
+            dft_inp["shells"] = shell
+
         # dummy values that are unused but required by SumkDFT
         kpts_w90 = dft_inp['kpts']
         dft_inp["n_k"] = kpts_w90.shape[0]
@@ -157,15 +165,46 @@ def h0_operator(h0_sab, gf_struct, *, diagonal=True, force_real=True):
     return H0
 
 
-def u_weiss_full_to_density_density(U_wabcd):
-    nw, nbnd = U_wabcd.shape[:2]
-    u_wab = np.zeros((nw, nbnd, nbnd), dtype=U_wabcd.dtype)
-    for a in range(nbnd):
-        for b in range(nbnd):
-            u_wab[:, a, b] = U_wabcd[:, a, a, b, b]
+def product_basis_to_density_density(A_abcd):
+    if A_abcd.ndim < 4:
+        raise ValueError("A must have at least 4 dimensions.")
+    n1, n2, n3, n4 = A_abcd.shape[-4:]
+    if not (n1 == n2 == n3 == n4):
+        raise ValueError("The last four axes must have equal length (nbnd).")
 
-    return u_wab        
-    
+    lead_shape = A_abcd.shape[:-4]
+    out_shape = lead_shape + (n1, n1)
+    A_ab = np.zeros(out_shape, dtype=A_abcd.dtype)
+
+    for a, b in itertools.product(range(n1), repeat=2):
+        if lead_shape:  # with leading dims, e.g. (nw, norb, norb, norb, norb)
+            A_ab[..., a, b] = A_abcd[..., a, a, b, b]
+        else:           # no leading dims, just (norb, norb, norb, norb)
+            A_ab[a, b] = A_abcd[a, a, b, b]
+
+    return A_ab
+
+
+def density_density_to_product_basis(A_ab):
+    if A_ab.ndim < 2:
+        raise ValueError("A_ab must have at least 2 dimensions (..., norb, norb).")
+
+    n1, n2 = A_ab.shape[-2:]
+    if n1 != n2:
+        raise ValueError("Last two dimensions of A_ab must be equal (norb, norb).")
+
+    lead_shape = A_ab.shape[:-2]
+    out_shape = lead_shape + (n1, n1, n1, n1)
+    A_abcd = np.zeros(out_shape, dtype=A_ab.dtype)
+
+    # Iterate over orbital indices
+    for a, b in itertools.product(range(n1), repeat=2):
+        if lead_shape:  # with leading dims, e.g. (nw, norb, norb)
+            A_abcd[..., a, a, b, b] = A_ab[..., a, b]
+        else:           # no leading dims, just (norb, norb)
+            A_abcd[a, a, b, b] = A_ab[a, b]
+
+    return A_abcd
 
 
 def to_block_gf(giw_ir, ir_kernel, gf_struct, mesh_iw):
@@ -330,7 +369,7 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
     
     # two-particle
     u_weiss_iw = to_block2_gf(
-        u_weiss_full_to_density_density(u_weiss_iw), 
+        product_basis_to_density_density(u_weiss_iw),
         ir_kernel, gf_struct, triqs_iw_mesh["boson"]
     )
     h_int = h_int_density_density(
@@ -492,12 +531,18 @@ def compute_weiss_fields_w(*, ir_kernel, local_gf, impurity_selfenergies=None, d
         Pi_imp_w = impurity_selfenergies["Pi_imp_w"]
     else:
         mpi.report("Evaluate the bosonic Weiss field at the RPA level.")
-        Pi_imp_w = eval_pi_rpa(local_gf["Gloc_t"], density_only=density_only, w_out=True, ft=ir_kernel)
+        Pi_imp_w = ir_kernel.tau_to_w_phsym(eval_pi_rpa(local_gf["Gloc_t"], density_only=density_only), stats='b')
+
+    # check if Pi_imp_w contains only density-density
+    if len(Pi_imp_w.shape) == 3:
+        Pi_imp_w_pb = density_density_to_product_basis(Pi_imp_w)
+    else:
+        Pi_imp_w_pb = Pi_imp_w
         
     u_weiss_w = compute_weiss_boson_w(
         local_gf["Vloc"],
         ir_kernel.tau_to_w_phsym(local_gf["Wloc_t"], stats='b'),
-        Pi_imp_w
+        Pi_imp_w_pb
     )
     # fermionic 
     if impurity_selfenergies["Vhf_imp"] is not None and impurity_selfenergies["Sigma_imp_w"] is not None:
@@ -551,12 +596,12 @@ def compute_weiss_boson_w(V_abcd, W_wabcd, Pi_wabcd):
     return U_pb.reshape(W_wabcd.shape) - V_abcd
 
 
-def eval_pi_rpa(G_tsab, density_only=False, *, w_out=False, ft=None):
+def eval_pi_rpa(G_tsab, *, density_only=False):
     nts, nspin, nbnd = G_tsab.shape[:3]
     nts_half = nts//2 if nts%2==0 else nts//2 + 1
-    pi_t = np.zeros((nts_half, nbnd, nbnd, nbnd, nbnd), dtype=complex)
     spin_factor = -2.0 if nspin == 1 else -1.0
     if not density_only:
+        pi_t = np.zeros((nts_half, nbnd, nbnd, nbnd, nbnd), dtype=complex)
         for t in range(nts_half):
             mt = nts-t-1
             pi_t[t] += spin_factor * np.einsum(
@@ -564,14 +609,13 @@ def eval_pi_rpa(G_tsab, density_only=False, *, w_out=False, ft=None):
                 G_tsab[t], G_tsab[mt]
             )
     else:
+        pi_t = np.zeros((nts_half, nbnd, nbnd), dtype=complex)
         for t in range(nts_half):
             mt = nts-t-1
             for s in range(nspin):
-                for a in range(nbnd):
-                    for b in range(nbnd):
-                        pi_t[t, a, a, b, b] += spin_factor * G_tsab[t, s, a, b] * G_tsab[mt, s, b, a]
-
-    return ft.tau_to_w_phsym(pi_t, stats='b') if w_out else pi_t
+                for a, b in itertools.product(range(nbnd), repeat=2):
+                    pi_t[t, a, b] += spin_factor * G_tsab[t, s, a, b] * G_tsab[mt, s, b, a]
+    return pi_t
 
 
 def eval_hf_dc(Dm_sab, V_abcd, U0_abcd):
@@ -624,20 +668,65 @@ def eval_gw_dc_t(G_tsab, W_tabcd):
     return sigma_tsab
 
 
-def solve_gw_dc(G_t, V, W_t, u_weiss_iw, ir_kernel, density_only=True):
-
-    Pi_dc_t = eval_pi_rpa(G_t, density_only=True)
-
-    Dm = -ir_kernel.tau_interpolate(G_t, [ir_kernel.beta], stats='f')[0]
-    Vhf_dc = eval_hf_dc(Dm, V, u_weiss_iw[0]+V)
+def solve_gw_dc(G_t, V, W_t, u_weiss_iw, ir_kernel, density_only=True,
+                *, gf_struct=None):
+    dm = -ir_kernel.tau_interpolate(G_t, [ir_kernel.beta], stats='f')[0]
+    vhf_dc = eval_hf_dc(dm, V, u_weiss_iw[0]+V)
     
-    Sigma_dc_t = eval_gw_dc_t(G_t, W_t)
+    sigma_dc_iw = ir_kernel.tau_to_w(eval_gw_dc_t(G_t, W_t), stats='f')
+
+    # (niw, norb, norb) if density_only else (niw, norb, norb, norb, norb)
+    pi_dc_iw = ir_kernel.tau_to_w_phsym(eval_pi_rpa(G_t, density_only=density_only), stats='b')
+
+    if gf_struct is not None:
+        # convert to block matrix format
+        vhf_dc = arr_to_blk_arr(vhf_dc, gf_struct)
+        sigma_dc_iw = arr_to_blk_arr(sigma_dc_iw, gf_struct)
+        pi_dc_iw = [pi_dc_iw]
 
     return {
-        "Pi_dc_iw_mat": ir_kernel.tau_to_w_phsym(Pi_dc_t, stats='b'), 
-        "Vhf_dc_mat": Vhf_dc, 
-        "Sigma_dc_iw_mat": ir_kernel.tau_to_w(Sigma_dc_t, stats='f')
+        "Vhf_dc_data": vhf_dc,
+        "Sigma_dynamic_dc_data": sigma_dc_iw,
+        "Pi_dc_data": pi_dc_iw
     }
+
+
+def imp_results_to_raw_data(sigma_dynamic, pi_iw, ir_kernel=None):
+    """
+    """
+    # solver_res.Sigma_dynamic (TRIQS BlockGf) -> solver_res.Sigma_dynamic_data (block array)
+    sigma_dynamic_data = blk_gf_to_blk_arr(sigma_dynamic)
+
+    # solver_res.Pi_iw (TRIQS Gf) -> solver_res.Pi_iw_data (block array)
+    pi_iw_data = [pi_iw.data[:]]
+
+    if ir_kernel is not None:
+        # converter Sigma and Pi to IR Matsubara mesh
+        ir_idx_f = ir_kernel.wn_mesh(stats='f', ir_notation=False)
+        nw_f = len(ir_idx_f)
+        nw_f_half = nw_f // 2
+        Sigma_dyn_blk_ir = []
+        for sigma_dyn in sigma_dynamic_data:
+            sigma_dyn_ir = np.zeros((nw_f,) + sigma_dyn.shape[1:], dtype=complex)
+            for idx in range(nw_f_half):
+                iw_pos = nw_f_half + idx
+                iw_neg = nw_f_half - idx - 1
+                data_idx = sigma_dynamic.mesh.to_data_index(ir_idx_f[iw_pos])
+                sigma_dyn_ir[iw_pos] = sigma_dyn[data_idx]
+                sigma_dyn_ir[iw_neg] = sigma_dyn[data_idx].conj()
+            Sigma_dyn_blk_ir.append(sigma_dyn_ir)
+        sigma_dynamic_data = Sigma_dyn_blk_ir
+
+        # interpolate solver_res.Pi_iw to ir grid
+        ir_idx_b = ir_kernel.wn_mesh(stats='b', ir_notation=False)
+        nw_b_half = len(ir_idx_b)//2
+        pi_iw_ir = np.zeros((nw_b_half+1,) + pi_iw.data[:].shape[1:], dtype=complex)
+        for idx in range(nw_b_half+1):
+            data_idx = pi_iw.mesh.to_data_index(ir_idx_b[nw_b_half+idx])
+            pi_iw_ir[idx] = pi_iw_data[0][data_idx]
+        pi_iw_data[0] = pi_iw_ir
+
+    return {"Sigma_dynamic_data": sigma_dynamic_data, "Pi_iw_data": pi_iw_data}
 
 
 def impurity_results_to_coqui(solver_res):
@@ -670,7 +759,7 @@ def impurity_results_to_coqui(solver_res):
     
     """
     # convert solver_res.Sigma_Hartree from the blk structure to a numpy array
-    solver_res.Vhf_imp_mat = block_mat_to_mat(solver_res.Sigma_Hartree, solver_res.gf_struct)
+    solver_res.Vhf_imp_mat = blk_arr_to_arr(solver_res.Sigma_Hartree, solver_res.gf_struct)
     n_orb = solver_res.Vhf_imp_mat.shape[-1]
     
     # interpolate solver_res.Sigma_dynamic to ir grid and convert from blk structure to numpy array
@@ -711,6 +800,15 @@ def block_gf_to_gf(block_gf, gf_struct):
         offsets[s] += dim
     
     return gf_sab
+
+
+def blk_gf_to_blk_arr(block_gf):
+
+    blk_array = []
+    for blk_name, gf in block_gf:
+        blk_array.append(gf.data[:])
+
+    return blk_array
 
 
 def blk_arr_to_arr(blk_array, gf_struct):
@@ -906,3 +1004,19 @@ def print_title_box(name, box_width=19):
     mpi.report(bottom_border+"\n")
 
 
+def compute_rot_matrix(embedding, A_ij):
+    """
+    Compute the rotation matrix U for degenerate blocks of A_ij.
+
+    The degeneracy is provided by the embedding object,
+    and the rotation is computed by diagonalizing blocks of A_ij
+
+    :param embedding:
+    :param A_ij:
+    :return:
+    """
+
+    n_orb = A_ij.shape[0]
+    U = np.eye(n_orb, dtype=float)
+
+    return U

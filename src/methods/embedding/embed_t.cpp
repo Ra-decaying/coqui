@@ -152,10 +152,10 @@ namespace methods {
     bool sigma_local_given = false;
     if (!mb_state.Sigma_imp_wsIab or !mb_state.Sigma_dc_wsIab) {
       // Read local self-energy corrections from the checkpoint file if they are not set in MBState.
-      app_log(2, "MBState does not contain local self-energy corrections\n"
+      app_log(1, "MBState does not contain local self-energy corrections\n"
                  "-> trying to read them from the checkpoint file {} in", filename);
-      app_log(2, "  - HDF5 group:           downfold_1e");
-      app_log(2, "  - Iteration:            {}\n", weiss_f_iter);
+      app_log(1, "  - HDF5 group:           downfold_1e");
+      app_log(1, "  - Iteration:            {}\n", weiss_f_iter);
 
       long nw = ft.nw_f();
       mb_state.Sigma_imp_wsIab.emplace(nda::array<ComplexType, 5>(nw, _MF->nspin(), nImps, nImpOrbs, nImpOrbs));
@@ -178,9 +178,9 @@ namespace methods {
       _context->comm.broadcast_n(mb_state.Vhf_imp_sIab.value().data(), mb_state.Vhf_imp_sIab.value().size(), 0);
       _context->comm.broadcast_n(mb_state.Vhf_dc_sIab.value().data(), mb_state.Vhf_dc_sIab.value().size(), 0);
       if (sigma_local_given)
-        app_log(2, "Found local self-energy corrections in the checkpoint file {}", filename);
+        app_log(1, "Found local self-energy corrections in the checkpoint file {}", filename);
     } else {
-      app_log(2, "Found local self-energy corrections already set in MBState.");
+      app_log(1, "Found local self-energy corrections already set in MBState.");
       sigma_local_given = true;
     }
     _Timer.stop("EMBED_READ");
@@ -221,16 +221,16 @@ namespace methods {
     auto [e_1e, e_hf] = eval_hf_energy(sDm_skij, sVhf_skij, dyson.sH0_skij(), k_weight, false);
     auto e_corr = eval_corr_energy(_context->comm, ft, sG_tskij, sSigma_tskij, k_weight);
     double e_tot_new = e_1e + e_hf + e_corr;
-    app_log(2, "\nEnergy contributions");
-    app_log(2, "----------------------");
-    app_log(2, "  non-interacting (H0):        {} a.u.", e_1e);
-    app_log(2, "  Hartree-Fock:                {} a.u.", e_hf);
-    app_log(2, "  correlation:                 {} a.u.", e_corr);
-    app_log(2, "  total energy:                {} a.u.\n", e_tot_new);
+    app_log(1, "\nEnergy contributions");
+    app_log(1, "----------------------");
+    app_log(1, "  non-interacting (H0):        {} a.u.", e_1e);
+    app_log(1, "  Hartree-Fock:                {} a.u.", e_hf);
+    app_log(1, "  correlation:                 {} a.u.", e_corr);
+    app_log(1, "  total energy:                {} a.u.\n", e_tot_new);
     
     if (embed_iter == -1 or embed_iter >= 1) {
-      app_log(2, "abs max diff of Fock matrix:   {}", Vhf_conv);
-      app_log(2, "abs max diff of self-energy:   {}\n", Sigma_conv);
+      app_log(1, "abs max diff of Fock matrix:   {}", Vhf_conv);
+      app_log(1, "abs max diff of self-energy:   {}\n", Sigma_conv);
     }
 
     _Timer.start("EMBED_WRITE");

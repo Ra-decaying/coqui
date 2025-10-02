@@ -20,12 +20,8 @@ limitations under the License.
 
 import sys
 import numpy as np
-try:
-    from h5 import HDFArchive
-except ImportError:
-    raise ImportError("Fails to import triqs/h5! \n"
-                      "The utility functions in the spectral module requires the C++ HDF5 from triqs/h5 \n"
-                      "(https://github.com/TRIQS/h5). Please ensure that it is installed. ")
+from h5 import HDFArchive
+
 try:
     from triqs.gf import *
 except ImportError:
