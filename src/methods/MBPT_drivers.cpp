@@ -152,6 +152,18 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
                std::addressof(iter_solver), niter, restart, conv_thr, const_mu,
                input_grp, input_iter);
 
+      auto dump_w_to_h5 = io::get_value_with_default<bool>(pt,"dump_w_to_h5", false);
+      if (dump_w_to_h5) {
+        auto& W_qtPQ = mb_state.dW_qtPQ.value();
+        if (mb_state.mpi->comm.root()) {
+          h5::file file("thc_screened_interaction.h5", 'w');
+          h5::group grp(file);
+          math::nda::h5_write(grp, "W_qtPQ", W_qtPQ);
+        } else {
+          h5::group grp;
+          math::nda::h5_write(grp, "W_qtPQ", W_qtPQ);
+        }
+      }
     } else {
 
       MBState mb_state(mpi, ft, output);
@@ -159,6 +171,18 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
                std::addressof(iter_solver), niter, restart, conv_thr, const_mu,
                input_grp, input_iter);
 
+      auto dump_w_to_h5 = io::get_value_with_default<bool>(pt,"dump_w_to_h5", false);
+      if (dump_w_to_h5) {
+        auto& W_qtPQ = mb_state.dW_qtPQ.value();
+        if (mb_state.mpi->comm.root()) {
+          h5::file file("thc_screened_interaction.h5", 'w');
+          h5::group grp(file);
+          math::nda::h5_write(grp, "W_qtPQ", W_qtPQ);
+        } else {
+          h5::group grp;
+          math::nda::h5_write(grp, "W_qtPQ", W_qtPQ);
+        }
+      }
     }
 
   } else if(solver_type == "gf2") {
