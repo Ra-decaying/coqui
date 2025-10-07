@@ -884,6 +884,8 @@ namespace methods {
 
     utils::check(screen_type.substr(0,4)=="crpa", "downfold_crpa_impl: invalid screen_type = {}.", screen_type);
 
+    bool density_only = (screen_type.find("density")==std::string::npos)? false : true;
+
     ft.metadata_log();
     std::string filename = mb_state.coqui_prefix + ".mbpt.h5";
     auto [gw_iter, weiss_f_iter, weiss_b_iter, embed_iter] = chkpt::read_input_iterations(filename);
@@ -967,9 +969,18 @@ namespace methods {
                crpa_eps_inv_head_wq, crpa_eps_inv_head_w, crpa_pi_head_wq)
           = rpa_q_eri_impl<true>(mb_state, eri, ft, screen_type);
     }
-    auto Gloc = (permut_symm=="8-fold")?
+    auto G_tsIab = (permut_symm=="8-fold")?
                 proj_boson.proj_fermi().downfold_loc<true>(sG_tskij, "Gloc") :
                 proj_boson.proj_fermi().downfold_loc<false>(sG_tskij, "Gloc");
+
+    app_log(1, "\nEvaluating double counting polarizability with\n"
+               "  - Gloc from {}/iter{}\n"
+               "  - density-density only: {}\n",
+            g_grp, g_iter, density_only);
+    auto sPi_dc_wabcd_new = eval_Pi_rpa_dc<true>(*mpi, G_tsIab, ft, density_only);
+    mpi->comm.barrier();
+
+
     _Timer.stop("DF_DOWNFOLD");
 
     // enforce permutation symmetries
@@ -1020,7 +1031,7 @@ namespace methods {
 
       h5::h5_write(downfold_grp, "final_iter", (long)weiss_b_iter_);
       nda::h5_write(downfold_grp, "C_skIai", proj_boson.C_skIai(), false);
-      nda::h5_write(iter_grp, "Gloc_tsIab", Gloc, false);
+      nda::h5_write(iter_grp, "Gloc_tsIab", G_tsIab, false);
       h5::h5_write(iter_grp, "input_green_grp", g_grp);
       h5::h5_write(iter_grp, "input_green_iter", g_iter);
 
@@ -1033,6 +1044,7 @@ namespace methods {
       nda::h5_write(iter_grp, "Uloc_wabcd", U_wabcd, false);
       h5::h5_write(iter_grp, "Uloc_type", screen_type);
       h5::h5_write(iter_grp, "permut_symm", permut_symm);
+      nda::h5_write(iter_grp, "Pi_dc_wabcd", sPi_dc_wabcd_new.local(), false); // optional
       nda::h5_write(iter_grp, "eps_inv_head_wq", eps_inv_head_wq, false);
       nda::h5_write(iter_grp, "eps_inv_head_w", eps_inv_head_w, false);
       nda::h5_write(iter_grp, "pi_head_wq", pi_head_wq, false);
