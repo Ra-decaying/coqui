@@ -26,15 +26,16 @@
 #include "methods/embedding/embed_t.h"
 
 namespace methods {
-  void embed_t::dmft_embed(MBState &mb_state, iter_scf::iter_scf_t *iter_solver,
+  void embed_t::dmft_embed(MBState &mb_state, simple_dyson &dyson,
+                           iter_scf::iter_scf_t *iter_solver,
                            bool qp_approx_mbpt, bool corr_only) {
     std::string filename = mb_state.coqui_prefix + ".mbpt.h5";
     utils::check(std::filesystem::exists(filename),
                  "embed_t::dmft_embed: checkpoint file, {}, does not exist!", filename);
     if (!qp_approx_mbpt)
-      dmft_embed_impl(mb_state, iter_solver, corr_only);
+      dmft_embed_impl(mb_state, dyson, iter_solver, corr_only);
     else
-      dmft_embed_qp_impl(mb_state, iter_solver);
+      dmft_embed_qp_impl(mb_state, dyson, iter_solver);
   }
 
   void embed_t::dmft_embed_logic(long gw_iter, long weiss_f_iter, long embed_iter, std::string filename) {
@@ -70,7 +71,7 @@ namespace methods {
     }
   }
 
-  void embed_t::dmft_embed_impl(MBState &mb_state,
+  void embed_t::dmft_embed_impl(MBState &mb_state, simple_dyson &dyson,
                                 iter_scf::iter_scf_t *iter_solver,
                                 bool corr_only) {
     using math::shm::make_shared_array;
@@ -129,7 +130,6 @@ namespace methods {
     auto& sG_tskij = mb_state.sG_tskij.value();
     auto& sSigma_tskij = mb_state.sSigma_tskij.value();
     double mu;
-    auto dyson = simple_dyson(_MF, &ft, mb_state.coqui_prefix);
     _Timer.stop("EMBED_ALLOC");
 
     _Timer.start("EMBED_READ");
@@ -259,7 +259,7 @@ namespace methods {
     print_dmft_embed_timers();
   }
 
-  void embed_t::dmft_embed_qp_impl(MBState &mb_state,
+  void embed_t::dmft_embed_qp_impl(MBState &mb_state, simple_dyson &dyson,
                                    iter_scf::iter_scf_t *iter_solver) {
     using math::shm::make_shared_array;
     for( auto& v: {"EMBED_TOTAL", "EMBED_ALLOC",
@@ -314,7 +314,6 @@ namespace methods {
     auto& sG_tskij = mb_state.sG_tskij.value();
     auto& sSigma_tskij = mb_state.sSigma_tskij.value();
     double mu;
-    auto dyson = simple_dyson(_MF, &ft, mb_state.coqui_prefix);
     _Timer.stop("EMBED_ALLOC");
 
     _Timer.start("EMBED_READ");

@@ -81,7 +81,7 @@ namespace methods {
         _proj(std::in_place, MF, C_ksIai, band_window, kpts_crys, translate_home_cell),
         _Timer() {}
 
-    void dmft_embed(MBState &mb_state,
+    void dmft_embed(MBState &mb_state, simple_dyson &dyson,
                     iter_scf::iter_scf_t *iter_solver=nullptr,
                     bool qp_approx_mbpt=false, bool corr_only=false);
 
@@ -160,10 +160,11 @@ namespace methods {
   private:
     /*** dmft_embed implementation details ***/
     void dmft_embed_logic(long gw_iter, long weiss_f_iter, long embed_iter, std::string filename);
-    void dmft_embed_impl(MBState &mb_state,
+    void dmft_embed_impl(MBState &mb_state, simple_dyson &dyson,
                          iter_scf::iter_scf_t *iter_solver=nullptr,
                          bool corr_only=false);
-    void dmft_embed_qp_impl(MBState &mb_state, iter_scf::iter_scf_t *iter_solver=nullptr);
+    void dmft_embed_qp_impl(MBState &mb_state, simple_dyson &dyson,
+                            iter_scf::iter_scf_t *iter_solver=nullptr);
 
     /*** downfold_1e implementation details ***/
     void downfold_hf_logic(long gw_iter, long weiss_f_iter, long weiss_b_iter, long embed_iter,

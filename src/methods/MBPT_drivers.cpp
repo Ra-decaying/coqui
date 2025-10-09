@@ -83,6 +83,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   auto niter = io::get_value_with_default<int>(pt,"niter",1);
   auto conv_thr = io::get_value_with_default<double>(pt,"conv_thr",1e-8);
   auto const_mu = io::get_value_with_default<bool>(pt,"const_mu",false);
+  auto mu_tol = io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9);
   auto output = io::get_value_with_default<std::string>(pt,"output","bdft.mbpt");
 
   auto restart = io::get_value_with_default<bool>(pt,"restart",false);
@@ -121,14 +122,14 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   using namespace solvers;
   hf_t hf(string_to_div_enum(hf_div_treatment));
   if(solver_type == "rpa") {
-    simple_dyson dyson(mf.get(), &ft);
+    simple_dyson dyson(mf.get(), &ft, mu_tol);
     //solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum(div_treatment));
     gw_t gw(&ft, string_to_div_enum(div_treatment), output);
     MBState mb_state(mpi, ft, output);
     rpa_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf,&gw));
   } else if(solver_type == "hf") {
 
-    simple_dyson dyson(mf.get(), &ft);
+    simple_dyson dyson(mf.get(), &ft, mu_tol);
     auto iter_solver = iter_scf::make_iter_scf(pt);
     MBState mb_state(mpi, ft, output);
     scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf),
@@ -138,7 +139,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   } else if(solver_type == "gw") {
     auto screen_type = io::get_value_with_default<std::string>(pt,"screen_type", "rpa");
 
-    simple_dyson dyson(mf.get(), &ft);
+    simple_dyson dyson(mf.get(), &ft, mu_tol);
     auto iter_solver = iter_scf::make_iter_scf(pt);
     solvers::scr_coulomb_t scr_eri(&ft, screen_type, string_to_div_enum(div_treatment));
     solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
@@ -194,7 +195,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     auto gf2_sosex_save_memory = io::get_value_with_default<bool>(pt,"gf2_sosex_save_memory",true);
     auto t_prescreen_thresh = io::get_value_with_default<double>(pt,"t_prescreen_thresh",0.0);
 
-    simple_dyson dyson(mf.get(), &ft);
+    simple_dyson dyson(mf.get(), &ft, mu_tol);
     auto iter_solver = iter_scf::make_iter_scf(pt);
     solvers::gf2_t gf2(mf.get(), &ft, string_to_div_enum(div_treatment),
                        gf2_direct_type, gf2_exchange_alg, gf2_exchange_type, output,
@@ -294,6 +295,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
   auto niter = io::get_value_with_default<int>(pt,"niter",1);
   auto conv_thr = io::get_value_with_default<double>(pt,"conv_thr",1e-8);
   auto const_mu = io::get_value_with_default<bool>(pt,"const_mu",false);
+  auto mu_tol = io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9);
   auto output = io::get_value_with_default<std::string>(pt,"output","bdft.mbpt");
 
   auto restart = io::get_value_with_default<bool>(pt,"restart",false);
@@ -335,7 +337,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
 
     auto screen_type = io::get_value_with_default<std::string>(pt,"screen_type", "rpa");
 
-    simple_dyson dyson(mf.get(), &ft);
+    simple_dyson dyson(mf.get(), &ft, mu_tol);
     auto iter_solver = iter_scf::make_iter_scf(pt);
     solvers::scr_coulomb_t scr_eri(&ft, screen_type, string_to_div_enum(div_treatment));
     solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
@@ -863,10 +865,11 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
   auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
   auto corr_only = io::get_value_with_default<bool>(pt,"corr_only",false);
 
+  auto mu_tol = io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9);
+
   auto iter_solver = iter_scf::make_iter_scf(pt, 1.0);
 
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(outdir+"/"+prefix+".mbpt.h5", false));
-
   MBState mb_state(ft, outdir+"/"+prefix, mf, wannier_file, trans_home_cell, false);
   if (local_hf_potentials and local_selfenergies) {
     mb_state.set_local_hf_potentials(std::move(local_hf_potentials.value()));
@@ -875,8 +878,10 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
     local_selfenergies.reset();
   }
 
+  auto dyson = simple_dyson(mf.get(), &ft, mb_state.coqui_prefix, mu_tol);
+
   embed_t embed(*mf);
-  embed.dmft_embed(mb_state, &iter_solver, qp_approx_mbpt, corr_only);
+  embed.dmft_embed(mb_state, dyson, &iter_solver, qp_approx_mbpt, corr_only);
 }
 
 
