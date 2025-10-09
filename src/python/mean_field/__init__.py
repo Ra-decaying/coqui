@@ -20,4 +20,6 @@ limitations under the License.
 
 from .mf import make_mf
 
+from . import pyscf_interface
+
 __all__ = ["make_mf"]
