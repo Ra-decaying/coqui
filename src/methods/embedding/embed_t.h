@@ -105,7 +105,7 @@ namespace methods {
                      bool force_real,
                      qp_context_t *qp_context=nullptr,
                      std::string format_type = "default",
-                     std::array<double, 2> sigma_mixing = {1.0,1.0});
+                     std::array<double, 2> mixing = {1.0,1.0});
 
     template<THC_ERI thc_t>
     void hf_downfolding(std::string outdir, std::string prefix,
@@ -182,7 +182,7 @@ namespace methods {
      * @param dc_type  - [INPUT] double counting type
      */
     void downfold_mb_solution_impl(MBState &mb_state, bool update_dc, std::string dc_type,
-                                   bool force_real, std::array<double, 2> sigma_mixing = {1.0, 1.0});
+                                   bool force_real, std::array<double, 2> mixing = {1.0, 1.0});
 
     /**
      * Compute a downfolded 1e Hamiltonian using a many-body solution from a checkpoint h5 file.
@@ -258,8 +258,7 @@ namespace methods {
      * @return Fermionic Weiss field g_wsIab.
      */
     auto compute_g_weiss(const nda::array<ComplexType, 5> &Gloc_wsIab,
-                         std::string filename, long weiss_f_iter,
-                         double imp_sigma_mixing = 1.0)
+                         h5::group h5_grp, long weiss_f_iter)
     -> nda::array<ComplexType, 5>;
 
     auto compute_hybridization(const nda::array<ComplexType, 5> &g_wsIab,

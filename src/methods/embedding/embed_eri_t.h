@@ -105,7 +105,8 @@ namespace methods {
         thc_t &eri, MBState &mb_state, std::string screen_type,
         bool force_permut_symm = true, bool force_real = true,
         imag_axes_ft::IAFT *ft = nullptr,
-        std::string g_grp = "", long g_iter = -1, double dc_pi_mixing = 1.0);
+        std::string g_grp = "", long g_iter = -1,
+        std::array<double, 2> mixing = {1.0, 1.0});
 
     template<THC_ERI thc_t>
     void downfolding_crpa(
@@ -127,7 +128,7 @@ namespace methods {
                              std::string screen_type, std::string permut_symm,
                              const imag_axes_ft::IAFT &ft,
                              std::string g_grp, long g_iter,
-                             double dc_pi_mixing);
+                             std::array<double, 2> mixing = {1.0, 1.0});
 
     void downfold_crpa_impl(THC_ERI auto &eri, MBState &mb_state,
                             std::string screen_type,

@@ -369,9 +369,9 @@ void downfolding_1e(std::shared_ptr<mf::MF> mf, ptree const& pt) {
   io::tolower(dc_type);
   auto force_real = io::get_value_with_default<bool>(pt, "force_real", true);
 
-  auto imp_sigma_mixing = io::get_value_with_default<double>(pt,"imp_sigma_mixing",1.0);
   auto dc_sigma_mixing = io::get_value_with_default<double>(pt,"dc_sigma_mixing",1.0);
-  std::array<double, 2> sigma_mixing{dc_sigma_mixing, imp_sigma_mixing};
+  auto g_weiss_mixing = io::get_value_with_default<double>(pt,"g_weiss_mixing",1.0);
+  std::array<double, 2> mixing{dc_sigma_mixing, g_weiss_mixing};
 
   embed_t embed(*mf, wannier_file, trans_home_cell);
 
@@ -392,7 +392,7 @@ void downfolding_1e(std::shared_ptr<mf::MF> mf, ptree const& pt) {
     embed.downfolding(mb_state, qp_selfenergy, update_dc, dc_type, force_real, &qp_context);
   } else {
     embed.downfolding(mb_state, qp_selfenergy, update_dc, dc_type, force_real,
-                      nullptr, "default", sigma_mixing);
+                      nullptr, "default", mixing);
   }
 }
 
@@ -595,6 +595,8 @@ downfolding_2e(eri_t &eri, ptree const& pt,
   auto q_dependent = io::get_value_with_default<bool>(pt,"q_dependent", false);
 
   auto dc_pi_mixing = io::get_value_with_default<double>(pt,"dc_pi_mixing",1.0);
+  auto u_weiss_mixing = io::get_value_with_default<double>(pt,"u_weiss_mixing",1.0);
+  std::array<double, 2> mixing{dc_pi_mixing, u_weiss_mixing};
 
   auto input_type = io::get_value<std::string>(
       pt,"input_type", err+"input_type. This parameter defines the source of input Green's function. "
@@ -647,7 +649,7 @@ downfolding_2e(eri_t &eri, ptree const& pt,
                         string_to_div_enum(bare_div_treatment), "default");
   if (screen_type.substr(0,8)=="gw_edmft") {
     embed_eri.downfolding_edmft(eri, mb_state, screen_type, permut_symm, force_real,
-                                &ft, (input_type=="mf")? "scf" : input_type, g_iter, dc_pi_mixing);
+                                &ft, (input_type=="mf")? "scf" : input_type, g_iter, mixing);
   } else {
     embed_eri.downfolding_crpa(eri, mb_state, screen_type, "none", permut_symm, force_real,
                                &ft, (input_type=="mf")? "scf" : input_type, g_iter, q_dependent);

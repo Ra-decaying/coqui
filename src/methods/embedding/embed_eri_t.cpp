@@ -289,7 +289,8 @@ namespace methods {
     thc_t &eri, MBState &mb_state, std::string screen_type,
     bool force_permut_symm, bool force_real,
     imag_axes_ft::IAFT *ft,
-    std::string g_grp, long g_iter, double dc_pi_mixing) {
+    std::string g_grp, long g_iter,
+    std::array<double, 2> mixing) {
 
     // sanity checks
     std::unordered_set<std::string> valid_screen_types = {
@@ -345,7 +346,7 @@ namespace methods {
 
     utils::check(_output_type == "default", "Error in eri::downfolding: "
                                           "edmft_downfolding is only available with output_type=default.");
-    downfold_edmft_impl(eri, mb_state, screen_type, permut_symm, *ft, g_grp, g_iter, dc_pi_mixing);
+    downfold_edmft_impl(eri, mb_state, screen_type, permut_symm, *ft, g_grp, g_iter, mixing);
   }
 
   template<THC_ERI thc_t>
@@ -640,7 +641,8 @@ namespace methods {
       std::string permut_symm,
       const imag_axes_ft::IAFT &ft,
       std::string g_grp, long g_iter,
-      double dc_pi_mixing) {
+      std::array<double, 2> mixing) {
+
     using math::shm::make_shared_array;
 
     ft.metadata_log();
@@ -725,28 +727,41 @@ namespace methods {
 
     }
 
+    // mixing bosonic Weiss fields
+    if (mixing[1] < 1.0 and weiss_b_iter!=-1) {
+      app_log(1, "\nMixing the bosonic Weiss field with the previous iteration: {}\n", mixing[1]);
+      h5::file file(filename, 'r');
+      auto df_2e_grp = h5::group(file).open_group("downfold_2e");
+      auto iter_2e_grp = df_2e_grp.open_group("iter" + std::to_string(weiss_b_iter));
+      nda::array<ComplexType, 5> U_wabcd_prev;
+      nda::h5_read(iter_2e_grp, "Uloc_wabcd", U_wabcd_prev);
+      U_wabcd *= mixing[1];
+      U_wabcd += (1 - mixing[1]) * U_wabcd_prev;
+    }
+    mpi->comm.barrier();
+
     app_log(1, "\nEvaluating double counting polarizability with\n"
              "  - Gloc from {}/iter{}\n"
-             "  - density-density only: {}\n",
-          g_grp, g_iter, density_only, dc_pi_mixing);
+             "  - density-density only: {}",
+          g_grp, g_iter, density_only);
     auto sPi_dc_wabcd_new = eval_Pi_rpa_dc<true>(*mpi, G_tsIab, ft, density_only);
 
     // mixing pi_dc with the previous value
-    if (mb_state.sPi_dc_wabcd and dc_pi_mixing<1.0) {
-      app_log(1, "  - Mixing for the current iteration: {}\n", dc_pi_mixing);
+    if (mb_state.sPi_dc_wabcd and mixing[0] < 1.0) {
+      app_log(1, "  - Mixing for the current iteration: {}\n", mixing[0]);
       utils::check(mb_state.sPi_dc_wabcd->shape() == sPi_dc_wabcd_new.shape(),
                    "Error in downfold_2e: shape of Pi_dc given in MBState is different from the newly evaluated one.");
       sPi_dc_wabcd_new.win().fence();
       if (mpi->node_comm.root()) {
         auto Pi_dc = mb_state.sPi_dc_wabcd.value().local();
         auto Pi_dc_new = sPi_dc_wabcd_new.local();
-        Pi_dc_new *= dc_pi_mixing;
-        Pi_dc_new += (1 - dc_pi_mixing) * Pi_dc;
+        Pi_dc_new *= mixing[0];
+        Pi_dc_new += (1 - mixing[0]) * Pi_dc;
       }
       sPi_dc_wabcd_new.win().fence();
 
-    } else if (not mb_state.sPi_dc_wabcd and dc_pi_mixing<1.0) {
-      app_log(1, "  - dc_pi_mixing<1.0 while no Pi_dc is found in MBState. Ignoring mixing.\n");
+    } else if (not mb_state.sPi_dc_wabcd and mixing[0] < 1.0) {
+      app_log(1, "  - dc_pi_mixing < 1.0 while no Pi_dc is found in MBState. Ignoring mixing.\n");
     }
     mpi->comm.barrier();
 
@@ -2199,7 +2214,7 @@ namespace methods {
   embed_eri_t::downfold_wloc<false>(thc_reader_t&, MBState &, std::string, bool, bool, imag_axes_ft::IAFT *, std::string, long);
 
   template void embed_eri_t::downfolding_edmft(thc_reader_t&, MBState&, std::string, bool, bool, imag_axes_ft::IAFT*,
-      std::string, long, double);
+      std::string, long, std::array<double, 2>);
 
   template void embed_eri_t::downfolding_crpa(thc_reader_t&, MBState&, std::string, std::string, bool, bool,
                                               imag_axes_ft::IAFT*, std::string, long, bool, double);
