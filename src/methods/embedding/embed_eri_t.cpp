@@ -240,33 +240,6 @@ namespace methods {
     auto [V_abcd, W_wabcd, eps_inv_head_wq, eps_inv_head_w, pi_head_wq] =
         local_eri_impl<true>(mb_state, eri, ft, screen_type);
 
-    // prune Vloc and Wloc if density-density approximations are applied
-    bool density_only = (screen_type.find("density")==std::string::npos)? false : true;
-    if (density_only) {
-      if (mpi->node_comm.root()) {
-        nda::array<ComplexType, 4> V_tmp(V_abcd.shape());
-        nda::array<ComplexType, 5> W_tmp(W_wabcd.shape());
-        for (size_t i=0; i<nImpOrbs; ++i)
-          for (size_t j=i; j<nImpOrbs; ++j) {
-            V_tmp(i, i, j, j) = V_abcd(i, i, j, j);
-            W_tmp(nda::range::all, i, i, j, j) = W_wabcd(nda::range::all, i, i, j, j);
-            if (j > i) {
-              V_tmp(j, j, i, i) = V_abcd(j, j, i, i);
-              W_tmp(nda::range::all, j, j, i, i) = W_wabcd(nda::range::all, j, j, i, i);
-              // pair-hopping (only apply to the static part Vloc)
-              V_tmp(i, j, i, j) = V_abcd(i, j, i, j);
-              V_tmp(j, i, j, i) = V_abcd(j, i, j, i);
-              // spin-flip (only apply to the static part Vloc)
-              V_tmp(i, j, j, i) = V_abcd(i, j, j, i);
-              V_tmp(j, i, i, j) = V_abcd(j, i, i, j);
-            }
-          }
-        V_abcd() = V_tmp;
-        W_wabcd() = W_tmp;
-      }
-      mpi->node_comm.broadcast_n(V_abcd.data(), V_abcd.size(), 0);
-      mpi->node_comm.broadcast_n(W_wabcd.data(), W_wabcd.size(), 0);
-    }
     mpi->comm.barrier();
     _Timer.stop("DF_DOWNFOLD");
 
@@ -727,33 +700,6 @@ namespace methods {
     // evaluate local screened interaction W(iw) with given screen_type
     auto [V_abcd, W_wabcd, eps_inv_head_wq, eps_inv_head_w, pi_head_wq] =
         local_eri_impl<true>(mb_state, eri, ft, screen_type);
-
-    // prune Vloc and Wloc if density-density approximations are applied
-    if (density_only) {
-      if (mpi->node_comm.root()) {
-        nda::array<ComplexType, 4> V_tmp(V_abcd.shape());
-        nda::array<ComplexType, 5> W_tmp(W_wabcd.shape());
-        for (size_t i=0; i<nImpOrbs; ++i)
-        for (size_t j=i; j<nImpOrbs; ++j) {
-          V_tmp(i, i, j, j) = V_abcd(i, i, j, j);
-          W_tmp(nda::range::all, i, i, j, j) = W_wabcd(nda::range::all, i, i, j, j);
-          if (j > i) {
-            V_tmp(j, j, i, i) = V_abcd(j, j, i, i);
-            W_tmp(nda::range::all, j, j, i, i) = W_wabcd(nda::range::all, j, j, i, i);
-            // pair-hopping (only apply to the static part Vloc)
-            V_tmp(i, j, i, j) = V_abcd(i, j, i, j);
-            V_tmp(j, i, j, i) = V_abcd(j, i, j, i);
-            // spin-flip (only apply to the static part Vloc)
-            V_tmp(i, j, j, i) = V_abcd(i, j, j, i);
-            V_tmp(j, i, i, j) = V_abcd(j, i, i, j);
-          }
-        }
-        V_abcd() = V_tmp;
-        W_wabcd() = W_tmp;
-      }
-      mpi->node_comm.broadcast_n(V_abcd.data(), V_abcd.size(), 0);
-      mpi->node_comm.broadcast_n(W_wabcd.data(), W_wabcd.size(), 0);
-    }
 
     nda::array<ComplexType, 5> U_wabcd(W_wabcd.shape());
     if (screen_type.find("gw_edmft_rpa")!=std::string::npos or not pi_local_given) {
