@@ -685,15 +685,7 @@ namespace methods {
       }
     } else if (screen_type.find("zero_pi_imp")!=std::string::npos) {
       app_log(2, "Screen_type = {}", screen_type);
-      app_log(2, "-> Initializing impurity polarizability to zero and dc polarizability to RPA.\n");
-      mb_state.sPi_dc_wabcd.emplace(eval_Pi_rpa_dc<true>(*mpi, G_tsIab, ft, density_only));
-      mb_state.sPi_imp_wabcd.emplace(
-          make_shared_array<nda::array_view<ComplexType, 5>>(
-              *mpi, mb_state.sPi_dc_wabcd.value().shape()
-          )
-      );
-      mb_state.sPi_imp_wabcd.value().set_zero();
-      pi_local_given = true;
+      app_log(2, "-> Evaluate the fully screened interaction with no local correction.\n");
     }
     mpi->comm.barrier();
     _Timer.stop("DF_READ");
@@ -704,14 +696,15 @@ namespace methods {
         local_eri_impl<true>(mb_state, eri, ft, screen_type);
 
     nda::array<ComplexType, 5> U_wabcd(W_wabcd.shape());
-    if (screen_type.find("gw_edmft_rpa")!=std::string::npos or not pi_local_given) {
+    if (screen_type.find("zero_pi_imp")!=std::string::npos) {
+
+      app_log(2, "Setting the bosonic Weiss field to Wloc\n");
+      U_wabcd() = W_wabcd;
+
+    } else if (screen_type.find("gw_edmft_rpa")!=std::string::npos or not pi_local_given) {
 
       auto sU_wabcd = u_bosonic_weiss_rpa(G_tsIab, W_wabcd, V_abcd, ft, density_only);
       U_wabcd() = sU_wabcd.local();
-
-    } else if (screen_type.find("zerp_pi_imp")!=std::string::npos) {
-
-      U_wabcd() = W_wabcd;
 
     } else {
 

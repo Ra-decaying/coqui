@@ -367,6 +367,10 @@ void downfolding_1e(std::shared_ptr<mf::MF> mf, ptree const& pt) {
   auto dc_type = io::get_value<std::string>(pt, "dc_type",
       err+"dc_type. Valid types are \"hartree\", \"hf\", \"gw\", \"gw_dynamic_u\" and \"gw_mix_u\".");
   io::tolower(dc_type);
+  // g_weiss_type: Valid types are "dmft" and "gloc"
+  auto g_weiss_type = io::get_value_with_default<std::string>(
+      pt, "g_weiss_type", "dmft");
+  io::tolower(g_weiss_type);
   auto force_real = io::get_value_with_default<bool>(pt, "force_real", true);
 
   auto dc_sigma_mixing = io::get_value_with_default<double>(pt,"dc_sigma_mixing",1.0);
@@ -392,7 +396,7 @@ void downfolding_1e(std::shared_ptr<mf::MF> mf, ptree const& pt) {
     embed.downfolding(mb_state, qp_selfenergy, update_dc, dc_type, force_real, &qp_context);
   } else {
     embed.downfolding(mb_state, qp_selfenergy, update_dc, dc_type, force_real,
-                      nullptr, "default", mixing);
+                      nullptr, "default", mixing, g_weiss_type);
   }
 }
 

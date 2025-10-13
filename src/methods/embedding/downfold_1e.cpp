@@ -131,7 +131,8 @@ namespace methods {
                             bool force_real,
                             qp_context_t *qp_context,
                             std::string format_type,
-                            std::array<double, 2> mixing) {
+                            std::array<double, 2> mixing,
+                            std::string g_weiss_type) {
     app_log(1, "\n"
                "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌─┐┌┐┌┌─┐  ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
                "║  ║ ║║═╬╗║ ║║  │ ││││├┤───├┤    │││ │││││││├┤ │ ││   ││\n"
@@ -146,7 +147,7 @@ namespace methods {
       downfold_mb_solution_qp_impl(mb_state, *qp_context, update_dc, dc_type, force_real, format_type);
     } else {
       utils::check(format_type == "default", "embed_t::downfolding: qp_selfenergy=false requires format_type = default ");
-      downfold_mb_solution_impl(mb_state, update_dc, dc_type, force_real, mixing);
+      downfold_mb_solution_impl(mb_state, update_dc, dc_type, force_real, mixing, g_weiss_type);
     }
   }
 
@@ -280,8 +281,10 @@ namespace methods {
   //   2) (optional) Calculate the dc self-energy
   //   3) Read impurity self-energy and evaluate delta using Gloc from step 1
   //   4) (optional) downfold various quantities to h5
-  void embed_t::downfold_mb_solution_impl(MBState &mb_state, bool update_dc, std::string dc_type,
-                                          bool force_real, std::array<double, 2> mixing) {
+  void embed_t::downfold_mb_solution_impl(
+      MBState &mb_state, bool update_dc, std::string dc_type,
+      bool force_real, std::array<double, 2> mixing,
+      std::string g_weiss_type) {
     using math::shm::make_shared_array;
 
     std::vector<std::string> accept_dc_type = {"hf", "gw", "gw_dynamic_u",
@@ -325,7 +328,8 @@ namespace methods {
       app_log(1, "  - update dc self-energy:                     {}", update_dc);
       app_log(1, "  - double counting type:                      {}\n", dc_type);
     } else
-      app_log(1, "  - update dc self-energy:                     {}\n", update_dc);
+      app_log(1, "  - update dc self-energy:                     {}", update_dc);
+    app_log(1, "  - g_weiss_type:                              {}\n", g_weiss_type);
     ft->metadata_log();
     auto [dc_iter, dc_src_grp] = gw_edmft_logic(gw_iter, weiss_f_iter, weiss_b_iter, embed_iter, filename, update_dc);
     mpi->comm.barrier();
@@ -416,30 +420,36 @@ namespace methods {
         Sigma_dc_wsIab += (1 - mixing[0]) * Sigma_prev_sIab;
       }
 
-      // Calculate the fermionic Weiss field:
-      //     g_weiss(w)^{-1} = Gloc(w)^{-1} + vhf_imp + sigma_imp(w)
-      // If weiss_f_iter==-1, we are in the 1st iteration of embedding and there is
-      // no impurity self-energy. In that case, we assume Sigma_imp = Sigma_dc.
-      //
-      app_log(1, "\nEvaluating fermionic Weiss field with\n"
-                 "  - Gloc from {}/iter{}", dc_src_grp, dc_iter);
-      if (embed_iter!=-1 and weiss_f_iter!=-1)
-        app_log(1, "  - Impurity self-energy from downfold_1e/iter{}", weiss_f_iter);
-      else
-        app_log(1, "  - Approximate impurity self-energy using double-counting self-energy\n");
       _Timer.start("DF_G_WEISS");
       ft->tau_to_w(Gloc_tsIab, Gloc_wsIab, imag_axes_ft::fermi);
-      g_weiss_wsIab = (weiss_f_iter!=-1 and embed_iter != -1)?
-          compute_g_weiss(Gloc_wsIab, gh5, weiss_f_iter) : compute_g_weiss(Gloc_wsIab, Vhf_dc_sIab, Sigma_dc_wsIab);
-      // mixing for fermionic Weiss field
-      if (mixing[1] < 1.0 and weiss_f_iter!=-1 and embed_iter != -1) {
-        app_log(1, "\nMixing the bosonic Weiss field with the previous iteration: {}\n", mixing[1]);
-        auto df_1e_grp = gh5.open_group("downfold_1e");
-        auto iter_1e_grp = df_1e_grp.open_group("iter" + std::to_string(weiss_f_iter));
-        nda::array<ComplexType, 5> g_weiss_prev_wsIab;
-        nda::h5_read(iter_1e_grp, "g_weiss_wsIab", g_weiss_prev_wsIab);
-        g_weiss_wsIab *= mixing[1];
-        g_weiss_wsIab += (1 - mixing[1]) * g_weiss_prev_wsIab;
+      if (g_weiss_type == "dmft") {
+        // Calculate the fermionic Weiss field:
+        //     g_weiss(w)^{-1} = Gloc(w)^{-1} + vhf_imp + sigma_imp(w)
+        // If weiss_f_iter==-1, we are in the 1st iteration of embedding and there is
+        // no impurity self-energy. In that case, we assume Sigma_imp = Sigma_dc.
+        //
+        app_log(1, "\nEvaluating fermionic Weiss field with\n"
+                   "  - Gloc from {}/iter{}", dc_src_grp, dc_iter);
+        if (embed_iter != -1 and weiss_f_iter != -1)
+          app_log(1, "  - Impurity self-energy from downfold_1e/iter{}", weiss_f_iter);
+        else
+          app_log(1, "  - Approximate impurity self-energy using double-counting self-energy\n");
+        g_weiss_wsIab = (weiss_f_iter != -1 and embed_iter != -1) ?
+                        compute_g_weiss(Gloc_wsIab, gh5, weiss_f_iter) : compute_g_weiss(Gloc_wsIab, Vhf_dc_sIab,
+                                                                                         Sigma_dc_wsIab);
+        // mixing for fermionic Weiss field
+        if (mixing[1] < 1.0 and weiss_f_iter != -1 and embed_iter != -1) {
+          app_log(1, "\nMixing the bosonic Weiss field with the previous iteration: {}\n", mixing[1]);
+          auto df_1e_grp = gh5.open_group("downfold_1e");
+          auto iter_1e_grp = df_1e_grp.open_group("iter" + std::to_string(weiss_f_iter));
+          nda::array<ComplexType, 5> g_weiss_prev_wsIab;
+          nda::h5_read(iter_1e_grp, "g_weiss_wsIab", g_weiss_prev_wsIab);
+          g_weiss_wsIab *= mixing[1];
+          g_weiss_wsIab += (1 - mixing[1]) * g_weiss_prev_wsIab;
+        }
+      } else {
+        app_log(1, "\nSetting fermionic Weiss field as Gloc.\n");
+        g_weiss_wsIab() = Gloc_wsIab;
       }
     }
     mpi->comm.barrier();

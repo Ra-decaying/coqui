@@ -103,9 +103,10 @@ namespace methods {
     void downfolding(MBState &mb_state,
                      bool qp_selfenergy, bool update_dc, std::string dc_type,
                      bool force_real,
-                     qp_context_t *qp_context=nullptr,
+                     qp_context_t *qp_context = nullptr,
                      std::string format_type = "default",
-                     std::array<double, 2> mixing = {1.0,1.0});
+                     std::array<double, 2> mixing = {1.0,1.0},
+                     std::string g_weiss_type = "dmft");
 
     template<THC_ERI thc_t>
     void hf_downfolding(std::string outdir, std::string prefix,
@@ -181,8 +182,10 @@ namespace methods {
      * @param filename - [INPUT] checkpoint h5 file
      * @param dc_type  - [INPUT] double counting type
      */
-    void downfold_mb_solution_impl(MBState &mb_state, bool update_dc, std::string dc_type,
-                                   bool force_real, std::array<double, 2> mixing = {1.0, 1.0});
+    void downfold_mb_solution_impl(
+        MBState &mb_state, bool update_dc, std::string dc_type,
+        bool force_real, std::array<double, 2> mixing = {1.0, 1.0},
+        std::string g_weiss_type="dmft");
 
     /**
      * Compute a downfolded 1e Hamiltonian using a many-body solution from a checkpoint h5 file.
