@@ -142,6 +142,22 @@ class IAFT(object):
             print(self)
             sys.stdout.flush()
 
+    @classmethod
+    def from_coqui_chkpt(cls, chkpt_h5, verbose: bool = True):
+        from h5 import HDFArchive
+        with HDFArchive(chkpt_h5, 'r') as ar:
+            iaft_grp = ar['imaginary_fourier_transform']
+            beta = iaft_grp['beta']
+            prec = iaft_grp['prec']
+
+            if 'wmax' in iaft_grp:
+                wmax = iaft_grp['wmax']
+            else:
+                ir_lambda = iaft_grp['lambda']
+                wmax = ir_lambda / beta
+
+        return cls(beta, wmax, prec, verbose)
+
     def __str__(self):
         return ("Mesh details on the imaginary axis\n" \
                 "----------------------------------\n" \
