@@ -21,35 +21,53 @@ namespace methods {
       auto Np = chol.Np();
       utils::check(MF->npol()==1, "Non-collinear calculations not yet implemented.");
 
+      _Timer.start("ALLOC");
       auto sJ_skij = math::shm::make_shared_array<AF_t>(*mpi, {ns, nkpts, nbnd, nbnd});
       sJ_skij.set_zero();
+      _Timer.stop("ALLOC");
 
       nda::array<ComplexType, 1> X_Q(Np);
       if (nkpts != 1) {
+        _Timer.start("ALLOC");
         nda::array<ComplexType, 3> V_Qij_conj(Np, nbnd, nbnd);
+        _Timer.stop("ALLOC");
         auto V_2D_conj = nda::reshape(V_Qij_conj, shape_t<2>{Np, nbnd*nbnd});
         for (size_t is = 0; is < ns; ++is) {
           for (size_t ik =0; ik < nkpts; ++ik) {
+            _Timer.start("CHOL");
+            _Timer.start("CHOL J");
             V_Qij_conj = nda::conj(chol.V(0, is, ik));
+            _Timer.stop("CHOL J");
+            _Timer.stop("CHOL");
             auto Dm_ij_1D = nda::reshape(Dm_skij(is,ik,all,all), shape_t<1>{nbnd*nbnd});
             // X_Q += conj(V_Qij) * Dmsk_ij
+            _Timer.start("J BLAS");
             nda::blas::gemv(ComplexType(1.0), V_2D_conj, Dm_ij_1D, ComplexType(1.0), X_Q);
+            _Timer.stop("J BLAS");
           }
         }
       } else { // molecular case
+        _Timer.start("ALLOC");
         auto sV_Qij_conj = math::shm::make_shared_array<nda::array<ComplexType, 3> >(
             *mpi, {Np, nbnd, nbnd});
+        _Timer.stop("ALLOC");
         auto V_2D_conj = nda::reshape(sV_Qij_conj.local(), shape_t<2>{Np, nbnd*nbnd});
         for (size_t is = 0; is < ns; ++is) {
           for (size_t ik =0; ik < nkpts; ++ik) {
             sV_Qij_conj.win().fence();
             if(mpi->node_comm.rank() == 0) {
+              _Timer.start("CHOL");
+              _Timer.start("CHOL J");
               sV_Qij_conj.local() = nda::conj(chol.V(0, is, ik));
+              _Timer.stop("CHOL J");
+              _Timer.stop("CHOL");
             }
             sV_Qij_conj.win().fence();
             auto Dm_ij_1D = nda::reshape(Dm_skij(is,ik,all,all), shape_t<1>{nbnd*nbnd});
             // X_Q += conj(V_Qij) * Dmsk_ij
+            _Timer.start("J BLAS");
             nda::blas::gemv(ComplexType(1.0), V_2D_conj, Dm_ij_1D, ComplexType(1.0), X_Q);
+            _Timer.stop("J BLAS");
           }
         }
       }
@@ -67,10 +85,16 @@ namespace methods {
             size_t is = isk / nkpts;
             size_t ik = isk % nkpts;
             // Fsk_ij = X(Q) * V(Q, ij)
+            _Timer.start("CHOL");
+            _Timer.start("CHOL J");
             auto V_Qij = chol.V(0, is, ik); // iq=0, is=is, ik=ik
+            _Timer.stop("CHOL J");
+            _Timer.stop("CHOL");
             auto V_Q_ij_2D = nda::reshape(V_Qij, shape_t<2>{Np, nbnd*nbnd});
             auto Jsk_ij_1D = nda::reshape(J_skij(is, ik, all, all), shape_t<1>{nbnd*nbnd});
+            _Timer.start("J BLAS");
             nda::blas::gemv(nda::transpose(V_Q_ij_2D), X_Q, Jsk_ij_1D);
+            _Timer.stop("J BLAS");
           }
           sJ_skij.win().fence();
           sJ_skij.all_reduce();
@@ -85,7 +109,11 @@ namespace methods {
           for (size_t is = 0; is < ns; ++is) {
               sV_Qij.win().fence();
               if(mpi->node_comm.rank() == 0) {
+                  _Timer.start("CHOL");
+                  _Timer.start("CHOL J");
                   V_Qij = make_regular(chol.V(0, is, ik)); // iq=0, ik=0 for molecules
+                  _Timer.stop("CHOL J");
+                  _Timer.stop("CHOL");
               }
               sV_Qij.win().fence();
               // Fsk_ij = X(Q) * V(Q, ij)
@@ -93,7 +121,9 @@ namespace methods {
                 auto V_Q_ij_2D = nda::reshape(V_Qij, shape_t<2>{Np, nbnd*nbnd});
                 auto Jsk_1_ij_2D = nda::reshape(J_skij(is, ik, all, all), shape_t<2>{1, nbnd*nbnd});
                 auto X_1Q_2D = nda::reshape(X_Q, shape_t<2>{1, Np});
+                _Timer.start("J BLAS");
                 nda::blas::gemm(X_1Q_2D, V_Q_ij_2D, Jsk_1_ij_2D);
+                _Timer.stop("J BLAS");
               }
               else { // parallel case proceeds with caution due to nda contigeous bug
                 auto V_Q_ij_2D = nda::reshape(V_Qij, shape_t<2>{Np, nbnd*nbnd});
@@ -108,12 +138,18 @@ namespace methods {
                 nda::range ij_range(ij_start, ij_end);
 
                 // Copy is necessary due to an nda bug
+                _Timer.start("ALLOC");
                 auto V_Q_ijranged_2D = nda::make_regular(V_Q_ij_2D(all, ij_range));
                 auto Jsk_1_ijranged_2D = nda::make_regular(Jsk_1_ij_2D(all, ij_range));
+                _Timer.stop("ALLOC");
+                _Timer.start("J BLAS");
                 nda::blas::gemm(X_1Q_2D, V_Q_ijranged_2D, Jsk_1_ijranged_2D);
+                _Timer.stop("J BLAS");
 
                 // Write the result into the right place in shared memory
+                _Timer.start("ALLOC");
                 Jsk_1_ij_2D(all, ij_range) = Jsk_1_ijranged_2D(all, all);
+                _Timer.stop("ALLOC");
 
               }
           }
@@ -161,18 +197,26 @@ namespace methods {
               size_t is = sk / nkpts;
               size_t ik = sk % nkpts;
               ikmq = MF->qk_to_k2(iq, ik); // K(ikmq) = K(ik) - Q(iq) + G
+              _Timer.start("CHOL");
+              _Timer.start("CHOL K");
               Vtilde_kmq_k_conj = chol.V_kmq_k(iq, is, ik, true); // read or copy
+              _Timer.stop("CHOL K");
+              _Timer.stop("CHOL");
               auto Dm_ab = Dm_skij(is, ikmq, all, all);
               for (size_t i = dim1_rank; i < nbnd; i += dim1_comm_size) {
                 // Xki_Qb = Vtilde_Qa * Dm_ab
                 Vki_Qa = nda::make_regular(nda::conj(Vtilde_kmq_k_conj(all, all, i))); // copy
+                _Timer.start("K BLAS");
                 nda::blas::gemm(Vki_Qa, Dm_ab, Xki_Qb);
+                _Timer.stop("K BLAS");
           
                 // Ki_j += Xki_Qb * Vtilde_Qb_j_conj
                 auto V_Qb_j_2D = nda::reshape(Vtilde_kmq_k_conj, shape_t<2>{Np * nbnd, nbnd});
                 auto Ki_1_j_2D = nda::matrix_view<ComplexType>({1, nbnd}, K_skij.data() + sk*nbnd*nbnd + i*nbnd);
                 auto Xki_1_Qb_2D = nda::matrix_view<ComplexType>({1, Np*nbnd}, Xki_Qb.data());
+                _Timer.start("K BLAS");
                 nda::blas::gemm(ComplexType(1.0), Xki_1_Qb_2D, V_Qb_j_2D, ComplexType(1.0), Ki_1_j_2D);
+                _Timer.stop("K BLAS");
               }
             }
           }
@@ -187,20 +231,28 @@ namespace methods {
             ikmq = MF->qk_to_k2(iq, ik); // K(ikmq) = K(ik) - Q(iq) + G
             Vtilde_kmq_k_conj.win().fence();
             if(mpi->node_comm.rank() == 0) {
+              _Timer.start("CHOL");
+              _Timer.start("CHOL K");
               Vtilde_kmq_k_conj.local() = chol.V_kmq_k(iq, is, ik, true);
+              _Timer.stop("CHOL K");
+              _Timer.stop("CHOL");
             }
             Vtilde_kmq_k_conj.win().fence();
             auto Dm_ab = Dm_skij(is, ikmq, all, all);
             for (size_t i = dim1_rank; i < nbnd; i += dim1_comm_size) {
               // Xki_Qb = Vtilde_Qa * Dm_ab
               Vki_Qa = nda::make_regular(nda::conj(Vtilde_kmq_k_conj.local()(all, all, i))); // copy
+              _Timer.start("K BLAS");
               nda::blas::gemm(Vki_Qa, Dm_ab, Xki_Qb);
+              _Timer.stop("K BLAS");
           
               // Ki_j += Xki_Qb * Vtilde_Qb_j_conj
               auto V_Qb_j_2D = nda::reshape(Vtilde_kmq_k_conj.local(), shape_t<2>{Np * nbnd, nbnd});
               auto Ki_1_j_2D = nda::matrix_view<ComplexType>({1, nbnd}, K_skij.data() + sk*nbnd*nbnd + i*nbnd);
               auto Xki_1_Qb_2D = nda::matrix_view<ComplexType>({1, Np*nbnd}, Xki_Qb.data());
+              _Timer.start("K BLAS");
               nda::blas::gemm(ComplexType(1.0), Xki_1_Qb_2D, V_Qb_j_2D, ComplexType(1.0), Ki_1_j_2D);
+              _Timer.stop("K BLAS");
             }
           }
         }

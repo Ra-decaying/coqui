@@ -122,8 +122,13 @@ namespace methods {
       app_log(2, "    Total:                 {0:.3f} sec", _Timer.elapsed("TOTAL"));
       app_log(2, "    Allocations:           {0:.3f} sec", _Timer.elapsed("ALLOC"));
       app_log(2, "    Coulomb:               {0:.3f} sec", _Timer.elapsed("COULOMB"));
-      app_log(2, "    Exchange:              {0:.3f} sec\n", _Timer.elapsed("EXCHANGE"));
-    }
+      app_log(2, "    Exchange:              {0:.3f} sec", _Timer.elapsed("EXCHANGE"));
+      app_log(2, "    Cholesky integrals IO: {0:.3f} sec", _Timer.elapsed("CHOL"));
+      app_log(2, "    Cholesky J IO:         {0:.3f} sec", _Timer.elapsed("CHOL J"));
+      app_log(2, "    Cholesky K IO:         {0:.3f} sec", _Timer.elapsed("CHOL K"));
+      app_log(2, "    J BLAS:                {0:.3f} sec", _Timer.elapsed("J BLAS"));
+      app_log(2, "    K BLAS:                {0:.3f} sec\n", _Timer.elapsed("K BLAS"));
+   }
 
     // instantiate templates
     using Arr4D = nda::array<ComplexType, 4>;
