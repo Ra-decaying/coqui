@@ -197,6 +197,9 @@ namespace methods {
       auto Np = chol.Np();
       utils::check(MF->npol()==1, "Non-collinear calculations not yet implemented.");
 
+       auto Complex2Real = nda::map([](ComplexType x) { return std::real(x); });
+       auto Real2Complex = nda::map([](RealType x) { return ComplexType(x); });
+
       auto comm = sF_skij.communicator();
       auto[dim0_rank, dim0_comm_size, dim1_rank, dim1_comm_size] = utils::setup_two_layer_mpi(comm, nkpts, nbnd);
       if(nkpts == 1) {
@@ -244,41 +247,51 @@ namespace methods {
             }
           }
       } else {
-        auto Vtilde_kmq_k_conj = math::shm::make_shared_array<nda::array<ComplexType, 3> >(
-            *mpi, {Np, nbnd, nbnd});
+        if(!real_sV_Qij_opt.has_value()) {
+            real_sV_Qij_opt.emplace(sArray_t<Array_3D_real>(*mpi, {Np, nbnd, nbnd}));
+            real_sV_Qij_opt.value().set_zero();
+        }
+        nda::array_view<RealType, 3> real_V_Qij = real_sV_Qij_opt.value().local();
+        nda::matrix<RealType> real_Xki_Qb(Np, nbnd);
+        nda::matrix<RealType> real_Vki_Qa(Np, nbnd);
+        nda::matrix<RealType> real_Dm_ab(nbnd, nbnd);
+        nda::array<RealType, 4> real_K_skij(ns, nkpts, nbnd, nbnd);
+        real_K_skij() = 0;
           
         for (size_t iq = dim0_rank; iq < nkpts; iq += dim0_comm_size) {
           for (size_t sk = 0; sk < ns*nkpts; ++sk) {
             size_t is = sk / nkpts;
             size_t ik = sk % nkpts;
             ikmq = MF->qk_to_k2(iq, ik); // K(ikmq) = K(ik) - Q(iq) + G
-            Vtilde_kmq_k_conj.win().fence();
+            real_sV_Qij_opt.value().win().fence();
             if(mpi->node_comm.rank() == 0) {
               _Timer.start("CHOL");
               _Timer.start("CHOL K");
-              Vtilde_kmq_k_conj.local() = chol.V_kmq_k(iq, is, ik, true);
+              real_V_Qij = make_regular(Complex2Real(chol.V(0, is, ik))); // iq=0, ik=0 for molecules
               _Timer.stop("CHOL K");
               _Timer.stop("CHOL");
             }
-            Vtilde_kmq_k_conj.win().fence();
+            real_sV_Qij_opt.value().win().fence();
             auto Dm_ab = Dm_skij(is, ikmq, all, all);
+            real_Dm_ab = nda::make_regular(Complex2Real(Dm_ab));
             for (size_t i = dim1_rank; i < nbnd; i += dim1_comm_size) {
               // Xki_Qb = Vtilde_Qa * Dm_ab
-              Vki_Qa = nda::make_regular(nda::conj(Vtilde_kmq_k_conj.local()(all, all, i))); // copy
+              real_Vki_Qa = nda::make_regular(real_V_Qij(all, all, i)); // copy
               _Timer.start("K BLAS");
-              nda::blas::gemm(Vki_Qa, Dm_ab, Xki_Qb);
+              nda::blas::gemm(real_Vki_Qa, real_Dm_ab, real_Xki_Qb);
               _Timer.stop("K BLAS");
           
               // Ki_j += Xki_Qb * Vtilde_Qb_j_conj
-              auto V_Qb_j_2D = nda::reshape(Vtilde_kmq_k_conj.local(), shape_t<2>{Np * nbnd, nbnd});
-              auto Ki_1_j_2D = nda::matrix_view<ComplexType>({1, nbnd}, K_skij.data() + sk*nbnd*nbnd + i*nbnd);
-              auto Xki_1_Qb_2D = nda::matrix_view<ComplexType>({1, Np*nbnd}, Xki_Qb.data());
+              auto V_Qb_j_2D = nda::reshape(real_V_Qij, shape_t<2>{Np * nbnd, nbnd});
+              auto Ki_1_j_2D = nda::matrix_view<RealType>({1, nbnd}, real_K_skij.data() + sk*nbnd*nbnd + i*nbnd);
+              auto Xki_1_Qb_2D = nda::matrix_view<RealType>({1, Np*nbnd}, real_Xki_Qb.data());
               _Timer.start("K BLAS");
-              nda::blas::gemm(ComplexType(1.0), Xki_1_Qb_2D, V_Qb_j_2D, ComplexType(1.0), Ki_1_j_2D);
+              nda::blas::gemm(RealType(1.0), Xki_1_Qb_2D, V_Qb_j_2D, RealType(1.0), Ki_1_j_2D);
               _Timer.stop("K BLAS");
             }
           }
         }
+        K_skij() = make_regular(Real2Complex(real_K_skij));
       }
       comm->all_reduce_in_place_n(K_skij.data(), K_skij.size(), std::plus<>{});
       K_skij *= (-1.0/nkpts);
