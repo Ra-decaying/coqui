@@ -9,6 +9,7 @@
 
 namespace methods {
   namespace solvers {
+
     template<nda::MemoryArray AF_t>
     void hf_t::add_J(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij, 
                      Cholesky_ERI auto &&chol) {
@@ -21,12 +22,21 @@ namespace methods {
       auto Np = chol.Np();
       utils::check(MF->npol()==1, "Non-collinear calculations not yet implemented.");
 
+       auto Complex2Real = nda::map([](ComplexType x) { return std::real(x); });
+       auto Real2Complex = nda::map([](RealType x) { return ComplexType(x); });
+
+
+      using Array_4D_real = nda::array<RealType, 4>;
+      std::optional< Array_4D_real > real_Dm_skij_opt; // for molecules only!
+
       _Timer.start("ALLOC");
       auto sJ_skij = math::shm::make_shared_array<AF_t>(*mpi, {ns, nkpts, nbnd, nbnd});
       sJ_skij.set_zero();
+      std::optional< sArray_t<Array_4D_real >> real_sJ_skij_opt; // for molecules only!
       _Timer.stop("ALLOC");
 
       nda::array<ComplexType, 1> X_Q(Np);
+      X_Q() = 0;
       if (nkpts != 1) {
         _Timer.start("ALLOC");
         nda::array<ComplexType, 3> V_Qij_conj(Np, nbnd, nbnd);
@@ -48,25 +58,39 @@ namespace methods {
         }
       } else { // molecular case
         _Timer.start("ALLOC");
-        auto sV_Qij_conj = math::shm::make_shared_array<nda::array<ComplexType, 3> >(
-            *mpi, {Np, nbnd, nbnd});
+        nda::array<RealType, 1> tmp(Np);
+        tmp() = 0;
+        if(!real_sV_Qij_opt.has_value()) {
+            real_sV_Qij_opt.emplace(sArray_t<Array_3D_real>(*mpi, {Np, nbnd, nbnd}));
+            real_sV_Qij_opt.value().set_zero();
+        }
+        if(!real_sJ_skij_opt.has_value()) {
+            real_sJ_skij_opt.emplace(sArray_t<Array_4D_real>(*mpi, {ns, nkpts, nbnd, nbnd}));
+            real_sJ_skij_opt.value().set_zero();
+        }
+        if(!real_Dm_skij_opt.has_value()) { // MY: this part is correct!
+            real_Dm_skij_opt.emplace(Complex2Real(Dm_skij));
+        }
         _Timer.stop("ALLOC");
-        auto V_2D_conj = nda::reshape(sV_Qij_conj.local(), shape_t<2>{Np, nbnd*nbnd});
+        auto real_V_2D_conj = nda::reshape(real_sV_Qij_opt.value().local(), shape_t<2>{Np, nbnd*nbnd});
         for (size_t is = 0; is < ns; ++is) {
           for (size_t ik =0; ik < nkpts; ++ik) {
-            sV_Qij_conj.win().fence();
+            real_sV_Qij_opt.value().win().fence();
             if(mpi->node_comm.rank() == 0) {
               _Timer.start("CHOL");
               _Timer.start("CHOL J");
-              sV_Qij_conj.local() = nda::conj(chol.V(0, is, ik));
+              app_log(2, " Doing integral reading..");
+              real_sV_Qij_opt.value().local() = make_regular(Complex2Real(chol.V(0, is, ik))); // Hermitian case
+              app_log(2, " Done with integral reading");
               _Timer.stop("CHOL J");
               _Timer.stop("CHOL");
             }
-            sV_Qij_conj.win().fence();
-            auto Dm_ij_1D = nda::reshape(Dm_skij(is,ik,all,all), shape_t<1>{nbnd*nbnd});
+            real_sV_Qij_opt.value().win().fence();
+            auto real_Dm_ij_1D = nda::reshape(real_Dm_skij_opt.value()(is,ik,all,all), shape_t<1>{nbnd*nbnd});
             // X_Q += conj(V_Qij) * Dmsk_ij
             _Timer.start("J BLAS");
-            nda::blas::gemv(ComplexType(1.0), V_2D_conj, Dm_ij_1D, ComplexType(1.0), X_Q);
+            nda::blas::gemv(RealType(1.0), real_V_2D_conj, real_Dm_ij_1D, RealType(1.0), tmp);
+            X_Q() = make_regular(Real2Complex(tmp));  // CORRECT!!!
             _Timer.stop("J BLAS");
           }
         }
@@ -100,36 +124,35 @@ namespace methods {
           sJ_skij.all_reduce();
       }
       else { // molecular case
-             // TODO PP: parallelize it! A weird nda contiguous bug prevents that...
-          auto sV_Qij = math::shm::make_shared_array<nda::array<ComplexType, 3> >(
+          auto real_sV_Qij = math::shm::make_shared_array<nda::array<RealType, 3> >(
               *mpi, {Np, nbnd, nbnd});
           size_t ik = 0;
-          nda::array_view<ComplexType, 3> V_Qij = sV_Qij.local();
+          nda::array_view<RealType, 3> real_V_Qij = real_sV_Qij.local();
+          nda::array<RealType, 1> real_X_Q(Np);
+          real_X_Q() = Complex2Real(X_Q);
           sJ_skij.win().fence();
+          auto real_J_skij = real_sJ_skij_opt.value().local();
           for (size_t is = 0; is < ns; ++is) {
-              sV_Qij.win().fence();
+              real_sV_Qij.win().fence();
               if(mpi->node_comm.rank() == 0) {
                   _Timer.start("CHOL");
                   _Timer.start("CHOL J");
-                  V_Qij = make_regular(chol.V(0, is, ik)); // iq=0, ik=0 for molecules
+                  real_V_Qij = make_regular(Complex2Real(chol.V(0, is, ik))); // iq=0, ik=0 for molecules
                   _Timer.stop("CHOL J");
                   _Timer.stop("CHOL");
               }
-              sV_Qij.win().fence();
+              real_sV_Qij.win().fence();
+              auto X_1Q_2D = nda::reshape(real_X_Q, shape_t<2>{1, Np});
+              auto V_Q_ij_2D = nda::reshape(real_V_Qij, shape_t<2>{Np, nbnd*nbnd});
+              auto Jsk_1_ij_2D = nda::reshape(real_J_skij(is, ik, all, all), shape_t<2>{1, nbnd*nbnd});
+              auto Jsk_1_ij_2D_complex = nda::reshape(J_skij(is, ik, all, all), shape_t<2>{1, nbnd*nbnd});
               // Fsk_ij = X(Q) * V(Q, ij)
               if(mpi->comm.size() == 0 && rank == 0) { // serial case
-                auto V_Q_ij_2D = nda::reshape(V_Qij, shape_t<2>{Np, nbnd*nbnd});
-                auto Jsk_1_ij_2D = nda::reshape(J_skij(is, ik, all, all), shape_t<2>{1, nbnd*nbnd});
-                auto X_1Q_2D = nda::reshape(X_Q, shape_t<2>{1, Np});
                 _Timer.start("J BLAS");
                 nda::blas::gemm(X_1Q_2D, V_Q_ij_2D, Jsk_1_ij_2D);
                 _Timer.stop("J BLAS");
               }
               else { // parallel case proceeds with caution due to nda contigeous bug
-                auto V_Q_ij_2D = nda::reshape(V_Qij, shape_t<2>{Np, nbnd*nbnd});
-                auto Jsk_1_ij_2D = nda::reshape(J_skij(is, ik, all, all), shape_t<2>{1, nbnd*nbnd});
-                auto X_1Q_2D = nda::reshape(X_Q, shape_t<2>{1, Np});
-
                 // Rounded batch size
                 size_t batch_size = (nbnd*nbnd) / mpi->comm.size();
                 size_t ij_start = rank*batch_size;
@@ -148,7 +171,7 @@ namespace methods {
 
                 // Write the result into the right place in shared memory
                 _Timer.start("ALLOC");
-                Jsk_1_ij_2D(all, ij_range) = Jsk_1_ijranged_2D(all, all);
+                Jsk_1_ij_2D_complex(all, ij_range) = make_regular(Real2Complex(Jsk_1_ijranged_2D));
                 _Timer.stop("ALLOC");
 
               }

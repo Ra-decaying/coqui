@@ -128,6 +128,9 @@ namespace methods {
 
       utils::TimerManager _Timer;
 
+      using Array_3D_real = nda::array<RealType, 3>;
+      std::optional< sArray_t< Array_3D_real >> real_sV_Qij_opt; // for molecules only!
+
       /**
        * THC-HF implementation for q-independent interpolating points
        * @param Dm_skij
