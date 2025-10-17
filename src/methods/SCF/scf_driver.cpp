@@ -203,7 +203,6 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
     app_log(1, "  - non-interacting (H0):         {} a.u.", energies_diff[0]);
     app_log(1, "  - Hartree-Fock:                 {} a.u.", energies_diff[1]);
     app_log(1, "  - correlation:                  {} a.u.", energies_diff[2]);
-
     if (iter_solver != nullptr) {
       app_log(1, "abs max diff of Fock matrix:   {}", F_conv);
       if (mb_solver.corr != nullptr)
@@ -211,7 +210,8 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
     }
     Timer.start("WRITE");
     chkpt::dump_scf(mpi->comm, output_iter, sDm_skij, sG_tskij, sF_skij,
-                    sSigma_tskij, mu, mb_state.coqui_prefix);
+                    sSigma_tskij, mu, mb_state.coqui_prefix,
+                    input_grp, input_iter);
     Timer.stop("WRITE");
     output_iter++;
   } while (output_iter<output_iter_init+niter and not converged());

@@ -30,6 +30,7 @@
 #include "numerics/sparse/csr_blas.hpp"
 
 #include "IO/app_loggers.h"
+#include "IO/ptree/ptree_utilities.hpp"
 #include "utilities/Timer.hpp"
 
 #include "mean_field/MF.hpp"
@@ -101,21 +102,14 @@ namespace methods {
     -> std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> >;
 
     template<THC_ERI thc_t>
-    void downfolding_edmft(
-        thc_t &eri, MBState &mb_state, std::string screen_type,
-        bool force_permut_symm = true, bool force_real = true,
-        imag_axes_ft::IAFT *ft = nullptr,
-        std::string g_grp = "", long g_iter = -1,
-        std::array<double, 2> mixing = {1.0, 1.0});
+    void downfolding_edmft(thc_t &eri, MBState &mb_state, ptree const& pt,
+                           std::string screen_type);
+
 
     template<THC_ERI thc_t>
-    void downfolding_crpa(
-        thc_t &eri, MBState &mb_state, std::string screen_type,
-        std::string factorization_type = "none",
-        bool force_permut_symm = true, bool force_real = true,
-        imag_axes_ft::IAFT *ft = nullptr,
-        std::string g_grp = "", long g_iter = -1,
-        bool q_dependent = false, double thresh = 1e-6);
+    void downfolding_crpa(thc_t &eri, MBState &mb_state, ptree const& pt,
+                          std::string screen_type,
+                          std::string factorization_type = "none", double thresh=1e-6);
 
     template<bool return_wt = true>
     auto downfold_wloc_impl(
@@ -126,15 +120,14 @@ namespace methods {
 
     void downfold_edmft_impl(THC_ERI auto &eri, MBState &mb_state,
                              std::string screen_type, std::string permut_symm,
-                             const imag_axes_ft::IAFT &ft,
-                             std::string g_grp, long g_iter,
+                             std::array<std::string, 2> g_grp,
+                             std::array<long, 2> g_iter,
                              std::array<double, 2> mixing = {1.0, 1.0});
 
     void downfold_crpa_impl(THC_ERI auto &eri, MBState &mb_state,
                             std::string screen_type,
                             [[maybe_unused]] std::string factorization_type,
                             std::string permut_symm,
-                            const imag_axes_ft::IAFT &ft,
                             std::string g_grp = "", long g_iter = -1,
                             bool q_dependent = false,
                             [[maybe_unused]] double thresh = 1e-6);
@@ -143,7 +136,6 @@ namespace methods {
                                     std::string screen_type,
                                     std::string factorization_type,
                                     std::string permut_symm,
-                                    const imag_axes_ft::IAFT &ft,
                                     std::string g_grp = "", long g_iter = -1,
                                     double thresh = 1e-6);
 

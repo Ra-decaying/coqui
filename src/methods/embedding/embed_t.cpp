@@ -75,22 +75,26 @@ namespace methods {
                                 iter_scf::iter_scf_t *iter_solver,
                                 bool corr_only) {
     using math::shm::make_shared_array;
-    for( auto& v: {"EMBED_TOTAL", "EMBED_ALLOC",
+    for (auto &v: {"EMBED_TOTAL", "EMBED_ALLOC",
                    "EMBED_UPFOLD", "EMBED_DYSON", "EMBED_FIND_MU",
-                   "EMBED_ITERATIVE", "EMBED_READ", "EMBED_WRITE"} ) {
+                   "EMBED_ITERATIVE", "EMBED_READ", "EMBED_WRITE"}) {
       _Timer.add(v);
     }
 
     _Timer.start("EMBED_TOTAL");
     std::string filename = mb_state.coqui_prefix + ".mbpt.h5";
-    auto ft = *mb_state.ft;
-    auto& proj = mb_state.proj_boson.value().proj_fermi();
+    auto &ft = *mb_state.ft;
+    auto &proj = mb_state.proj_boson.value().proj_fermi();
     auto nImps = proj.nImps();
     auto nImpOrbs = proj.nImpOrbs();
 
     _Timer.start("EMBED_READ");
     auto [gw_iter, weiss_f_iter, weiss_b_iter, embed_iter] = chkpt::read_input_iterations(filename);
-    long embed_out_iter = (embed_iter>0)? embed_iter+1 : gw_iter;
+    utils::check(weiss_f_iter == weiss_b_iter,
+                 "embed_t::dmft_embed_impl: inconsistent downfolding iterations "
+                 "for fermionic ({}) and bosonic ({}) Weiss fields in {}",
+                 weiss_f_iter, weiss_b_iter, filename);
+    long embed_out_iter = (embed_iter > 0) ? embed_iter+1 : weiss_f_iter;
     _Timer.stop("EMBED_READ");
 
     ft.metadata_log();
@@ -99,17 +103,21 @@ namespace methods {
                "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌┬┐┌┬┐┌─┐┌┬┐  ┌─┐┌┬┐┌┐ ┌─┐┌┬┐\n"
                "║  ║ ║║═╬╗║ ║║   │││││├┤  │   ├┤ │││├┴┐├┤  ││\n"
                "╚═╝╚═╝╚═╝╚╚═╝╩  ─┴┘┴ ┴└   ┴   └─┘┴ ┴└─┘└─┘─┴┘\n");
-    app_log(1, "  - CoQui checkpoint file:                      {}", filename);
-    app_log(1, "  - Non-local MBPT solution for embedding ");
+    app_log(1, "  - CoQui checkpoint file:                      {}\n", filename);
+    app_log(1, "    Non-local self-energy for embedding ");
     app_log(1, "      HDF5 group:                              scf");
-    app_log(1, "      Iteration:                               {}", gw_iter);
-    app_log(1, "  - Embedded solution output");
+    app_log(1, "      Iteration:                               {}\n", gw_iter);
+    if (!mb_state.has_local_selfenergies()) {
+      app_log(1, "    Local self-energy corrections");
+      app_log(1, "      HDF5 group:                              downfold_1e");
+      app_log(1, "      Iteration:                               {}\n", weiss_f_iter);
+    }
+    app_log(1, "    Embedded solution output");
     app_log(1, "      HDF5 group:                              embed");
     app_log(1, "      Iteration:                               {}", embed_out_iter);
-    app_log(1, "  - Embed correlated self-energy only:         {}", corr_only);
-    if (proj.C_file() != "") {
+    app_log(1, "      Embed correlated self-energy only:       {}\n", corr_only);
+    if (proj.C_file() != "")
       app_log(1, "  - Transformation matrices:                   {}", proj.C_file());
-    }
     app_log(1, "  - Number of impurities:                      {}", nImps);
     app_log(1, "  - Number of local orbitals per impurity:     {}", nImpOrbs);
     app_log(1, "  - Range of primary orbitals for local basis: [{}, {})\n", proj.W_rng()[0].first(), proj.W_rng()[0].last());
@@ -150,12 +158,7 @@ namespace methods {
 
     // Check local self-energy corrections in MBState
     bool sigma_local_given = false;
-    if (!mb_state.Sigma_imp_wsIab or !mb_state.Sigma_dc_wsIab) {
-      // Read local self-energy corrections from the checkpoint file if they are not set in MBState.
-      app_log(1, "MBState does not contain local self-energy corrections\n"
-                 "-> trying to read them from the checkpoint file {} in", filename);
-      app_log(1, "  - HDF5 group:           downfold_1e");
-      app_log(1, "  - Iteration:            {}\n", weiss_f_iter);
+    if (!mb_state.has_local_selfenergies()) {
 
       long nw = ft.nw_f();
       mb_state.Sigma_imp_wsIab.emplace(nda::array<ComplexType, 5>(nw, _MF->nspin(), nImps, nImpOrbs, nImpOrbs));
@@ -178,22 +181,16 @@ namespace methods {
       _context->comm.broadcast_n(mb_state.Vhf_imp_sIab.value().data(), mb_state.Vhf_imp_sIab.value().size(), 0);
       _context->comm.broadcast_n(mb_state.Vhf_dc_sIab.value().data(), mb_state.Vhf_dc_sIab.value().size(), 0);
       if (sigma_local_given)
-        app_log(1, "Found local self-energy corrections in the checkpoint file {}", filename);
+        app_log(1, "Successfully found the local self-energy corrections in the checkpoint h5 {}.\n", filename);
     } else {
-      app_log(1, "Found local self-energy corrections already set in MBState.");
       sigma_local_given = true;
     }
     _Timer.stop("EMBED_READ");
 
     _Timer.start("EMBED_UPFOLD");
     // upfold and add corrections from active spaces
-    if (sigma_local_given) {
-      app_log(2, "Add local impurity corrections to the GW solution from scf/iter{}", gw_iter);
-      if (!corr_only) add_Vhf_correction(mb_state);
-      add_Sigma_dyn_correction(mb_state);
-    } else {
-      app_log(2, "Local self-energy corrections are not found, skipping the addition of local corrections.");
-    }
+    if (!corr_only) add_Vhf_correction(mb_state);
+    add_Sigma_dyn_correction(mb_state);
     _context->comm.barrier();
     _Timer.stop("EMBED_UPFOLD");
 

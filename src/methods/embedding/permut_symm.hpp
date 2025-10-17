@@ -26,7 +26,7 @@
 
 namespace methods {
 
-inline std::string determine_permut_symm(bool &force_permut_symm, bool &force_real) {
+inline std::string determine_permut_symm(bool force_permut_symm, bool force_real) {
   if (force_real and !force_permut_symm) {
     app_log(2, "determine_permut_symm: Found inconsistency between force_real (true) and permut_symm (false). "
                "Will set both force_real and permut_symm to 'true'. ");

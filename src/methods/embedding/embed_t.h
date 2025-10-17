@@ -32,6 +32,7 @@
 
 #include "utilities/Timer.hpp"
 #include "IO/app_loggers.h"
+#include "IO/ptree/ptree_utilities.hpp"
 
 #include "utilities/mpi_context.h"
 #include "mean_field/MF.hpp"
@@ -100,13 +101,8 @@ namespace methods {
      * @param qp_context    - [INPUT] quasiparticle approximation parameters
      * @param format_type   - [OPTION] Type of output: "default", "interaction_static"
      */
-    void downfolding(MBState &mb_state,
-                     bool qp_selfenergy, bool update_dc, std::string dc_type,
-                     bool force_real,
-                     qp_context_t *qp_context = nullptr,
-                     std::string format_type = "default",
-                     std::array<double, 2> mixing = {1.0,1.0},
-                     std::string g_weiss_type = "dmft");
+    void downfolding(MBState &mb_state, ptree const& pt,
+                     qp_context_t *qp_context = nullptr, std::string format_type="default");
 
     template<THC_ERI thc_t>
     void hf_downfolding(std::string outdir, std::string prefix,
@@ -184,7 +180,8 @@ namespace methods {
      */
     void downfold_mb_solution_impl(
         MBState &mb_state, bool update_dc, std::string dc_type,
-        bool force_real, std::array<double, 2> mixing = {1.0, 1.0},
+        bool force_real, std::string g_k_grp = "", long g_k_iter = -1,
+        std::array<double, 2> mixing = {1.0, 1.0},
         std::string g_weiss_type="dmft");
 
     /**

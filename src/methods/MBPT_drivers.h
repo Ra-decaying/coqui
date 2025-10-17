@@ -114,7 +114,7 @@ template<typename eri_t>
 void hf_downfold(eri_t &eri, ptree const& pt);
 
 template<typename eri_t>
-void gw_downfold(eri_t &eri, ptree const& pt);
+void gw_downfold(eri_t &eri, ptree &pt);
 
 /**
  * @brief Embedding (i.e. upfolding) of local DMFT self-energy corrections to a MBPT solution stored in the checkpoint file.

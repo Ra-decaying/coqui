@@ -78,6 +78,8 @@ namespace methods {
     if (!pi_local_found) {
       sPi_imp_wabcd.reset();
       sPi_dc_wabcd.reset();
+    } else {
+      df_2e_iter = weiss_b_iter;
     }
     mpi->comm.barrier();
     return pi_local_found;
@@ -128,6 +130,10 @@ namespace methods {
                  Sigma_imp_wsIab.value().shape(0), ft->nw_f());
     utils::check(Sigma_dc_wsIab.value().shape() == Sigma_imp_wsIab.value().shape(),
                  "MBState::set_local_selfenergies: Incorrect dimension for the provided Sigma_dc_wsIab.");
+  }
+
+  bool MBState::has_local_selfenergies() {
+    return Sigma_imp_wsIab.has_value() and Sigma_dc_wsIab.has_value() and Vhf_imp_sIab.has_value() and Vhf_dc_sIab.has_value();
   }
 
 

@@ -126,28 +126,43 @@ namespace methods {
     return Gloc_tsIab;
   }
 
-  void embed_t::downfolding(MBState &mb_state,
-                            bool qp_selfenergy, bool update_dc, std::string dc_type,
-                            bool force_real,
-                            qp_context_t *qp_context,
-                            std::string format_type,
-                            std::array<double, 2> mixing,
-                            std::string g_weiss_type) {
-    app_log(1, "\n"
-               "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌─┐┌┐┌┌─┐  ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
-               "║  ║ ║║═╬╗║ ║║  │ ││││├┤───├┤    │││ │││││││├┤ │ ││   ││\n"
-               "╚═╝╚═╝╚═╝╚╚═╝╩  └─┘┘└┘└─┘  └─┘  ─┴┘└─┘└┴┘┘└┘└  └─┘┴─┘─┴┘\n");
+  void embed_t::downfolding(MBState &mb_state, ptree const& pt,
+                            qp_context_t *qp_context, std::string format_type) {
+
     std::string filename = mb_state.coqui_prefix + ".mbpt.h5";
     utils::check(std::filesystem::exists(filename),
                  "embed_t::downfolding: checkpoint file, {}, does not exist!", filename);
 
-    if (qp_selfenergy) {
-      utils::check(qp_context!=nullptr, "embed_t::downfolding: uninitialized qp_context. ");
+    std::string err = std::string("embed_t::downfolding: Incorrect input - ");
+    auto update_dc = io::get_value_with_default<bool>(pt,"update_dc",true);
+    auto dc_type = io::get_value<std::string>(
+        pt, "dc_type", err+"dc_type. Valid types are \"hartree\", \"hf\", \"gw\", \"gw_dynamic_u\" and \"gw_mix_u\".");
+    io::tolower(dc_type);
+
+    if (qp_context!=nullptr) {
       utils::check(format_type == "default" or update_dc, "embed_t::downfolding: format_type!=default requires update_dc.");
-      downfold_mb_solution_qp_impl(mb_state, *qp_context, update_dc, dc_type, force_real, format_type);
+      downfold_mb_solution_qp_impl(mb_state, *qp_context, update_dc, dc_type,
+                                   io::get_value_with_default<bool>(pt, "force_real", true),
+                                   format_type);
     } else {
       utils::check(format_type == "default", "embed_t::downfolding: qp_selfenergy=false requires format_type = default ");
-      downfold_mb_solution_impl(mb_state, update_dc, dc_type, force_real, mixing, g_weiss_type);
+
+      // g_weiss_type: Valid types are "dmft" and "gloc"
+      auto g_weiss_type = io::get_value_with_default<std::string>(pt, "g_weiss_type", "dmft");
+      io::tolower(g_weiss_type);
+
+      std::array<double, 2> mixing{io::get_value_with_default<double>(pt,"dc_sigma_mixing",1.0),
+                                   io::get_value_with_default<double>(pt,"g_weiss_mixing",1.0)};
+
+      auto g_k_grp = io::get_value_with_default<std::string>(pt,"g_k_input", "");
+      io::tolower(g_k_grp);
+      if (g_k_grp=="mf") g_k_grp = "scf";
+      auto g_k_iter = io::get_value_with_default<long>(pt, "g_k_input_iter", -1);
+
+      downfold_mb_solution_impl(mb_state, update_dc, dc_type,
+                                io::get_value_with_default<bool>(pt, "force_real", true),
+                                g_k_grp, g_k_iter,
+                                mixing, g_weiss_type);
     }
   }
 
@@ -181,10 +196,10 @@ namespace methods {
   auto embed_t::gw_edmft_logic(long gw_iter, long weiss_f_iter, long weiss_b_iter, long embed_iter,
                                   std::string filename, bool update_dc)
     -> std::tuple<long, std::string> {
-    app_log(2, "Checking the dataset in the checkpoint file {}\n", filename);
+    app_log(2, "Checking the dataset in the CoQuí checkpoint file {}\n", filename);
     utils::check(weiss_b_iter>0, "embed_t::gw_edmft_logic: weiss_b_iter <= 0, indicating "
-                                 "no effective Coulomb interactions found in {}. Please run "
-                                 "\"downfold_2e\" first. ", filename);
+                                 "no effective Coulomb interactions found in {}. "
+                                 "Please run \"downfold_2e\" first. ", filename);
     long dc_iter = (embed_iter!=-1)? embed_iter : (gw_iter>0)? gw_iter-1 : gw_iter;
     std::string dc_src_grp = (embed_iter!=-1)? "embed" : "scf";
     if (embed_iter==-1) {
@@ -283,7 +298,8 @@ namespace methods {
   //   4) (optional) downfold various quantities to h5
   void embed_t::downfold_mb_solution_impl(
       MBState &mb_state, bool update_dc, std::string dc_type,
-      bool force_real, std::array<double, 2> mixing,
+      bool force_real, std::string g_k_grp, long g_k_iter,
+      std::array<double, 2> mixing,
       std::string g_weiss_type) {
     using math::shm::make_shared_array;
 
@@ -313,32 +329,51 @@ namespace methods {
     mpi->comm.barrier();
     _Timer.stop("DF_READ");
 
-    app_log(1, "  - scf check-point file:                      {}", filename);
-    app_log(1, "  - transformation matrices:                   {}", proj.C_file());
-    app_log(1, "  - force real local Hamiltonian:              {}", force_real);
-    app_log(1, "  - number of impurities:                      {}", proj.nImps());
-    app_log(1, "  - number of local orbitals per impurity:     {}", proj.nImpOrbs());
-    app_log(1, "  - range of primary orbitals for local basis: [{}, {})",
-            proj.W_rng()[0].first(), proj.W_rng()[0].last());
-    app_log(1, "  - gw iteration:                              {}", gw_iter);
-    app_log(1, "  - downfold_1e iteration:                     {}", weiss_f_iter);
-    app_log(1, "  - downfold_2e iteration:                     {}", weiss_b_iter);
-    app_log(1, "  - embed iteration:                           {}", embed_iter);
+    utils::check(weiss_b_iter>0, "embed_t::gw_edmft_logic: weiss_b_iter <= 0, indicating "
+                                 "no effective Coulomb interactions found in {}. "
+                                 "Please run \"downfold_2e\" first. ", filename);
+
+    if (g_k_grp=="") {
+      // CNY: Here we change the default logic compared to the old implementation.
+      // Old default logic: g_k_iter = (embed_iter != -1) ? embed_iter : (gw_iter > 0) ? gw_iter - 1 : gw_iter;
+      g_k_grp = (embed_iter != -1) ? "embed" : "scf";
+      g_k_iter = (embed_iter != -1) ? embed_iter : gw_iter;
+    } else if (g_k_iter == -1) {
+      g_k_iter = (g_k_grp == "embed")? embed_iter : gw_iter;
+    }
+
+    app_log(1, "\n"
+               "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌─┐┌┐┌┌─┐  ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
+               "║  ║ ║║═╬╗║ ║║  │ ││││├┤───├┤    │││ │││││││├┤ │ ││   ││\n"
+               "╚═╝╚═╝╚═╝╚╚═╝╩  └─┘┘└┘└─┘  └─┘  ─┴┘└─┘└┴┘┘└┘└  └─┘┴─┘─┴┘\n");
+    app_log(1, "  QoQuí checkpoint file:                     {}", filename);
+    app_log(1, "    - Input Green's function");
+    app_log(1, "      HDF5 group:                            {}", g_k_grp);
+    app_log(1, "      iteration:                             {}", g_k_iter);
+    app_log(1, "    - Output HDF5 group:                     downfold_1e/iter{}\n", g_k_iter+1);
+
     if (update_dc) {
-      app_log(1, "  - update dc self-energy:                     {}", update_dc);
-      app_log(1, "  - double counting type:                      {}\n", dc_type);
-    } else
-      app_log(1, "  - update dc self-energy:                     {}", update_dc);
+      app_log(1, "  Double counting self-energy:");
+      app_log(1, "    - Type:                                  {}", dc_type);
+      app_log(1, "    - Input Green's function");
+      app_log(1, "      HFD5 group:                            {}", g_k_grp);
+      app_log(1, "      iteration:                             {}", g_k_iter);
+      app_log(1, "    - Input interactions");
+      app_log(1, "      HDF5 group:                            downfold_2e");
+      app_log(1, "      iteration:                             {}", weiss_b_iter);
+      app_log(1, "    - Mixing for the current iteration:      {}\n", mixing[0]);
+    }
+
+    app_log(1, "  Transformation matrices:                   {}", proj.C_file());
+    app_log(1, "  Number of impurities:                      {}", proj.nImps());
+    app_log(1, "  Number of local orbitals per impurity:     {}", proj.nImpOrbs());
+    app_log(1, "  Range of primary orbitals for local basis: [{}, {})\n",
+            proj.W_rng()[0].first(), proj.W_rng()[0].last());
+
+    app_log(1, "  - force real local Hamiltonian:              {}", force_real);
     app_log(1, "  - g_weiss_type:                              {}\n", g_weiss_type);
     ft->metadata_log();
-    auto [dc_iter, dc_src_grp] = gw_edmft_logic(gw_iter, weiss_f_iter, weiss_b_iter, embed_iter, filename, update_dc);
     mpi->comm.barrier();
-
-    app_log(1, "Evaluating double counting self-energy with\n"
-               "  - Gloc from {}/iter{}\n"
-               "  - Wloc/Uloc from downfold_2e/iter{}\n"
-               "  - Mixing for the current iteration = {}\n",
-               dc_src_grp, dc_iter, weiss_b_iter, mixing[0]);
 
     // get Gloc
     _Timer.start("DF_ALLOC");
@@ -364,18 +399,17 @@ namespace methods {
 
       _Timer.start("DF_READ");
       utils::check(chkpt::read_scf(mpi->node_comm, sVhf_skij, sSigma_tskij,
-                                   mu, mb_state.coqui_prefix, dc_src_grp, dc_iter) == dc_iter,
+                                   mu, mb_state.coqui_prefix, g_k_grp, g_k_iter) == g_k_iter,
                    "embed_t::downfold_mb_solution_impl: "
-                   "Inconsistent iterations - dc_iter ({}) is not read in {} group. This should not happen!",
-                   dc_iter, dc_src_grp);
+                   "Inconsistent iterations - g_k_iter ({}) is not read in {} group. This should not happen!",
+                   g_k_iter, g_k_grp);
       mpi->comm.barrier();
 
       h5::file file(filename, 'r');
       auto gh5 = h5::group(file);
       auto df_2e_grp = gh5.open_group("downfold_2e");
       auto iter_2e_grp = df_2e_grp.open_group("iter" + std::to_string(weiss_b_iter));
-      auto dc_grp = gh5.open_group(dc_src_grp);
-      auto iter_grp = dc_grp.open_group("iter" + std::to_string(dc_iter));
+      auto iter_grp = gh5.open_group(g_k_grp).open_group("iter" + std::to_string(g_k_iter));
 
       if (iter_grp.has_dataset("G_tskij")) {
         if (mpi->node_comm.root()) {
@@ -429,7 +463,7 @@ namespace methods {
         // no impurity self-energy. In that case, we assume Sigma_imp = Sigma_dc.
         //
         app_log(1, "\nEvaluating fermionic Weiss field with\n"
-                   "  - Gloc from {}/iter{}", dc_src_grp, dc_iter);
+                   "  - Gloc from {}/iter{}", g_k_grp, g_k_iter);
         if (embed_iter != -1 and weiss_f_iter != -1)
           app_log(1, "  - Impurity self-energy from downfold_1e/iter{}", weiss_f_iter);
         else
@@ -471,7 +505,7 @@ namespace methods {
     _Timer.start("DF_WRITE");
     if (mpi->comm.root()) {
       // update weiss_f_iter based on input G_tskij
-      weiss_f_iter = (embed_iter!=-1)? embed_iter+1 : gw_iter;
+      weiss_f_iter = g_k_iter+1;
       h5::file file(filename, 'a');
       auto grp = h5::group(file);
       auto weiss_f_grp = (grp.has_subgroup("downfold_1e"))?
@@ -527,6 +561,10 @@ namespace methods {
     mpi->comm.barrier();
     _Timer.start("DF_READ");
 
+    app_log(1, "\n"
+               "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌─┐┌┐┌┌─┐  ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
+               "║  ║ ║║═╬╗║ ║║  │ ││││├┤───├┤    │││ │││││││├┤ │ ││   ││\n"
+               "╚═╝╚═╝╚═╝╚╚═╝╩  └─┘┘└┘└─┘  └─┘  ─┴┘└─┘└┴┘┘└┘└  └─┘┴─┘─┴┘\n");
     app_log(1, "One-electron Hamiltonian downfolding for many-body solutions:");
     app_log(1, "(applying static approximation to the non-local self-energy)\n");
     app_log(1, "  - scf check-point file:                      {}", filename);

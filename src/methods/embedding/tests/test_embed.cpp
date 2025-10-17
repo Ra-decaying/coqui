@@ -32,6 +32,7 @@
 
 #include "utilities/mpi_context.h"
 #include "utilities/test_common.hpp"
+#include "IO/ptree/ptree_utilities.hpp"
 #include "mean_field/default_MF.hpp"
 #include "methods/mb_state/mb_state.hpp"
 #include "methods/embedding/embed_eri_t.h"
@@ -75,8 +76,12 @@ namespace bdft_tests {
 
       // cRPA from DFT Green's function
       MBState mb_state(ft, coqui_prefix, mf, wannier_file, true);
+      ptree pt;
+      pt.put("permut_symm", true);
+      pt.put("force_real", true);
+      pt.put("input_type", "");
       embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
-      embed_2e.downfolding_crpa(thc, mb_state, "crpa", "none", true, true, &ft);
+      embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa");
 
       // Single-shot GW based on DFT Green's function
       [[maybe_unused]] auto [e_hf, e_corr] = scf_loop(mb_state, dyson, eri, ft,
@@ -85,7 +90,13 @@ namespace bdft_tests {
 
       // DC from DFT Green's function; Fermionic Weiss field from DFT Green's function
       embed_t embed_1e(*mf, wannier_file, true);
-      embed_1e.downfolding(mb_state, false, true, dc_type, true);
+      ptree pt_1e;
+      pt_1e.put("update_dc", true);
+      pt_1e.put("force_real", true);
+      pt_1e.put("dc_type", dc_type);
+      pt_1e.put("g_k_input", "scf");
+      pt_1e.put("g_k_input_iter", 0);
+      embed_1e.downfolding(mb_state, pt_1e);
 
       // check downfolded Hamiltonian
       std::string fname = coqui_prefix+".mbpt.h5";
@@ -166,8 +177,12 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       mpi->comm.barrier();
 
       MBState mb_state(ft, coqui_prefix, mf, wannier_file, true);
+      ptree pt;
+      pt.put("permut_symm", true);
+      pt.put("force_real", true);
+      pt.put("input_type", "");
       embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
-      embed_2e.downfolding_crpa(thc, mb_state, "crpa", "none", true, true, &ft);
+      embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa");
 
       [[maybe_unused]] auto [e_hf, e_corr] = scf_loop(mb_state, dyson, eri, ft,
                                                       solvers::mb_solver_t(&hf,&gw,&scr_eri),
@@ -175,7 +190,11 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
 
       qp_context_t qp_context("sc", "pade", 18, 1e-8, 1e-8, "qp_energy");
       embed_t embed_1e(*mf, wannier_file, true);
-      embed_1e.downfolding(mb_state, true, true, dc_type, true, &qp_context);
+      ptree pt_1e;
+      pt_1e.put("update_dc", true);
+      pt_1e.put("force_real", true);
+      pt_1e.put("dc_type", dc_type);
+      embed_1e.downfolding(mb_state, pt_1e, &qp_context);
 
       // check downfolded Hamiltonian
       std::string fname = coqui_prefix+".mbpt.h5";
@@ -325,8 +344,12 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       nda::array<ComplexType, 5> Uloc;
       // downfold_2e with crpa mode
       MBState mb_state(ft, prefix, mf, wannier_file, true);
+      ptree pt;
+      pt.put("permut_symm", true);
+      pt.put("force_real", true);
+      pt.put("input_type", "");
       embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
-      embed_2e.downfolding_crpa(thc, mb_state, "crpa", "none", true, true, &ft);
+      embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa");
       mpi->comm.barrier();
 
       long iter;
@@ -401,8 +424,12 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
 
       // downfold_2e with edmft mode
       MBState mb_state(ft, prefix, mf, wannier_file, true);
+      ptree pt;
+      pt.put("permut_symm", true);
+      pt.put("force_real", true);
+      pt.put("pi_rpa_input", "mf");
       embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
-      embed_2e.downfolding_edmft(thc, mb_state, "gw_edmft", true, true, &ft);
+      embed_2e.downfolding_edmft(thc, mb_state, pt, "gw_edmft");
       mpi->comm.barrier();
 
       nda::array<ComplexType, 4> Vloc;
@@ -485,8 +512,12 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
 
         // downfold_2e with bare mode
         MBState mb_state(ft, prefix, mf, wannier_file, true);
+        ptree pt;
+        pt.put("permut_symm", true);
+        pt.put("force_real", false);
+        pt.put("input_type", "");
         embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"), string_to_div_enum("gygi"));
-        embed_2e.downfolding_crpa(thc, mb_state, "crpa", "none", true, false, &ft, "", -1, false, 1e-8);
+        embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa", "none", 1e-8);
         mpi->comm.barrier();
 
         iter_scf::iter_scf_t iter_sol("damping");
@@ -496,7 +527,11 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
 
         qp_context_t qp_context("sc", "pade", 18, 1e-8, 1e-8, "qp_energy");
         embed_t embed(*mf, wannier_file, true);
-        embed.downfolding(mb_state, true, true, "gw", false, &qp_context);
+        ptree pt_1e;
+        pt_1e.put("update_dc", true);
+        pt_1e.put("dc_type", "gw");
+        pt_1e.put("force_real", false);
+        embed.downfolding(mb_state, pt_1e, &qp_context);
         mpi->comm.barrier();
       }
 
@@ -506,9 +541,13 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
 
         // downfold_2e with bare mode
         MBState mb_state(ft, prefix+".bare", mf, wannier_file, true);
+        ptree pt;
+        pt.put("permut_symm", true);
+        pt.put("force_real", false);
+        pt.put("input_type", "");
         embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"),
                              string_to_div_enum("gygi"), "model_static");
-        embed_2e.downfolding_crpa(thc, mb_state, "bare", "none", true, false, &ft, "", -1, false, 1e-8);
+        embed_2e.downfolding_crpa(thc, mb_state, pt, "bare", "none", 1e-8);
         mpi->comm.barrier();
 
         embed_t embed(*mf, wannier_file, true);
@@ -522,9 +561,13 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
 
         // downfold_2e with bare mode
         MBState mb_state(ft, prefix+".bare.chol", mf, wannier_file, true);
+        ptree pt;
+        pt.put("permut_symm", true);
+        pt.put("force_real", false);
+        pt.put("input_type", "");
         embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"),
                              string_to_div_enum("gygi"), "model_static");
-        embed_2e.downfolding_crpa(thc, mb_state, "bare", "cholesky", true, false, &ft, "", -1, false, 1e-8);
+        embed_2e.downfolding_crpa(thc, mb_state, pt, "bare", "cholesky", 1e-8);
         mpi->comm.barrier();
 
         embed_t embed(*mf, wannier_file, true);
@@ -538,9 +581,13 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
 
         // downfold_2e with crpa mode
         MBState mb_state(ft, prefix+".crpa.chol", mf, wannier_file, true);
+        ptree pt;
+        pt.put("permut_symm", true);
+        pt.put("force_real", false);
+        pt.put("input_type", "");
         embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"),
                              string_to_div_enum("gygi"), "model_static");
-        embed_2e.downfolding_crpa(thc, mb_state, "crpa", "cholesky", true, false, &ft, "", -1, false, 1e-8);
+        embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa", "cholesky", 1e-8);
         mpi->comm.barrier();
 
         iter_scf::iter_scf_t iter_sol("damping");
@@ -552,7 +599,11 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         qp_context_t qp_context("sc", "pade", 18, 1e-8, 1e-8, "qp_energy");
         mpi->comm.barrier();
         embed_t embed(*mf, wannier_file, true);
-        embed.downfolding(mb_state, true, true, "gw", false, &qp_context, "model_static");
+        ptree pt_1e;
+        pt_1e.put("update_dc", true);
+        pt_1e.put("dc_type", "gw");
+        pt_1e.put("force_real", false);
+        embed.downfolding(mb_state, pt_1e, &qp_context, "model_static");
         mpi->comm.barrier();
       }
 

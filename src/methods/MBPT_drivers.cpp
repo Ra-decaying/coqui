@@ -119,6 +119,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
       imag_axes_ft::IAFT(beta, wmax, imag_axes_ft::ir_source, iaft_prec) :
       imag_axes_ft::read_iaft(output+".mbpt.h5");
 
+  std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
+
   using namespace solvers;
   hf_t hf(string_to_div_enum(hf_div_treatment));
   if(solver_type == "rpa") {
@@ -130,17 +132,25 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   } else if(solver_type == "hf") {
 
     simple_dyson dyson(mf.get(), &ft, mu_tol);
-    auto iter_solver = iter_scf::make_iter_scf(pt);
+    if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
+      iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt));
+    } else {
+      iter_solver = nullptr;
+    }
     MBState mb_state(mpi, ft, output);
     scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf),
-             std::addressof(iter_solver), niter, restart, conv_thr, const_mu,
+             iter_solver.get(), niter, restart, conv_thr, const_mu,
              input_grp, input_iter);
 
   } else if(solver_type == "gw") {
     auto screen_type = io::get_value_with_default<std::string>(pt,"screen_type", "rpa");
 
     simple_dyson dyson(mf.get(), &ft, mu_tol);
-    auto iter_solver = iter_scf::make_iter_scf(pt);
+    if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
+      iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt));
+    } else {
+      iter_solver = nullptr;
+    }
     solvers::scr_coulomb_t scr_eri(&ft, screen_type, string_to_div_enum(div_treatment));
     solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
     if (screen_type.substr(0,8)=="gw_edmft") {
@@ -150,7 +160,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
 
       MBState mb_state(ft, output, mf, wannier_file, trans_home_cell);
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw, &scr_eri),
-               std::addressof(iter_solver), niter, restart, conv_thr, const_mu,
+               iter_solver.get(), niter, restart, conv_thr, const_mu,
                input_grp, input_iter);
 
       auto dump_w_to_h5 = io::get_value_with_default<bool>(pt,"dump_w_to_h5", false);
@@ -169,7 +179,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
 
       MBState mb_state(mpi, ft, output);
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw, &scr_eri),
-               std::addressof(iter_solver), niter, restart, conv_thr, const_mu,
+               iter_solver.get(), niter, restart, conv_thr, const_mu,
                input_grp, input_iter);
 
       auto dump_w_to_h5 = io::get_value_with_default<bool>(pt,"dump_w_to_h5", false);
@@ -196,7 +206,11 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     auto t_prescreen_thresh = io::get_value_with_default<double>(pt,"t_prescreen_thresh",0.0);
 
     simple_dyson dyson(mf.get(), &ft, mu_tol);
-    auto iter_solver = iter_scf::make_iter_scf(pt);
+    if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
+      iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt));
+    } else {
+      iter_solver = nullptr;
+    }
     solvers::gf2_t gf2(mf.get(), &ft, string_to_div_enum(div_treatment),
                        gf2_direct_type, gf2_exchange_alg, gf2_exchange_type, output,
                        gf2_save_C, gf2_sosex_save_memory);
@@ -206,12 +220,12 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
 
     if (gf2_direct_type == "gf2") {
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gf2),
-               std::addressof(iter_solver), niter, restart, conv_thr, const_mu,
+               iter_solver.get(), niter, restart, conv_thr, const_mu,
                input_grp, input_iter);
     } else {
       solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum(div_treatment));
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gf2, &scr_eri),
-               std::addressof(iter_solver), niter, restart, conv_thr, const_mu,
+               iter_solver.get(), niter, restart, conv_thr, const_mu,
                input_grp, input_iter);
     }
 
@@ -229,10 +243,14 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
 
   } else if (solver_type == "qphf") {
 
-    auto iter_solver = iter_scf::make_iter_scf(pt);
+    if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
+      iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt));
+    } else {
+      iter_solver = nullptr;
+    }
     MBState mb_state(mpi, ft, output);
     qp_context_t qp_context;
-    qp_scf_loop<false>(mb_state, eri, ft, qp_context, mb_solver_t(&hf), &iter_solver,
+    qp_scf_loop<false>(mb_state, eri, ft, qp_context, mb_solver_t(&hf), iter_solver.get(),
                        niter, restart, conv_thr);
 
   } else if (solver_type == "evgw0") {
@@ -244,11 +262,15 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     io::tolower(ac_alg);
     io::tolower(qp_type);
     qp_context_t qp_context(qp_type, ac_alg, Nfit, eta, conv_thr);
-    auto iter_solver = iter_scf::make_iter_scf(pt);
+    if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
+      iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt));
+    } else {
+      iter_solver = nullptr;
+    }
     solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum(div_treatment));
     solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
     MBState mb_state(mpi, ft, output);
-    qp_scf_loop<true>(mb_state, eri, ft, qp_context, mb_solver_t(&hf,&gw,&scr_eri), &iter_solver,
+    qp_scf_loop<true>(mb_state, eri, ft, qp_context, mb_solver_t(&hf,&gw,&scr_eri), iter_solver.get(),
                       niter, restart, conv_thr);
 
   } else if (solver_type == "qpgw") {
@@ -262,11 +284,15 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     utils::check(off_diag_mode=="fermi" or off_diag_mode=="qp_energy",
                  "unknown off_diag_mode: {}. Valid options are \"fermi\" and \"qp_energy\"");
     qp_context_t qp_context("sc", ac_alg, Nfit, eta, 1e-8, off_diag_mode);
-    auto iter_solver = iter_scf::make_iter_scf(pt);
+    if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
+      iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt));
+    } else {
+      iter_solver = nullptr;
+    }
     solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum(div_treatment));
     solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
     MBState mb_state(mpi, ft, output);
-    qp_scf_loop<false>(mb_state, eri, ft, qp_context, mb_solver_t(&hf,&gw,&scr_eri), &iter_solver,
+    qp_scf_loop<false>(mb_state, eri, ft, qp_context, mb_solver_t(&hf,&gw,&scr_eri), iter_solver.get(),
                        niter, restart, conv_thr);
 
   } else
@@ -331,6 +357,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
                           imag_axes_ft::IAFT(beta, wmax, imag_axes_ft::ir_source, iaft_prec) :
                           imag_axes_ft::read_iaft(output+".mbpt.h5");
 
+  std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
+
   using namespace solvers;
   hf_t hf(string_to_div_enum(hf_div_treatment));
   if (solver_type == "gw") {
@@ -338,7 +366,11 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
     auto screen_type = io::get_value_with_default<std::string>(pt,"screen_type", "rpa");
 
     simple_dyson dyson(mf.get(), &ft, mu_tol);
-    auto iter_solver = iter_scf::make_iter_scf(pt);
+    if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
+      iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt));
+    } else {
+      iter_solver = nullptr;
+    }
     solvers::scr_coulomb_t scr_eri(&ft, screen_type, string_to_div_enum(div_treatment));
     solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
     MBState mb_state(ft, output, mf, C_ksIai, band_window, kpts_crys, trans_home_cell, false);
@@ -348,7 +380,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
     }
 
     scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw, &scr_eri),
-             std::addressof(iter_solver), niter, restart, conv_thr, const_mu,
+             iter_solver.get(), niter, restart, conv_thr, const_mu,
              input_grp, input_iter);
 
   } else
@@ -363,19 +395,6 @@ void downfolding_1e(std::shared_ptr<mf::MF> mf, ptree const& pt) {
   auto wannier_file = io::get_value<std::string>(pt,"wannier_file",err+"wannier_file");
   auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
   auto qp_selfenergy = io::get_value_with_default<bool>(pt,"qp_selfenergy",false);
-  auto update_dc = io::get_value_with_default<bool>(pt,"update_dc",true);
-  auto dc_type = io::get_value<std::string>(pt, "dc_type",
-      err+"dc_type. Valid types are \"hartree\", \"hf\", \"gw\", \"gw_dynamic_u\" and \"gw_mix_u\".");
-  io::tolower(dc_type);
-  // g_weiss_type: Valid types are "dmft" and "gloc"
-  auto g_weiss_type = io::get_value_with_default<std::string>(
-      pt, "g_weiss_type", "dmft");
-  io::tolower(g_weiss_type);
-  auto force_real = io::get_value_with_default<bool>(pt, "force_real", true);
-
-  auto dc_sigma_mixing = io::get_value_with_default<double>(pt,"dc_sigma_mixing",1.0);
-  auto g_weiss_mixing = io::get_value_with_default<double>(pt,"g_weiss_mixing",1.0);
-  std::array<double, 2> mixing{dc_sigma_mixing, g_weiss_mixing};
 
   embed_t embed(*mf, wannier_file, trans_home_cell);
 
@@ -385,18 +404,18 @@ void downfolding_1e(std::shared_ptr<mf::MF> mf, ptree const& pt) {
 
   if (qp_selfenergy) {
     auto ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
-    auto eta     = io::get_value_with_default<double>(pt,"eta",1e-6);
-    auto Nfit    = io::get_value_with_default<int>(pt,"Nfit",30);
     auto off_diag_mode = io::get_value_with_default<std::string>(pt,"off_diag_mode","qp_energy");
     io::tolower(ac_alg);
     io::tolower(off_diag_mode);
     utils::check(off_diag_mode=="fermi" or off_diag_mode=="qp_energy",
                  "unknown off_diag_mode: {}. Valid options are \"fermi\" and \"qp_energy\"");
-    qp_context_t qp_context("sc", ac_alg, Nfit, eta, 1e-8, off_diag_mode);
-    embed.downfolding(mb_state, qp_selfenergy, update_dc, dc_type, force_real, &qp_context);
+    qp_context_t qp_context("sc", ac_alg,
+                            io::get_value_with_default<int>(pt,"Nfit",30),
+                            io::get_value_with_default<double>(pt,"eta",1e-6),
+                            1e-8, off_diag_mode);
+    embed.downfolding(mb_state, pt, &qp_context);
   } else {
-    embed.downfolding(mb_state, qp_selfenergy, update_dc, dc_type, force_real,
-                      nullptr, "default", mixing, g_weiss_type);
+    embed.downfolding(mb_state, pt);
   }
 }
 
@@ -596,20 +615,11 @@ downfolding_2e(eri_t &eri, ptree const& pt,
              "Valid types are \"crpa\", \"crpa_ks\", \"crpa_vasp\", "
              "\"gw_edmft\", \"gw_edmft_rpa\", and \"gw_edmft_density\"");
   io::tolower(screen_type);
-  auto q_dependent = io::get_value_with_default<bool>(pt,"q_dependent", false);
 
-  auto dc_pi_mixing = io::get_value_with_default<double>(pt,"dc_pi_mixing",1.0);
-  auto u_weiss_mixing = io::get_value_with_default<double>(pt,"u_weiss_mixing",1.0);
-  std::array<double, 2> mixing{dc_pi_mixing, u_weiss_mixing};
-
-  auto input_type = io::get_value<std::string>(
-      pt,"input_type", err+"input_type. This parameter defines the source of input Green's function. "
+  auto pi_rpa_input = io::get_value<std::string>(
+      pt,"pi_rpa_input", err+"pi_rpa_input. This parameter defines the source of input Green's function. "
                            "Valid types are \"mf\", \"scf\", and \"embed\". ");
-  io::tolower(input_type);
-  auto g_iter = io::get_value_with_default<long>(pt, "input_iter", -1);
-
-  auto permut_symm = io::get_value_with_default<bool>(pt, "permut_symm", true);
-  auto force_real = io::get_value_with_default<bool>(pt, "force_real", true);
+  io::tolower(pi_rpa_input);
 
   auto div_treatment = io::get_value_with_default<std::string>(pt, "div_treatment", "gygi");
   auto bare_div_treatment = io::get_value_with_default<std::string>(pt, "bare_div_treatment", "gygi");
@@ -618,16 +628,16 @@ downfolding_2e(eri_t &eri, ptree const& pt,
 
   auto mf = eri.MF();
   std::string output = outdir + "/" + prefix;
-  if (input_type == "mf") {
+  if (pi_rpa_input == "mf") {
     if (std::filesystem::exists(output+".mbpt.h5")) {
       app_log(1, "");
-      app_log(1, "╔══════════════════════════════════════════════════════════╗");
-      app_log(1, "║ [ WARNING ]                                              ║");
-      app_log(1, "║ Input type is set to \"mf\", while a CoQuí checkpoint      ║");
-      app_log(1, "║ HDF5 with the same prefix has been detected. CoQuí will  ║");
-      app_log(1, "║ overwrite the old checkpoint. Considering moving the old ║");
-      app_log(1, "║ HDF5 or changing CoQuí prefix next time.                 ║");
-      app_log(1, "╚══════════════════════════════════════════════════════════╝\n");
+      app_log(1, "╔══════════════════════════════════════════════════════════════╗");
+      app_log(1, "║ [ WARNING ]                                                  ║");
+      app_log(1, "║ pi_rpa_input type is set to \"mf\", while a CoQuí checkpoint ║");
+      app_log(1, "║ HDF5 with the same prefix has been detected. CoQuí will      ║");
+      app_log(1, "║ overwrite the old checkpoint. Considering moving the old     ║");
+      app_log(1, "║ HDF5 or changing CoQuí prefix next time.                     ║");
+      app_log(1, "╚══════════════════════════════════════════════════════════════╝\n");
     }
     auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
     auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
@@ -635,11 +645,11 @@ downfolding_2e(eri_t &eri, ptree const& pt,
     imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, iaft_prec, true);
     hamilt::pseudopot psp(*mf);
     write_mf_data(*mf, ft, psp, output);
-  } else if (input_type == "scf" or input_type == "embed") {
+  } else if (pi_rpa_input == "scf" or pi_rpa_input == "embed") {
     utils::check(std::filesystem::exists(output+".mbpt.h5"),
-                 "downfold_2e: input_type == \"{}\" while the coqui h5, {}.mbpt.h5, does not exist!", input_type, output);
+                 "downfold_2e: pi_rpa_input == \"{}\" while the coqui h5, {}.mbpt.h5, does not exist!", pi_rpa_input, output);
   } else
-    utils::check(false, "downfold_2e: invalid input_type = {}. Valid options are \"mf\", \"scf\", and \"embed\".", input_type);
+    utils::check(false, "downfold_2e: invalid pi_rpa_input = {}. Valid options are \"mf\", \"scf\", and \"embed\".", pi_rpa_input);
 
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(output+".mbpt.h5", false));
   // create MBstate object to store the state of the downfolding
@@ -652,11 +662,9 @@ downfolding_2e(eri_t &eri, ptree const& pt,
   embed_eri_t embed_eri(*mf, string_to_div_enum(div_treatment),
                         string_to_div_enum(bare_div_treatment), "default");
   if (screen_type.substr(0,8)=="gw_edmft") {
-    embed_eri.downfolding_edmft(eri, mb_state, screen_type, permut_symm, force_real,
-                                &ft, (input_type=="mf")? "scf" : input_type, g_iter, mixing);
+    embed_eri.downfolding_edmft(eri, mb_state, pt, screen_type);
   } else {
-    embed_eri.downfolding_crpa(eri, mb_state, screen_type, "none", permut_symm, force_real,
-                               &ft, (input_type=="mf")? "scf" : input_type, g_iter, q_dependent);
+    embed_eri.downfolding_crpa(eri, mb_state, pt, screen_type);
   }
 
   if constexpr (return_vw) {
@@ -726,16 +734,9 @@ void hf_downfold(eri_t &eri, ptree const& pt) {
   auto wannier_file = io::get_value<std::string>(pt,"wannier_file",err+"wannier_file");
   auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
 
-  auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
-  auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
-  auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
-
   // two-body downfolding options
-  auto permut_symm = io::get_value_with_default<bool>(pt, "permut_symm", false);
-  auto force_real = io::get_value_with_default<bool>(pt, "force_real", false);
   auto hf_div_treatment = io::get_value_with_default<std::string>(pt, "hf_div_treatment", "gygi");
   auto factorization_type = io::get_value_with_default<std::string>(pt, "factorization_type", "cholesky");
-  auto thresh = io::get_value_with_default<double>(pt, "thresh", 1e-6);
   io::tolower(hf_div_treatment);
   io::tolower(factorization_type);
 
@@ -752,7 +753,11 @@ void hf_downfold(eri_t &eri, ptree const& pt) {
   std::string output = outdir + "/" + prefix;
 
   // initialize
-  imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, iaft_prec, true);
+  imag_axes_ft::IAFT ft(
+      io::get_value_with_default<double>(pt,"beta",1000.0),
+      io::get_value_with_default<double>(pt,"wmax",12.0),
+      imag_axes_ft::ir_source,
+      io::get_value_with_default<std::string>(pt, "iaft_prec", "high"), true);
   hamilt::pseudopot psp(*mf);
   write_mf_data(*mf, ft, psp, output);
   MBState mb_state(ft, output, mf, wannier_file, trans_home_cell, false);
@@ -760,12 +765,14 @@ void hf_downfold(eri_t &eri, ptree const& pt) {
   // Two-body Hamiltonian
   embed_eri_t embed_eri(*mf, ignore_g0,
                         string_to_div_enum(hf_div_treatment), "model_static");
-  embed_eri.downfolding_crpa(eri, mb_state, "bare", factorization_type, permut_symm, force_real,
-                             &ft, "", -1, false, thresh);
+  embed_eri.downfolding_crpa(eri, mb_state, pt, "bare", factorization_type,
+                             io::get_value_with_default<double>(pt, "thresh", 1e-6));
 
   // One-body Hamiltonian
   embed_t embed(*mf, wannier_file, trans_home_cell);
-  embed.hf_downfolding(outdir, prefix, eri, ft, force_real, string_to_div_enum(hf_div_treatment));
+  embed.hf_downfolding(outdir, prefix, eri, ft,
+                       io::get_value_with_default<bool>(pt, "force_real", true),
+                       string_to_div_enum(hf_div_treatment));
 
 }
 
@@ -796,38 +803,20 @@ void hf_downfold(eri_t &eri, ptree const& pt) {
  *  - off_diag_mode: Off diagonal treatment, default: qp_energy. {choices: fermi, qp_energy} 
  */
 template<typename eri_t>
-void gw_downfold(eri_t &eri, ptree const& pt) {
+void gw_downfold(eri_t &eri, ptree &pt) {
   std::string err = std::string("gw_downfold - Incorrect input - ");
   auto prefix = io::get_value<std::string>(pt,"prefix",err+"prefix");
   auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
   auto wannier_file = io::get_value<std::string>(pt,"wannier_file",err+"wannier_file");
   auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
 
-  // coqui has default logic to determine the input G for a given input_type.
-  // these two parameters are used only if the users decided not to follow the default logic.
-  auto g_grp = io::get_value_with_default<std::string>(pt,"input_grp", "");
-  auto g_iter = io::get_value_with_default<long>(pt, "input_iter", -1);
-
   // two-body downfolding options
-  auto permut_symm = io::get_value_with_default<bool>(pt, "permut_symm", false);
-  auto force_real = io::get_value_with_default<bool>(pt, "force_real", false);
   auto div_treatment = io::get_value_with_default<std::string>(pt, "div_treatment", "gygi");
   auto hf_div_treatment = io::get_value_with_default<std::string>(pt, "hf_div_treatment", "gygi");
   auto factorization_type = io::get_value_with_default<std::string>(pt, "factorization_type", "cholesky");
-  auto thresh = io::get_value_with_default<double>(pt, "thresh", 1e-6);
   io::tolower(div_treatment);
   io::tolower(hf_div_treatment);
   io::tolower(factorization_type);
-
-  //  QP/AC parameters
-  auto ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
-  auto eta     = io::get_value_with_default<double>(pt,"eta",1e-6);
-  auto Nfit    = io::get_value_with_default<int>(pt,"Nfit",30);
-  auto off_diag_mode = io::get_value_with_default<std::string>(pt,"off_diag_mode","qp_energy");
-  io::tolower(ac_alg);
-  io::tolower(off_diag_mode);
-  utils::check(off_diag_mode=="fermi" or off_diag_mode=="qp_energy",
-               "unknown off_diag_mode: {}. Valid options are \"fermi\" and \"qp_energy\"");
 
   utils::check( factorization_type=="none"                  or
                 factorization_type=="cholesky"              or
@@ -851,13 +840,25 @@ void gw_downfold(eri_t &eri, ptree const& pt) {
   // Two-body Hamiltonian
   embed_eri_t embed_eri(*mf, string_to_div_enum(div_treatment),
                         string_to_div_enum(hf_div_treatment), "model_static");
-  embed_eri.downfolding_crpa(eri, mb_state, "crpa", factorization_type, permut_symm,
-                             force_real, &ft, g_grp, g_iter, false, thresh);
+  embed_eri.downfolding_crpa(eri, mb_state, pt, "crpa", factorization_type,
+                             io::get_value_with_default<double>(pt, "thresh", 1e-6));
 
   // one body hamiltonian
-  qp_context_t qp_context("sc", ac_alg, Nfit, eta, 1e-8, off_diag_mode);
+  auto ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
+  auto off_diag_mode = io::get_value_with_default<std::string>(pt,"off_diag_mode","qp_energy");
+  io::tolower(ac_alg);
+  io::tolower(off_diag_mode);
+  utils::check(off_diag_mode=="fermi" or off_diag_mode=="qp_energy",
+               "unknown off_diag_mode: {}. Valid options are \"fermi\" and \"qp_energy\"");
+  qp_context_t qp_context(
+      "sc", ac_alg,
+      io::get_value_with_default<int>(pt,"Nfit",30),
+      io::get_value_with_default<double>(pt,"eta",1e-6),
+      1e-8, off_diag_mode);
   embed_t embed(*mf, wannier_file, trans_home_cell);
-  embed.downfolding(mb_state, true, true, "gw", force_real, &qp_context, "model_static");
+  pt.put("update_dc", true);
+  pt.put("dc_type", "gw");
+  embed.downfolding(mb_state, pt, &qp_context, "model_static");
 }
 
 void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
@@ -866,17 +867,17 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
   std::string err = std::string("dmft_embed - Incorrect input - ");
   auto prefix = io::get_value<std::string>(pt,"prefix",err+"prefix");
   auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
-  auto wannier_file = io::get_value<std::string>(pt,"wannier_file",err+"wannier_file");
-  auto qp_approx_mbpt = io::get_value_with_default<bool>(pt,"qp_approx_mbpt",false);
-  auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
-  auto corr_only = io::get_value_with_default<bool>(pt,"corr_only",false);
 
-  auto mu_tol = io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9);
-
-  auto iter_solver = iter_scf::make_iter_scf(pt, 1.0);
-
+  std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
+  if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
+    iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt, 1.0));
+  } else {
+    iter_solver = nullptr;
+  }
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(outdir+"/"+prefix+".mbpt.h5", false));
-  MBState mb_state(ft, outdir+"/"+prefix, mf, wannier_file, trans_home_cell, false);
+  MBState mb_state(ft, outdir+"/"+prefix, mf,
+                   io::get_value<std::string>(pt,"wannier_file",err+"wannier_file"),
+                   io::get_value_with_default<bool>(pt,"translate_home_cell",false), false);
   if (local_hf_potentials and local_selfenergies) {
     mb_state.set_local_hf_potentials(std::move(local_hf_potentials.value()));
     mb_state.set_local_selfenergies(std::move(local_selfenergies.value()));
@@ -884,10 +885,13 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
     local_selfenergies.reset();
   }
 
-  auto dyson = simple_dyson(mf.get(), &ft, mb_state.coqui_prefix, mu_tol);
+  auto dyson = simple_dyson(mf.get(), &ft, mb_state.coqui_prefix,
+                            io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9));
 
   embed_t embed(*mf);
-  embed.dmft_embed(mb_state, dyson, &iter_solver, qp_approx_mbpt, corr_only);
+  embed.dmft_embed(mb_state, dyson, iter_solver.get(),
+                   io::get_value_with_default<bool>(pt,"qp_approx_mbpt",false),
+                   io::get_value_with_default<bool>(pt,"corr_only",false));
 }
 
 
@@ -916,7 +920,7 @@ downfolding_2e<true>(
     thc_reader_t&, ptree const&, std::optional<std::map<std::string, nda::array<ComplexType, 5> > >);
 
 template void hf_downfold(thc_reader_t&, ptree const&);
-template void gw_downfold(thc_reader_t&, ptree const&);
+template void gw_downfold(thc_reader_t&, ptree&);
 
 #define MBPT_INST(HF, HARTREE, EXCHANGE, CORR) \
 template void mbpt(std::string, \
