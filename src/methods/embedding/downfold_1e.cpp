@@ -56,8 +56,6 @@ namespace methods {
     auto mpi = mb_state.mpi;
     auto proj = mb_state.proj_boson.value().proj_fermi();
     auto ft = mb_state.ft;
-    auto nImps = proj.nImps();
-    auto nImpOrbs = proj.nImpOrbs();
 
     app_log(2, "Checking the dataset in the coqui checkpoint file...\n");
     auto [gw_iter, weiss_f_iter, weiss_b_iter, embed_iter] = chkpt::read_input_iterations(filename);
@@ -89,34 +87,14 @@ namespace methods {
     mpi->comm.barrier();
 
     // get Gloc
-    _Timer.start("DF_ALLOC");
-    nda::array<ComplexType, 5> Gloc_tsIab(ft->nt_f(), _MF->nspin(), nImps, nImpOrbs, nImpOrbs);
-    mb_state.sG_tskij.emplace(make_shared_array<Array_view_5D_t>(
-        *mpi, {ft->nt_f(), _MF->nspin(), _MF->nkpts_ibz(), _MF->nbnd(), _MF->nbnd()}));
-    auto &sG_tskij = mb_state.sG_tskij.value();
-    _Timer.stop("DF_ALLOC");
-
     _Timer.start("DF_READ");
-    bool G_read = false;
-    h5::group iter_grp;
-    if (mpi->node_comm.root()) {
-      h5::file file(filename, 'r');
-      auto gh5 = h5::group(file).open_group(g_grp);
-      iter_grp = gh5.open_group("iter" + std::to_string(g_iter));
-      if (iter_grp.has_dataset("G_tskij")) {
-        auto G_tskij = sG_tskij.local();
-        nda::h5_read(iter_grp, "G_tskij", G_tskij);
-        G_read = true;
-      }
-    }
-    mpi->node_comm.broadcast_n(&G_read, 1);
-
-    if (not G_read) compute_G_from_mf(iter_grp, *ft, sG_tskij);
+    mb_state.sG_tskij.emplace(read_greens_function(*mpi, _MF, filename, g_iter, g_grp));
+    auto &sG_tskij = mb_state.sG_tskij.value();
     mpi->comm.barrier();
     _Timer.stop("DF_READ");
 
     _Timer.start("DF_DOWNFOLD");
-    Gloc_tsIab = (force_real)? proj.downfold_loc<true>(sG_tskij, "Gloc") : proj.downfold_loc<false>(sG_tskij, "Gloc");
+    auto Gloc_tsIab = (force_real)? proj.downfold_loc<true>(sG_tskij, "Gloc") : proj.downfold_loc<false>(sG_tskij, "Gloc");
     ft->check_leakage(Gloc_tsIab, imag_axes_ft::fermi, std::addressof(mpi->comm), "Local Green's function");
     _Timer.stop("DF_DOWNFOLD");
 

@@ -34,6 +34,7 @@
 #include "utilities/test_common.hpp"
 #include "IO/ptree/ptree_utilities.hpp"
 #include "mean_field/default_MF.hpp"
+#include "methods/MBPT_drivers.h"
 #include "methods/mb_state/mb_state.hpp"
 #include "methods/embedding/embed_eri_t.h"
 #include "methods/embedding/embed_t.h"
@@ -270,7 +271,52 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
     }
   }
 
-  TEST_CASE("downfold_Gloc", "[methods][embed]") {
+  TEST_CASE("downfold_gloc", "[methods][embed][df_1e]") {
+    auto& mpi = utils::make_unit_test_mpi_context();
+
+    double beta = 1000.0;
+    double wmax = 3.0;
+
+    std::string coqui_prefix = "downfold_gloc";
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source);
+
+    auto downfold = [&](
+        std::shared_ptr<mf::MF> &mf, std::string wannier_file,
+        std::array<double, 3> &refs, double eps) {
+      auto psp = hamilt::make_pseudopot(*mf);
+      write_mf_data(*mf, ft, *psp, coqui_prefix);
+      mpi->comm.barrier();
+
+      MBState mb_state(ft, coqui_prefix, mf, wannier_file, false);
+      embed_t embed(*mf);
+      auto gloc_tsIab = embed.downfold_gloc(mb_state, true, "scf", 0);
+
+      app_log(2, "gloc: {0:.12f}, {1:.12f}, {2:.12f}",
+              gloc_tsIab(ft.nt_f()-1,0,0,0,0).real(),
+              gloc_tsIab(ft.nt_f()-1,0,0,1,1).real(),
+              gloc_tsIab(ft.nt_f()-1,0,0,2,2).real());
+      VALUE_EQUAL(gloc_tsIab(ft.nt_f()-1,0,0,0,0), refs[0], eps);
+      VALUE_EQUAL(gloc_tsIab(ft.nt_f()-1,0,0,1,1), refs[1], eps);
+      VALUE_EQUAL(gloc_tsIab(ft.nt_f()-1,0,0,2,2), refs[2], eps);
+      mpi->comm.barrier();
+
+      if (mpi->comm.root()) {
+        std::string filename = coqui_prefix + ".mbpt.h5";
+        remove(filename.c_str());
+      }
+      mpi->comm.barrier();
+    };
+
+    SECTION("sym_svo") {
+      std::array<double,3> refs = {-0.166663724238, -0.166663724238, -0.166663724238};
+      auto [outdir, prefix] = utils::utest_filename("qe_svo222_sym");
+      auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi, "qe_svo222_sym"));
+      std::string wannier_file = outdir + "/../mlwf/svo.mlwf.h5";
+      downfold(mf, wannier_file, refs, 1e-10);
+    }
+  }
+
+  TEST_CASE("downfold_Gloc_to_h5", "[methods][embed]") {
     auto& mpi = utils::make_unit_test_mpi_context();
 
     imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::ir_source, "high", false);
@@ -323,6 +369,76 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       downfold(mf, wannier_file);
     }
 
+  }
+
+  TEST_CASE("downfold_wloc", "[methods][embed][df_2e]") {
+    auto& mpi = utils::make_unit_test_mpi_context();
+
+    double beta = 1000.0;
+    double wmax = 3.0;
+
+    std::string coqui_prefix = "downfold_wloc";
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source);
+
+    auto downfold = [&](
+    std::shared_ptr<mf::MF> &mf, std::string wannier_file,
+    std::array<double, 6> &refs, double eps) {
+      auto psp = hamilt::make_pseudopot(*mf);
+      write_mf_data(*mf, ft, *psp, coqui_prefix);
+      mpi->comm.barrier();
+
+      thc_reader_t thc(mf, make_thc_reader_ptree(
+          mf->nbnd()*15, "", "incore", "", "bdft",
+          1e-10, mf->ecutrho(), 1, 1024));
+
+      ptree pt;
+      pt.put("prefix", coqui_prefix);
+      pt.put("wannier_file", wannier_file);
+      pt.put("input_type", "mf");
+      pt.put("screen_type", "crpa");
+      pt.put("output_in_tau", false);
+      auto [Vloc, Wloc_w] = downfold_wloc(thc, pt);
+
+      // alpha = 10
+      // Vloc: 0.602394239233, 0.552158246110, 0.552161743535
+      // Wloc_w0: -0.420167997680, -0.411211138381, -0.411203307865
+      // alpha = 15
+      // Vloc: 0.602063603449, 0.552015228505, 0.552021449904
+      // Wloc_w0: -0.420102061356, -0.411297369322, -0.411298486199
+      // alpha = 20
+      // Vloc: 0.602097182891, 0.552027879790, 0.552026756400
+      //Wloc_w0: -0.420151990687, -0.411333804347, -0.411330635493
+      app_log(2, "Vloc: {0:.12f}, {1:.12f}, {2:.12f}",
+          Vloc(0,0,0,0).real(),
+          Vloc(0,0,1,1).real(),
+          Vloc(0,0,2,2).real());
+      VALUE_EQUAL(Vloc(0,0,0,0), refs[0], eps);
+      VALUE_EQUAL(Vloc(0,0,1,1), refs[1], eps);
+      VALUE_EQUAL(Vloc(0,0,2,2), refs[2], eps);
+      app_log(2, "Wloc_w0: {0:.12f}, {1:.12f}, {2:.12f}",
+              Wloc_w(0,0,0,0,0).real(),
+              Wloc_w(0,0,0,1,1).real(),
+              Wloc_w(0,0,0,2,2).real());
+      VALUE_EQUAL(Wloc_w(0,0,0,0,0), refs[3], eps);
+      VALUE_EQUAL(Wloc_w(0,0,0,1,1), refs[4], eps);
+      VALUE_EQUAL(Wloc_w(0,0,0,2,2), refs[5], eps);
+      mpi->comm.barrier();
+
+      if (mpi->comm.root()) {
+        std::string filename = coqui_prefix + ".mbpt.h5";
+        remove(filename.c_str());
+      }
+    };
+
+    SECTION("sym_svo") {
+      // references obtatined from N_mu = 20 * N_orbs
+      std::array<double,6> refs = {0.602097182891, 0.552027879790, 0.552026756400,
+                                   -0.420151990687, -0.411333804347, -0.411330635493};
+      auto [outdir, prefix] = utils::utest_filename("qe_svo222_sym");
+      auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi, "qe_svo222_sym"));
+      std::string wannier_file = outdir + "/../mlwf/svo.mlwf.h5";
+      downfold(mf, wannier_file, refs, 1e-4);
+    }
   }
 
   TEST_CASE("downfold_2e_crpa", "[methods][embed][df_2e]") {
