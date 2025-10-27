@@ -51,16 +51,15 @@ template <> constexpr bool c2py::is_wrapped<coqui_py::CholCoulomb> = true;
 template <>
 inline constexpr auto c2py::tp_name<coqui_py::ThcCoulomb> =
     "eri_module.ThcCoulomb";
-template <>
-inline constexpr const char *c2py::tp_doc<coqui_py::ThcCoulomb> =
-    R"DOC(   )DOC";
-
 static auto init_0 = c2py::dispatcher_c_kw_t{
     c2py::c_constructor<coqui_py::ThcCoulomb, const coqui_py::Mf &,
                         const std::string &>("mf", "thc_params")};
 template <>
 constexpr initproc c2py::tp_init<coqui_py::ThcCoulomb> =
     c2py::pyfkw_constructor<init_0>;
+template <>
+const std::string c2py::tp_ctor_doc<coqui_py::ThcCoulomb> = init_0.doc(
+    R"DOC()DOC", std::vector<std::string>{}, std::vector<std::string>{});
 // Np
 static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::ThcCoulomb const &self) { return self.Np(); }, "self")};
@@ -110,18 +109,31 @@ static auto const fun_10 = c2py::dispatcher_f_kw_t{c2py::cmethod(
 static auto const fun_11 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::ThcCoulomb const &self) { return self.nspin_in_basis(); },
     "self")};
-static const auto doc_d_0 = fun_0.doc(R"DOC()DOC");
-static const auto doc_d_1 = fun_1.doc(R"DOC()DOC");
-static const auto doc_d_2 = fun_2.doc(R"DOC()DOC");
-static const auto doc_d_3 = fun_3.doc(R"DOC()DOC");
-static const auto doc_d_4 = fun_4.doc(R"DOC()DOC");
-static const auto doc_d_5 = fun_5.doc(R"DOC()DOC");
-static const auto doc_d_6 = fun_6.doc(R"DOC()DOC");
-static const auto doc_d_7 = fun_7.doc(R"DOC()DOC");
-static const auto doc_d_8 = fun_8.doc(R"DOC()DOC");
-static const auto doc_d_9 = fun_9.doc(R"DOC()DOC");
-static const auto doc_d_10 = fun_10.doc(R"DOC()DOC");
-static const auto doc_d_11 = fun_11.doc(R"DOC()DOC");
+
+static const auto doc_d_0 = fun_0.doc(R"DOC()DOC", std::vector<std::string>{},
+                                      std::vector<std::string>{});
+static const auto doc_d_1 = fun_1.doc(R"DOC()DOC", std::vector<std::string>{},
+                                      std::vector<std::string>{});
+static const auto doc_d_2 = fun_2.doc(R"DOC()DOC", std::vector<std::string>{},
+                                      std::vector<std::string>{});
+static const auto doc_d_3 = fun_3.doc(R"DOC()DOC", std::vector<std::string>{},
+                                      std::vector<std::string>{});
+static const auto doc_d_4 = fun_4.doc(R"DOC()DOC", std::vector<std::string>{},
+                                      std::vector<std::string>{});
+static const auto doc_d_5 = fun_5.doc(R"DOC()DOC", std::vector<std::string>{},
+                                      std::vector<std::string>{});
+static const auto doc_d_6 = fun_6.doc(R"DOC()DOC", std::vector<std::string>{},
+                                      std::vector<std::string>{});
+static const auto doc_d_7 = fun_7.doc(R"DOC()DOC", std::vector<std::string>{},
+                                      std::vector<std::string>{});
+static const auto doc_d_8 = fun_8.doc(R"DOC()DOC", std::vector<std::string>{},
+                                      std::vector<std::string>{});
+static const auto doc_d_9 = fun_9.doc(R"DOC()DOC", std::vector<std::string>{},
+                                      std::vector<std::string>{});
+static const auto doc_d_10 = fun_10.doc(R"DOC()DOC", std::vector<std::string>{},
+                                        std::vector<std::string>{});
+static const auto doc_d_11 = fun_11.doc(R"DOC()DOC", std::vector<std::string>{},
+                                        std::vector<std::string>{});
 
 // ----- Method table ----
 template <>
@@ -161,18 +173,20 @@ constinit PyGetSetDef c2py::tp_getset<coqui_py::ThcCoulomb>[] = {
     {nullptr, nullptr, nullptr, nullptr, nullptr}};
 
 template <>
+const std::string c2py::tp_doc<coqui_py::ThcCoulomb> =
+    R"DOC()DOC" + c2py::tp_ctor_doc<coqui_py::ThcCoulomb>;
+template <>
 inline constexpr auto c2py::tp_name<coqui_py::CholCoulomb> =
     "eri_module.CholCoulomb";
-template <>
-inline constexpr const char *c2py::tp_doc<coqui_py::CholCoulomb> =
-    R"DOC(   )DOC";
-
 static auto init_1 = c2py::dispatcher_c_kw_t{
     c2py::c_constructor<coqui_py::CholCoulomb, const coqui_py::Mf &,
                         const std::string &>("mf", "chol_params")};
 template <>
 constexpr initproc c2py::tp_init<coqui_py::CholCoulomb> =
     c2py::pyfkw_constructor<init_1>;
+template <>
+const std::string c2py::tp_ctor_doc<coqui_py::CholCoulomb> = init_1.doc(
+    R"DOC()DOC", std::vector<std::string>{}, std::vector<std::string>{});
 // mf
 static auto const fun_12 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::CholCoulomb const &self) { return self.mf(); }, "self")};
@@ -180,8 +194,11 @@ static auto const fun_12 = c2py::dispatcher_f_kw_t{c2py::cmethod(
 // mpi
 static auto const fun_13 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::CholCoulomb const &self) { return self.mpi(); }, "self")};
-static const auto doc_d_12 = fun_12.doc(R"DOC()DOC");
-static const auto doc_d_13 = fun_13.doc(R"DOC()DOC");
+
+static const auto doc_d_12 = fun_12.doc(R"DOC()DOC", std::vector<std::string>{},
+                                        std::vector<std::string>{});
+static const auto doc_d_13 = fun_13.doc(R"DOC()DOC", std::vector<std::string>{},
+                                        std::vector<std::string>{});
 
 // ----- Method table ----
 template <>
@@ -200,11 +217,26 @@ constinit PyGetSetDef c2py::tp_getset<coqui_py::CholCoulomb>[] = {
 
     {nullptr, nullptr, nullptr, nullptr, nullptr}};
 
+template <>
+const std::string c2py::tp_doc<coqui_py::CholCoulomb> =
+    R"DOC()DOC" + c2py::tp_ctor_doc<coqui_py::CholCoulomb>;
+
 // ==================== module functions ====================
 
+// run_isdf
+static auto const fun_14 = c2py::dispatcher_f_kw_t{c2py::cfun(
+    [](const coqui_py::Mf &mf, const std::string &thc_params) {
+      return coqui_py::run_isdf(mf, thc_params);
+    },
+    "mf", "thc_params")};
+
+static const auto doc_d_14 = fun_14.doc(R"DOC()DOC", std::vector<std::string>{},
+                                        std::vector<std::string>{});
 //--------------------- module function table  -----------------------------
 
 static PyMethodDef module_methods[] = {
+    {"run_isdf", (PyCFunction)c2py::pyfkw<fun_14>, METH_VARARGS | METH_KEYWORDS,
+     doc_d_14.c_str()},
     {nullptr, nullptr, 0, nullptr} // Sentinel
 };
 

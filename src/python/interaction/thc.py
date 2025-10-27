@@ -21,6 +21,7 @@ limitations under the License.
 import json
 
 from coqui._lib.eri_module import ThcCoulomb
+from coqui._lib.eri_module import run_isdf as isdf_cxx
 
 def thc_default_params():
   """
@@ -92,3 +93,8 @@ def make_thc_coulomb(mf, params):
   CoQui ThcCoulomb class
   """
   return ThcCoulomb(mf, json.dumps(params))
+
+
+def run_isdf(mf, params):
+    isdf_cxx(mf, json.dumps(params))
+
