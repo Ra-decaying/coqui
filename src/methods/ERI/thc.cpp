@@ -404,17 +404,48 @@ void thc::save(h5::group& gh5, std::string format, memory::array<MEM,long,1> con
 
 template<MEMORY_SPACE MEM>
 void thc::save(h5::group& gh5, std::string format, memory::array<MEM,long,1> const& ri,
-               memory::darray_t<memory::array<MEM,ComplexType,3>,mpi3::communicator> const& zeta_qur)
+               memory::darray_t<memory::array<MEM,ComplexType,3>,mpi3::communicator> const& zeta_qur,
+               bool write_zeta_on_fft_mesh)
 {
   Timer.start("TOTAL");
   utils::memory_report(3, "thc::save");
   Timer.start("IO_SAVE");
   if(format == "default" or format == "bdft") {
+
+    memory::array<MEM, ComplexType, 3> zeta_qur_local;
     if(mpi->comm.root()) {
       auto ri_h = nda::to_host(ri);
       nda::h5_write(gh5, "interpolating_points", ri_h, false);
+
+      zeta_qur_local = memory::array<MEM, ComplexType, 3>(zeta_qur.global_shape());
+      math::nda::gather(0, zeta_qur, &zeta_qur_local);
+
+      if (mf->has_wfc_grid()) {
+
+        nda::h5_write(gh5, "fft_mesh", rho_g.mesh(), false);
+
+        if (write_zeta_on_fft_mesh) {
+          memory::array<MEM, ComplexType, 3> zeta_qur_fft(
+              zeta_qur_local.shape(0), zeta_qur_local.shape(1), rho_g.nnr());
+          zeta_qur_fft() = 0.0;
+          for (auto [i, n]: itertools::enumerate(rho_g.gv_to_fft())) {
+            zeta_qur_fft(nda::range::all, nda::range::all, n) =
+                zeta_qur_local(nda::range::all, nda::range::all, i);
+          }
+          nda::h5_write(gh5, "interpolating_vectors", zeta_qur_fft, false);
+        } else {
+          nda::h5_write(gh5, "interpolating_vectors", zeta_qur_local, false);
+          nda::h5_write(gh5, "g_vectors", rho_g.g_vectors(), false);
+          nda::h5_write(gh5, "gv_to_fft", rho_g.gv_to_fft(), false);
+        }
+
+      } else {
+          nda::h5_write(gh5, "interpolating_vectors", zeta_qur_local, false);
+      }
+
+    } else {
+      gather(0, zeta_qur, &zeta_qur_local);
     }
-    math::nda::h5_write(gh5, "interpolating_vectors", zeta_qur);
   } else
     APP_ABORT("Error: Unknown format type: {}",format);
   Timer.stop("IO_SAVE");
@@ -620,7 +651,7 @@ template void thc::save<HOST_MEMORY>(h5::group&,std::string,memory::host_array<l
     memory::host_array<ComplexType, 2> const&, memory::host_array<ComplexType, 2> const&);
 
 template void thc::save<HOST_MEMORY>(h5::group&,std::string,memory::host_array<long,1> const&,
-    darray_t<memory::host_array<ComplexType,3>,communicator> const&);
+    darray_t<memory::host_array<ComplexType,3>,communicator> const&, bool);
 
 #if defined(ENABLE_DEVICE)
 

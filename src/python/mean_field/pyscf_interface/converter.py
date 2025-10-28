@@ -51,7 +51,7 @@ def dump_to_h5(mf, mo=False, outdir='./', prefix='pyscf', nbnd_out=None):
 
   kp_grid = tools.get_monkhorst_pack_size(mf.cell, mf.kpts)
   kpts = mf.cell.make_kpts(kp_grid)
-  assert(np.array_equal(kpts, mf.kpts), "kpts mismatch!")
+  assert np.array_equal(kpts, mf.kpts), "kpts mismatch!"
 
   nkpts, nbnd = len(mf.kpts), mf.cell.nao_nr()
   S, H0, dm = mf.get_ovlp(), mf.get_hcore(), mf.make_rdm1()

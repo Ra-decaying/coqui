@@ -294,7 +294,8 @@ class thc
    */
   template<MEMORY_SPACE MEM = HOST_MEMORY>
   void save(h5::group& gh5, std::string format, memory::array<MEM,long,1> const& ri,
-            memory::darray_t<memory::array<MEM,ComplexType,3>,mpi3::communicator> const& zeta_qur);
+            memory::darray_t<memory::array<MEM,ComplexType,3>,mpi3::communicator> const& zeta_qur,
+            bool write_zeta_on_fft_mesh=false);
 
   // writes metadata to h5 file, includes all information in addition to actual
   // thc vectors. File should be self-contained upon read

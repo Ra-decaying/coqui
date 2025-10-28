@@ -106,7 +106,8 @@ namespace methods {
 
       if (intialize) {
         if (isdf_only) {
-          build_isdf_only(io::get_value_with_default<bool>(pt, "check_accuracy", false));
+          build_isdf_only(io::get_value_with_default<bool>(pt, "check_accuracy", false),
+                          io::get_value_with_default<bool>(pt, "write_zeta_on_fft_mesh", false));
         } else {
           init(true);
         }
@@ -455,7 +456,7 @@ namespace methods {
       print_thc_summary();
     }
 
-    void build_isdf_only(bool check_accuracy=true) {
+    void build_isdf_only(bool check_accuracy=true, bool write_zeta_on_fft_mesh=false) {
       _Timer.start("BUILD_TOTAL");
 
       _Timer.start("BUILD_ISDF");
@@ -494,14 +495,14 @@ namespace methods {
             h5::h5_write(grp, "nkpts_ibz", _nkpts_ibz);
             h5::h5_write(grp, "nqpts_ibz", _nqpts_ibz);
             nda::h5_write(grp, "collocation_matrix", _X_shm.local(), false);
-            _thc_builder_opt.value().save(grp, _format, _rp, dzeta_qur);
+            _thc_builder_opt.value().save(grp, _format, _rp, dzeta_qur, write_zeta_on_fft_mesh);
           } else {
             APP_ABORT("thc: Unknown file format: {}", _format);
           }
         } else {
           h5::group grp;
           if(_format == "bdft" ) {
-            _thc_builder_opt.value().save(grp, _format, _rp, dzeta_qur);
+            _thc_builder_opt.value().save(grp, _format, _rp, dzeta_qur, write_zeta_on_fft_mesh);
           } else {
             APP_ABORT("thc: Unknown file format: {}", _format);
           }
