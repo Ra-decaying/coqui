@@ -73,7 +73,8 @@ def downfold_2e(h_int, params, *, local_polarizabilities = None):
                           local_polarizabilities=local_polarizabilities)
 
 
-def dmft_embed(mf, params, *, local_hf_potentials=None, local_sigma_dynamic=None):
+def dmft_embed(mf, params, *, local_hf_potentials=None, local_sigma_dynamic=None,
+               projector_info=None):
 
     if local_sigma_dynamic is not None and local_hf_potentials is not None:
         required_keys = {"imp", "dc"}
@@ -99,3 +100,16 @@ def dmft_embed(mf, params, *, local_hf_potentials=None, local_sigma_dynamic=None
         local_hf_potentials, local_sigma_dynamic
     )
 
+    if projector_info is None:
+        embed_cxx.dmft_embed(
+            mf, json.dumps(params),
+            local_hf_potentials, local_sigma_dynamic
+        )
+    else:
+        proj_mat = projector_info.get("proj_mat")
+        band_window = projector_info.get("band_window")
+        kpts_w90 = projector_info.get("kpts_w90")
+        embed_cxx.dmft_embed(
+            mf, json.dumps(params), proj_mat, band_window, kpts_w90,
+            local_hf_potentials, local_sigma_dynamic,
+        )

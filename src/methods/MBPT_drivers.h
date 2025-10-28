@@ -123,5 +123,12 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
                 std::optional<std::map<std::string, nda::array<ComplexType, 4> > > local_hf_potentials=std::nullopt,
                 std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_selfenergies=std::nullopt);
 
+void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
+                nda::array<ComplexType, 5> const& C_ksIai,
+                nda::array<long, 3> const& band_window,
+                nda::array<RealType, 2> const& kpts_crys,
+                std::optional<std::map<std::string, nda::array<ComplexType, 4> > > local_hf_potentials,
+                std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_selfenergies);
+
 }
 #endif

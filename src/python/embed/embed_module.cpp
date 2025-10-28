@@ -93,6 +93,19 @@ namespace coqui_py {
                         local_hf_potentials, local_selfenergies);
   }
 
+  void dmft_embed(const Mf &mf, const std::string &embed_params,
+                  const nda::array<ComplexType, 5> &C_ksIai,
+                  const nda::array<long, 3> &band_window,
+                  const nda::array<RealType, 2> &kpts_crys,
+                  std::optional<std::map<std::string, nda::array<ComplexType, 4> > > local_hf_potentials,
+                  std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_selfenergies) {
+    auto parser = InputParser(embed_params);
+    methods::dmft_embed(mf.get_mf(), parser.get_root(),
+                        C_ksIai, band_window, kpts_crys,
+                        local_hf_potentials, local_selfenergies);
+  }
+
+
   // public template instantiation
   template std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5>>
   downfold_wloc(ThcCoulomb&, const std::string &,

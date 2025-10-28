@@ -894,6 +894,43 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
                    io::get_value_with_default<bool>(pt,"corr_only",false));
 }
 
+void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
+                nda::array<ComplexType, 5> const& C_ksIai,
+                nda::array<long, 3> const& band_window,
+                nda::array<RealType, 2> const& kpts_crys,
+                std::optional<std::map<std::string, nda::array<ComplexType, 4> > > local_hf_potentials,
+                std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_selfenergies) {
+  std::string err = std::string("dmft_embed - Incorrect input - ");
+  auto prefix = io::get_value<std::string>(pt,"prefix",err+"prefix");
+  auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
+
+  std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
+  if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
+    iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt, 1.0));
+  } else {
+    iter_solver = nullptr;
+  }
+  imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(outdir+"/"+prefix+".mbpt.h5", false));
+  MBState mb_state(ft, outdir+"/"+prefix, mf,
+                   C_ksIai, band_window, kpts_crys,
+                   io::get_value_with_default<bool>(pt,"translate_home_cell",false), false);
+
+  if (local_hf_potentials and local_selfenergies) {
+    mb_state.set_local_hf_potentials(std::move(local_hf_potentials.value()));
+    mb_state.set_local_selfenergies(std::move(local_selfenergies.value()));
+    local_hf_potentials.reset();
+    local_selfenergies.reset();
+  }
+
+  auto dyson = simple_dyson(mf.get(), &ft, mb_state.coqui_prefix,
+                            io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9));
+
+  embed_t embed(*mf);
+  embed.dmft_embed(mb_state, dyson, iter_solver.get(),
+                   io::get_value_with_default<bool>(pt,"qp_approx_mbpt",false),
+                   io::get_value_with_default<bool>(pt,"corr_only",false));
+}
+
 
 // instantiations
 using mpi3::communicator;
