@@ -21,6 +21,12 @@ limitations under the License.
 from .thc import make_thc_coulomb, run_isdf
 from .cholesky import make_chol_coulomb
 
-from . import pyscf_interface
+# import PySCF converter module only if PySCF is available
+try:
+    import pyscf
+except ImportError:
+    pass
+else:
+    from . import pyscf_interface
 
 __all__ = ["make_thc_coulomb", "make_chol_coulomb", "run_isdf"]

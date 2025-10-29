@@ -20,6 +20,12 @@ limitations under the License.
 
 from .mf import make_mf
 
-from . import pyscf_interface
+# import PySCF converter module only if PySCF is available
+try:
+    import pyscf
+except ImportError:
+    pass
+else:
+    from . import pyscf_interface
 
 __all__ = ["make_mf"]
