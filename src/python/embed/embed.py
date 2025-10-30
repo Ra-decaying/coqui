@@ -95,11 +95,6 @@ def dmft_embed(mf, params, *, local_hf_potentials=None, local_sigma_dynamic=None
         local_hf_potentials = None
         local_sigma_dynamic = None
 
-    embed_cxx.dmft_embed(
-        mf, json.dumps(params),
-        local_hf_potentials, local_sigma_dynamic
-    )
-
     if projector_info is None:
         embed_cxx.dmft_embed(
             mf, json.dumps(params),

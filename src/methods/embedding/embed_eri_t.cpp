@@ -169,12 +169,7 @@ namespace methods {
       _Timer.add(v);
     }
 
-    _Timer.start("DF_TOTAL");
-    std::string filename = mb_state.coqui_prefix + ".mbpt.h5";
-
-    _Timer.start("DF_READ");
     auto permut_symm = determine_permut_symm(force_permut_symm, force_real);
-    _Timer.stop("DF_READ");
 
     return downfold_wloc_impl<return_wt>(eri, mb_state, screen_type, permut_symm, *ft, g_grp, g_iter);
   }
@@ -187,6 +182,8 @@ namespace methods {
   -> std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> > {
 
     using math::shm::make_shared_array;
+
+    _Timer.start("DF_TOTAL");
 
     ft.metadata_log();
     std::string filename = mb_state.coqui_prefix + ".mbpt.h5";

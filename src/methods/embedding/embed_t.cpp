@@ -94,7 +94,7 @@ namespace methods {
                  "embed_t::dmft_embed_impl: inconsistent downfolding iterations "
                  "for fermionic ({}) and bosonic ({}) Weiss fields in {}",
                  weiss_f_iter, weiss_b_iter, filename);
-    long embed_out_iter = (embed_iter > 0) ? embed_iter+1 : weiss_f_iter;
+    long embed_out_iter = (embed_iter > 0) ? embed_iter+1 : 1;
     _Timer.stop("EMBED_READ");
 
     ft.metadata_log();

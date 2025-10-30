@@ -867,6 +867,9 @@ def blk_arr_to_arr(blk_array, gf_struct):
     - Assumes each spin has the same total orbital count; raises if not.
     """
 
+    if blk_array is None:
+        return None
+
     assert len(blk_array) == len(gf_struct),  (
         f"Inconistent number of blocks between block_array ({len(blk_array)}) "
         f"and gf_struct ({len(gf_struct)})."
