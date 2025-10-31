@@ -628,12 +628,13 @@ downfolding_2e(eri_t &eri, ptree const& pt,
 
   auto mf = eri.MF();
   std::string output = outdir + "/" + prefix;
+  // FIXME consistent usage of pi_rpa_input (used in edmft) vs input_type (used in crap)
   if (pi_rpa_input == "mf") {
     if (std::filesystem::exists(output+".mbpt.h5")) {
       app_log(1, "");
       app_log(1, "╔══════════════════════════════════════════════════════════════╗");
       app_log(1, "║ [ WARNING ]                                                  ║");
-      app_log(1, "║ pi_rpa_input type is set to \"mf\", while a CoQuí checkpoint ║");
+      app_log(1, "║ pi_rpa_input type is set to \"mf\", while a CoQuí checkpoint   ║");
       app_log(1, "║ HDF5 with the same prefix has been detected. CoQuí will      ║");
       app_log(1, "║ overwrite the old checkpoint. Considering moving the old     ║");
       app_log(1, "║ HDF5 or changing CoQuí prefix next time.                     ║");

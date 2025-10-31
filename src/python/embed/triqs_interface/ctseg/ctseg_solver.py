@@ -130,12 +130,25 @@ def solve_dynamic_imp(Delta_iw, h_loc0, U_iw, h_int, **solver_params):
     return solve_dynamic_full_mesh(Delta_iw, h_loc0, U_iw, h_int, **solver_params)
     
 
-def save_solver_results(h5_grp, solver_results):
-    h5_grp['G_iw'] = solver_results.G_iw
-    h5_grp['Sigma_Hartree'] = solver_results.Sigma_Hartree
-    h5_grp['Sigma_dynamic'] = solver_results.Sigma_dynamic
-    h5_grp['Pi_iw'] = solver_results.Pi_iw
-    h5_grp['W_dynamic'] = solver_results.W_dynamic
-    h5_grp['orbital_occupations'] = solver_results.orbital_occupations
-    h5_grp['average_order'] = solver_results.average_order
-    h5_grp['average_sign'] = solver_results.average_sign
+def write_impurity_results(h5_grp, impurity_results):
+    h5_grp['G_iw'] = impurity_results.G_iw
+    h5_grp['Sigma_Hartree'] = impurity_results.Sigma_Hartree
+    h5_grp['Sigma_dynamic'] = impurity_results.Sigma_dynamic
+    h5_grp['Pi_iw'] = impurity_results.Pi_iw
+    h5_grp['W_dynamic'] = impurity_results.W_dynamic
+    h5_grp['orbital_occupations'] = impurity_results.orbital_occupations
+    h5_grp['average_order'] = impurity_results.average_order
+    h5_grp['average_sign'] = impurity_results.average_sign
+
+def save_all_impurities(all_results, h5_filename, iteration=-1):
+    with HDFArchive(h5_filename, 'a') as ar:
+        if iteration == -1:
+            iteration = 1 if "final_iteration" not in ar.keys() else ar["final_iteration"] + 1
+
+        ar.create_group(f"iter{iteration}")
+        for I, Res in enumerate(all_results):
+            ar[f"iter{iteration}"].create_group(f"impurity_{I}")
+            res_grp = ar[f"iter{iteration}/impurity_{I}"]
+            write_impurity_results(res_grp, Res)
+
+        ar["final_iteration"] = iteration

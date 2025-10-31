@@ -243,28 +243,17 @@ def to_block_gf(giw_ir, ir_kernel, gf_struct, mesh_iw):
     mesh_iw_idx = np.array([iwn.index for iwn in mesh_iw])
 
     # E.g. block structure = [ ("up_0", 1), ("down_0", 1), ("up_1", 2), ("down_1", 2) ]
-    offset_up, offset_dn = 0, 0
+    offset = [0, 0]
     for blk_name, blk_dim in gf_struct:
-        if blk_name[:2] == "up":
-            blk_gf[blk_name].data[:] = ir_kernel.w_interpolate(
-                giw_ir[:, 0, offset_up:offset_up+blk_dim, offset_up:offset_up+blk_dim], 
-                mesh_iw_idx, 
-                stats="f", 
-                ir_notation=False
-            )
-            offset_up += blk_dim
-            assert offset_up <= nbnd, "Spin up block excceds band range"
-            offset_up = offset_up % nbnd
-        elif blk_name[:4] == "down":
-            blk_gf[blk_name].data[:] = ir_kernel.w_interpolate(
-                giw_ir[:, 1, offset_dn:offset_dn+blk_dim, offset_dn:offset_dn+blk_dim], 
-                mesh_iw_idx, 
-                stats="f", 
-                ir_notation=False
-            )
-            offset_dn += blk_dim
-            assert offset_dn <= nbnd, "Spin down block excceds band range"
-            offset_dn = offset_dn % nbnd
+        s = 0 if blk_name[:2] == "up" else 1
+        blk_gf[blk_name].data[:] = ir_kernel.w_interpolate(
+            giw_ir[:, s, offset[s]:offset[s]+blk_dim, offset[s]:offset[s]+blk_dim],
+            mesh_iw_idx,
+            stats="f",
+            ir_notation=False
+        )
+        offset[s] += blk_dim
+        assert offset[s] <= nbnd, f"Spin {s} block exceeds band range"
 
     return blk_gf
 
@@ -284,38 +273,26 @@ def to_block2_gf(Diw_ir, ir_kernel, gf_struct, mesh_iw):
     Diw_data = ir_kernel.w_interpolate_phsym(Diw_ir, mesh_iw_idx, stats="b", ir_notation=False)
 
     gf_array = []
-    o1_up, o1_dn = 0, 0
+    o1 = [0, 0]
     for name1, dim1 in gf_struct:
-        o1 = o1_up if name1[:2] == "up" else o1_dn
-        
+        s1 = 0 if name1[:2] == "up" else 1
+
         gf_list = []
-        o2_up, o2_dn = 0, 0
+        o2 = [0, 0]
         for name2, dim2 in gf_struct:
-            o2 = o2_up if name2[:2] == "up" else o2_dn
-            
+            s2 = 0 if name2[:2] == "up" else 1
+
             gf = Gf(mesh = mesh_iw, target_shape = (dim1, dim2))
-            gf.data[:] = Diw_data[:, o1:o1+dim1, o2:o2+dim2]
-            
-            if name2[:2] == "up":
-                o2_up = o2 + dim2
-                assert o2_up <= nbnd, "Spin up block excceds band range"
-                o2_up = o2_up % nbnd
-            else:
-                o2_dn = o2 + dim2
-                assert o2_dn <= nbnd, "Spin down block excceds band range"
-                o2_dn = o2_dn % nbnd
-                
+            gf.data[:] = Diw_data[:, o1[s1]:o1[s1]+dim1, o2[s2]:o2[s2]+dim2]
+
+            o2[s2] += dim2
+            assert o2[s2] <= nbnd, f"Spin {s2} block exceeds band range"
+
             gf_list.append(gf)
-        
-        if name1[:2] == "up":
-            o1_up = o1 + dim1
-            assert o1_up <= nbnd, "Spin up block excceds band range"
-            o1_up = o1_up % nbnd
-        else:
-            o1_dn = o1 + dim1
-            assert o1_dn <= nbnd, "Spin down block excceds band range"
-            o1_dn = o1_dn % nbnd
-        
+
+        o1[s1] += dim1
+        assert o1[s1] <= nbnd, f"Spin {s1} block exceeds band range"
+
         gf_array.append(gf_list)
 
     names = [name for name, _ in gf_struct]
@@ -386,9 +363,12 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
     if real_hamiltonian:
         # FT to tau space and enforce to real values
         delta_tau = ir_kernel.w_to_tau(delta_iw, 'f')
-        delta_iw = ir_kernel.tau_to_w(delta_tau, 'r').real
+        delta_tau.imag = 0.0
+        delta_iw = ir_kernel.tau_to_w(delta_tau, 'f')
+
         u_weiss_tau = ir_kernel.w_to_tau_phsym(u_weiss_iw, 'b')
-        u_weiss_iw = ir_kernel.tau_to_w_phsym(u_weiss_tau, 'r').real
+        u_weiss_tau.imag = 0.0
+        u_weiss_iw = ir_kernel.tau_to_w_phsym(u_weiss_tau, 'b')
 
     # one-particle
     h0 = h0_operator(h0, gf_struct, diagonal=density_hamiltonian, 
@@ -535,7 +515,8 @@ def extract_h0_and_delta(g_weiss_wsab, ir_kernel, high_freq_multiplier=10):
 
     # 4) checking the leakage of the resulting Δ(iω)
     if mpi.is_master_node():
-        ir_kernel.check_leakage(delta_estimate, 'f', 'delta_estimate', w_input=True)
+        ir_kernel.check_leakage(delta_estimate, 'f', 'delta', w_input=True)
+    mpi.report("")
     mpi.barrier()
 
     return t_sIab_estimate, delta_estimate
@@ -573,13 +554,18 @@ def compute_weiss_fields_w(*, ir_kernel, local_gf, impurity_selfenergies=None, d
         ir_kernel.tau_to_w_phsym(local_gf["Wloc_t"], stats='b'),
         Pi_imp_w_pb
     )
+    if mpi.is_master_node():
+        ir_kernel.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
+    mpi.report("")
+    mpi.barrier()
+
     # fermionic 
     if impurity_selfenergies["Vhf_imp"] is not None and impurity_selfenergies["Sigma_imp_w"] is not None:
-        mpi.report("Evaluate the fermionic Weiss field using the provided impurity self-energy.\n")
+        mpi.report("Evaluate the fermionic Weiss field using the provided impurity self-energy.")
         Vhf_imp = impurity_selfenergies["Vhf_imp"]
         Sigma_imp_w = impurity_selfenergies["Sigma_imp_w"]
     else:
-        mpi.report("Evaluate the fermionic Weiss field using the local GW self-energy.\n")
+        mpi.report("Evaluate the fermionic Weiss field using the local GW self-energy.")
         Vhf_imp = eval_hf_dc(
             -ir_kernel.tau_interpolate(local_gf["Gloc_t"], [ir_kernel.beta], stats='f')[0], 
             local_gf["Vloc"], 
@@ -592,6 +578,12 @@ def compute_weiss_fields_w(*, ir_kernel, local_gf, impurity_selfenergies=None, d
         Vhf_imp, 
         Sigma_imp_w
     )
+
+    if mpi.is_master_node():
+        ir_kernel.check_leakage(g_weiss_w, 'f', 'g_weiss', w_input=True)
+    mpi.report("")
+    mpi.barrier()
+
     return g_weiss_w, u_weiss_w
 
 
@@ -747,11 +739,11 @@ def imp_results_to_raw_data(sigma_dynamic, pi_iw, ir_kernel=None):
         sigma_dynamic_data = Sigma_dyn_blk_ir
 
         # interpolate solver_res.Pi_iw to ir grid
-        ir_idx_b = ir_kernel.wn_mesh(stats='b', ir_notation=False)
-        nw_b_half = len(ir_idx_b)//2
-        pi_iw_ir = np.zeros((nw_b_half+1,) + pi_iw.data[:].shape[1:], dtype=complex)
-        for idx in range(nw_b_half+1):
-            data_idx = pi_iw.mesh.to_data_index(ir_idx_b[nw_b_half+idx])
+        ir_idx_b = ir_kernel.wn_mesh(stats='b', ir_notation=False, positive_only=True)
+        nw_b_pos = len(ir_idx_b)
+        pi_iw_ir = np.zeros((nw_b_pos,) + pi_iw_data[0].shape[1:], dtype=complex)
+        for idx in range(nw_b_pos):
+            data_idx = pi_iw.mesh.to_data_index(ir_idx_b[idx])
             pi_iw_ir[idx] = pi_iw_data[0][data_idx]
         pi_iw_data[0] = pi_iw_ir
 
