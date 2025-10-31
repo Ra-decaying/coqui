@@ -316,7 +316,8 @@ def post_process_sigma(solver, **post_proc_params):
         solver.Sigma_iw << modest.symmetrize(solver.Sigma_iw, post_proc_params['degenerate_blk'])
 
     solver.Sigma_dynamic = solver.Sigma_iw.copy()
-    for bl, g in solver.Sigma_dynamic: solver.Sigma_dynamic[bl] << g - solver.Sigma_Hartree[bl]
+    for bl, g in solver.Sigma_dynamic:
+        solver.Sigma_dynamic[bl] << g - solver.Sigma_Hartree[bl]
 
     solver.G_iw << inverse( inverse(solver.G0_iw) - solver.Sigma_iw )
     solver.G_iw << make_hermitian(solver.G_iw)
@@ -464,7 +465,4 @@ def find_orbital_index(color, gf_struct):
 
     raise ValueError(f"Color index {color} out of bounds for gf_struct of total size {colors_so_far}")
     return 0
-
-
-
 

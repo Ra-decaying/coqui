@@ -174,15 +174,16 @@ def h_int_slater(V_abcd, gf_struct, force_real=True):
 def h0_operator(h0_sab, gf_struct, *, diagonal=True, force_real=True):
     assert len(h0_sab.shape) == 3, "incorrect h0_sab.shape"
     H0 = Operator()
-    o1_up, o1_dn = 0, 0
+    o1 = [0, 0]
     for blk_name, blk_dim in gf_struct:
         s = 0 if blk_name[:2] == "up" else 1
-        o1 = o1_up if blk_name[:2] == "up" else o1_dn
         for i in range(blk_dim):
             if force_real:
-                H0 += h0_sab[s, o1+i, o1+i].real * c_dag(blk_name, i) * c(blk_name, i)
+                H0 += h0_sab[s, o1[s]+i, o1[s]+i].real * c_dag(blk_name, i) * c(blk_name, i)
             else:
-                H0 += h0_sab[s, o1+i, o1+i] * c_dag(blk_name, i) * c(blk_name, i)
+                H0 += h0_sab[s, o1[s]+i, o1[s]+i] * c_dag(blk_name, i) * c(blk_name, i)
+            o1[s] += blk_dim
+
     return H0
 
 
@@ -382,6 +383,13 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
         "Convertion to non-density-density Hamiltonian is not implemented yet."
     )
 
+    if real_hamiltonian:
+        # FT to tau space and enforce to real values
+        delta_tau = ir_kernel.w_to_tau(delta_iw, 'f')
+        delta_iw = ir_kernel.tau_to_w(delta_tau, 'r').real
+        u_weiss_tau = ir_kernel.w_to_tau_phsym(u_weiss_iw, 'b')
+        u_weiss_iw = ir_kernel.tau_to_w_phsym(u_weiss_tau, 'r').real
+
     # one-particle
     h0 = h0_operator(h0, gf_struct, diagonal=density_hamiltonian, 
                      force_real=real_hamiltonian)
@@ -397,7 +405,7 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
         Vimp, gf_struct, 
         force_real=real_hamiltonian
     )
-    
+
     return h0, delta_iw, h_int, u_weiss_iw
 
 
