@@ -914,7 +914,6 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
   MBState mb_state(ft, outdir+"/"+prefix, mf,
                    C_ksIai, band_window, kpts_crys,
                    io::get_value_with_default<bool>(pt,"translate_home_cell",false), false);
-
   if (local_hf_potentials and local_selfenergies) {
     mb_state.set_local_hf_potentials(std::move(local_hf_potentials.value()));
     mb_state.set_local_selfenergies(std::move(local_selfenergies.value()));

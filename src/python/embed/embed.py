@@ -81,9 +81,6 @@ def dmft_embed(mf, params, *, local_hf_potentials=None, local_sigma_dynamic=None
         missing = required_keys - local_sigma_dynamic.keys()
         if missing:
             raise ValueError(f"Missing keys in local_sigma_dynamic: {missing}")
-        missing = required_keys - local_hf_potentials.keys()
-        if missing:
-            raise ValueError(f"Missing keys in local_hf_potentials: {missing}")
 
         # Append additional axis for the number of impurities
         for key in required_keys:

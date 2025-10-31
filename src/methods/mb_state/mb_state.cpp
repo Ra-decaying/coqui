@@ -105,8 +105,8 @@ namespace methods {
   void MBState::set_local_hf_potentials(std::map<std::string, nda::array<ComplexType, 4>> local_hf_potentials) {
     utils::check(proj_boson.has_value(),
                  "MBState::set_local_hf_potentials: proj_boson is not initialized.");
-    Vhf_imp_sIab = local_hf_potentials.at("imp");
-    Vhf_dc_sIab = local_hf_potentials.at("dc");
+    Vhf_imp_sIab.emplace(local_hf_potentials.at("imp"));
+    Vhf_dc_sIab.emplace(local_hf_potentials.at("dc"));
     utils::check(Vhf_imp_sIab.value().shape(2) == proj_boson.value().nImpOrbs() and
                  Vhf_imp_sIab.value().shape(3) == proj_boson.value().nImpOrbs(),
                  "MBState::set_local_hf_potentials: Incorrect dimension for the provided Vhf_imp_sIab.");
@@ -117,8 +117,8 @@ namespace methods {
   void MBState::set_local_selfenergies(std::map<std::string, nda::array<ComplexType, 5>> local_selfenergies) {
     utils::check(proj_boson.has_value(),
                  "MBState::set_local_selfenergies: proj_boson is not initialized.");
-    Sigma_imp_wsIab = local_selfenergies.at("imp");
-    Sigma_dc_wsIab = local_selfenergies.at("dc");
+    Sigma_imp_wsIab.emplace(local_selfenergies.at("imp"));
+    Sigma_dc_wsIab.emplace(local_selfenergies.at("dc"));
     utils::check(Sigma_imp_wsIab.value().shape(3) == proj_boson.value().nImpOrbs() and
                  Sigma_imp_wsIab.value().shape(4) == proj_boson.value().nImpOrbs(),
                  "MBState::set_local_selfenergies: Incorrect dimension for the provided Sigma_imp_wsIab ({}, {}, {}, {} {}).",

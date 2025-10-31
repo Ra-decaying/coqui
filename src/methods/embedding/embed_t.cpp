@@ -111,6 +111,9 @@ namespace methods {
       app_log(1, "    Local self-energy corrections");
       app_log(1, "      HDF5 group:                              downfold_1e");
       app_log(1, "      Iteration:                               {}\n", weiss_f_iter);
+    } else {
+      app_log(1, "    Local self-energy corrections provided directly through MBState\n"
+                 "    (no read from checkpoint file)\n");
     }
     app_log(1, "    Embedded solution output");
     app_log(1, "      HDF5 group:                              embed");

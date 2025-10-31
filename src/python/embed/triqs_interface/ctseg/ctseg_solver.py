@@ -1,4 +1,5 @@
 import numpy as np
+from h5 import HDFArchive
 from triqs.gf import MeshImFreq, Gf, BlockGf, Block2Gf, MeshDLRImFreq, MeshImFreq, make_gf_from_fourier, fit_hermitian_tail, make_hermitian
 from triqs.gf import make_gf_dlr, make_gf_imfreq, make_gf_dlr_imfreq, make_gf_imtime, fit_gf_dlr, inverse, iOmega_n
 from triqs.gf.dlr_crm_dyson_solver import minimize_dyson
@@ -8,7 +9,7 @@ from triqs.operators.util.U_matrix import reduce_4index_to_2index
 from triqs.operators.util.extractors import block_matrix_from_op
 
 from triqs_ctseg import Solver
-import .ctseg_utils
+import coqui.embed.triqs_interface.ctseg.ctseg_utils as ctseg_utils
 
 
 class SmartList(list):
@@ -79,7 +80,8 @@ def solve_dynamic_full_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_p
     post_proc_params['fit_min_n']        = solver_interface_params.pop('fit_min_n', None)
     post_proc_params['fit_max_n']        = solver_interface_params.pop('fit_max_n', None)
     post_proc_params['analytic_hf']      = solver_interface_params.pop('analytic_hf', False)
-    S.n_iw, S.beta, S.gf_struct = n_iw, beta, gf_struct     # useful and neccessary for post-processing
+    post_proc_params['degenerate_blk']   = solver_interface_params.pop('degenerate_blk', None)
+    S.n_iw, S.beta, S.gf_struct = n_iw, beta, gf_struct     # useful and necessary for post-processing
     S.h_int = h_int
     S.h_loc0_mat = block_matrix_from_op(h_loc0, gf_struct)
 
@@ -127,3 +129,13 @@ def solve_dynamic_full_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_p
 def solve_dynamic_imp(Delta_iw, h_loc0, U_iw, h_int, **solver_params):
     return solve_dynamic_full_mesh(Delta_iw, h_loc0, U_iw, h_int, **solver_params)
     
+
+def save_solver_results(h5_grp, solver_results):
+    h5_grp['G_iw'] = solver_results.G_iw
+    h5_grp['Sigma_Hartree'] = solver_results.Sigma_Hartree
+    h5_grp['Sigma_dynamic'] = solver_results.Sigma_dynamic
+    h5_grp['Pi_iw'] = solver_results.Pi_iw
+    h5_grp['W_dynamic'] = solver_results.W_dynamic
+    h5_grp['orbital_occupations'] = solver_results.orbital_occupations
+    h5_grp['average_order'] = solver_results.average_order
+    h5_grp['average_sign'] = solver_results.average_sign

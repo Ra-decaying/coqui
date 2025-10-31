@@ -10,6 +10,7 @@ from triqs.gf.descriptors import Fourier
 from triqs.operators.util.extractors import block_matrix_from_op
 from triqs.operators.util.U_matrix import reduce_4index_to_2index
 
+import triqs_modest as modest
 from triqs_ctseg import Solver as CTSEG_Solver
 
 def post_process(solver, **post_proc_params):
@@ -17,10 +18,17 @@ def post_process(solver, **post_proc_params):
     post_process_sigma(solver, **post_proc_params)
     
     if solver.D0_tau is not None and solver.results.nn_tau is not None:
-        post_process_pi(solver)
+        if post_proc_params['degenerate_blk']:
+            deg_blk_2e = []
+            for blks in post_proc_params['degenerate_blk']:
+                n_half = len(blks) // 2
+                deg_blk_2e.append(np.array(blks[:n_half]))
+        else:
+            deg_blk_2e = None
+        post_process_pi(solver, deg_blk_2e)
 
 
-def post_process_pi(solver, output_in_4idx=False):
+def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
     mpi.report("Charge susceptibility is measured for a impurity with dyanmic interations")
     mpi.report('--> Post-processing the density-density susceptibility to obtain the impurity polarizability.\n')
 
@@ -87,9 +95,12 @@ def post_process_pi(solver, output_in_4idx=False):
     U_iw_dd = nn_iw_dd.copy()
     for c1, c2 in product(range(n_color), repeat=2):
         nn_iw_dd[color_to_orbital[c1], color_to_orbital[c2]].data[:] += nn_iw[c1, c2].data[:]
+        # FIXME Why do we need U_iw_dd?
         # multiply by 0.25 to take average over (up, up), (up, dn), (dn, up) and (dn, dn) 
         # (assuming all sub blocks are the same)
         U_iw_dd[color_to_orbital[c1], color_to_orbital[c2]].data[:] += U_iw[c1, c2].data[:] * 0.25
+    if degenerate_blk is not None:
+        nn_iw_dd << modest.symmetrize(nn_iw_dd, degenerate_blk)
         
     # Convert to a product basis 
     nn_iw_pb = Gf(mesh=nn_iw.mesh, target_shape=[n_orb*n_orb, n_orb*n_orb])
@@ -123,7 +134,7 @@ def post_process_pi(solver, output_in_4idx=False):
             U_iw_pb[i*n_orb+j, j*n_orb+i] << U_iw_pb[j*n_orb+i, i*n_orb+j]
     
 
-    # Dyson equation: Pi(w) = [U(w)*Chi(w) - I]^-1 * Chi(w)
+    # Dyson equation: Pi(w) = Chi(w) * [U(w)*Chi(w) - I]^-1
     Pi_iw_pb = Gf(mesh=nn_iw_pb.mesh, target_shape=nn_iw_pb.target_shape)
     ones = np.eye(n_orb*n_orb, dtype=complex)
     for iwn in nn_iw_pb.mesh:
@@ -131,7 +142,7 @@ def post_process_pi(solver, output_in_4idx=False):
         cond = np.linalg.cond(denom)
         if cond > 20: 
             mpi.report(f"WARNING: Large condition number for [U(w) * Chi(w) - I] = {cond} at n = {iwn.index}.")        
-        Pi_iw_pb[iwn] = np.linalg.pinv(denom) @ nn_iw_pb[iwn]
+        Pi_iw_pb[iwn] = nn_iw_pb[iwn] @ np.linalg.pinv(denom)
         # explicit set Pi(iw).imag = 0.0
         Pi_iw_pb[iwn].imag = 0.0
 
@@ -165,6 +176,9 @@ def post_process_pi(solver, output_in_4idx=False):
         for i, j in product(range(n_orb), repeat=2):
             solver.Pi_iw[i,j] << Pi_iw_pb[i*n_orb+i, j*n_orb+j]
             solver.W_iw[i,j] << W_iw_pb[i*n_orb+i, j*n_orb+j]
+        if degenerate_blk is not None:
+            solver.Pi_iw << modest.symmetrize(solver.Pi_iw, degenerate_blk)
+            solver.W_iw  << modest.symmetrize(solver.W_iw, degenerate_blk)
     else:
         # transform back to 4-index tensor 
         solver.Pi_iw = Gf(mesh=nn_iw_pb.mesh, target_shape=(n_orb, n_orb, n_orb, n_orb))
@@ -189,17 +203,19 @@ def post_process_sigma(solver, **post_proc_params):
     for i, bl in enumerate(solver.G_iw.indices):
         Gf_known_moments[i][1] = np.eye(solver.G_iw[bl].target_shape[0])
         solver.G_iw[bl].set_from_fourier(solver.results.G_tau[bl], Gf_known_moments[i])
-    assert is_gf_hermitian(solver.G_iw)
     solver.G_iw << make_hermitian(solver.G_iw)
+    if post_proc_params['degenerate_blk']:
+        solver.G_iw << modest.symmetrize(solver.G_iw, post_proc_params['degenerate_blk'])
 
     # compute fermionic Weiss field g(iw)
     Delta_iw = BlockGf(mesh = mesh, gf_struct = solver.gf_struct)
     Delta_known_moments = make_zero_tail(Delta_iw, n_moments=1)
     for i, bl in enumerate(solver.Delta_tau.indices):
         Delta_iw[bl].set_from_fourier(solver.Delta_tau[bl], Delta_known_moments[i])
-        solver.G0_iw[bl] << inverse(iOmega_n - Delta_iw[bl] - solver.h_loc0_mat[i])
-    #assert is_gf_hermitian(solver.G0_iw)
+        solver.G0_iw[bl] << inverse(iOmega_n - solver.h_loc0_mat[i] - Delta_iw[bl])
     solver.G0_iw << make_hermitian(solver.G0_iw)
+    if post_proc_params['degenerate_blk']:
+        solver.G0_iw << modest.symmetrize(solver.G0_iw, post_proc_params['degenerate_blk'])
 
     # Compute the HF self-energy as the first moment of the self-energy
     solver.Sigma_Hartree = {}
@@ -211,8 +227,7 @@ def post_process_sigma(solver, **post_proc_params):
     norb = Vijkl.shape[0]
 
     # compute density matrix without the block structure
-    density_matrix = {"up": np.zeros((norb, norb)), 
-                      "down": np.zeros((norb,norb))}
+    density_matrix = {"up": np.zeros((norb, norb)), "down": np.zeros((norb,norb))}
     o1_up, o1_dn = 0, 0
     for blk_name, blk_dim in solver.gf_struct:
         spin = "up" if blk_name[:2] == "up" else "down"
@@ -251,6 +266,10 @@ def post_process_sigma(solver, **post_proc_params):
             o1_up = o1 % norb
         else:
             o1_dn = o1 % norb
+    if post_proc_params['degenerate_blk']:
+        Sigma_Hartree_list = modest.symmetrize(list(solver.Sigma_Hartree.values()), post_proc_params['degenerate_blk'])
+        for i, blk_name in enumerate(solver.Sigma_Hartree.keys()):
+            solver.Sigma_Hartree[blk_name] = Sigma_Hartree_list[i]
 
     # create moments array from this
     for blk_name, hf_val in solver.Sigma_Hartree.items():
@@ -270,10 +289,16 @@ def post_process_sigma(solver, **post_proc_params):
         F_known_moments = make_zero_tail(F_iw, n_moments=1)
         for i, bl in enumerate(F_iw.indices):
             F_iw[bl].set_from_fourier(solver.results.F_tau[bl], F_known_moments[i])
+        F_iw << make_hermitian(F_iw)
+        if post_proc_params['degenerate_blk']:
+            F_iw << modest.symmetrize(F_iw, post_proc_params['degenerate_blk'])
 
         for block, fw in F_iw:
             for iw in fw.mesh:
                 solver.Sigma_iw[block][iw] = fw[iw] / solver.G_iw[block][iw]
+    solver.Sigma_iw << make_hermitian(solver.Sigma_iw)
+    if post_proc_params['degenerate_blk']:
+        solver.Sigma_iw << modest.symmetrize(solver.Sigma_iw, post_proc_params['degenerate_blk'])
 
     if post_proc_params['perform_tail_fit']:
         # tail fitting for the self-energy 
@@ -286,11 +311,17 @@ def post_process_sigma(solver, **post_proc_params):
             fit_max_moment=post_proc_params['fit_max_moment'],
             fit_known_moments=solver.Sigma_moments
         )
+    solver.Sigma_iw << make_hermitian(solver.Sigma_iw)
+    if post_proc_params['degenerate_blk']:
+        solver.Sigma_iw << modest.symmetrize(solver.Sigma_iw, post_proc_params['degenerate_blk'])
 
     solver.Sigma_dynamic = solver.Sigma_iw.copy()
     for bl, g in solver.Sigma_dynamic: solver.Sigma_dynamic[bl] << g - solver.Sigma_Hartree[bl]
 
     solver.G_iw << inverse( inverse(solver.G0_iw) - solver.Sigma_iw )
+    solver.G_iw << make_hermitian(solver.G_iw)
+    if post_proc_params['degenerate_blk']:
+        solver.G_iw << modest.symmetrize(solver.G_iw, post_proc_params['degenerate_blk'])
 
     
 def tail_fit(Sigma_iw, 
