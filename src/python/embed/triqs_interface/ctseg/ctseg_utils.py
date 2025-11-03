@@ -2,7 +2,8 @@ import triqs.utility.mpi as mpi
 import numpy as np
 from itertools import product
 
-from triqs.gf import (iOmega_n, MeshImFreq, Gf, BlockGf, make_gf_imfreq, make_gf_imtime, 
+from triqs.gf import (iOmega_n, MeshImFreq, MeshDLRImFreq, Gf, BlockGf,
+                      make_gf_imfreq, make_gf_imtime,
                       make_gf_from_fourier, Idx, make_hermitian, is_gf_hermitian)
 from triqs.gf.gf_fnt import fit_hermitian_tail_on_window, replace_by_tail
 from triqs.gf.tools import inverse, make_zero_tail
@@ -218,7 +219,7 @@ def post_process_sigma(solver, **post_proc_params):
         solver.G0_iw << modest.symmetrize(solver.G0_iw, post_proc_params['degenerate_blk'])
 
     # Compute the HF self-energy as the first moment of the self-energy
-    solver.Sigma_Hartree = {}
+    solver.Sigma_infty = {}
     solver.Sigma_moments = {}
     mpi.report('\nEvaluating static impurity self-energy analytically using CT-SEG interacting density:')
     # Uijkl is the full 4-index tensor without the block structure 
@@ -228,51 +229,44 @@ def post_process_sigma(solver, **post_proc_params):
 
     # compute density matrix without the block structure
     density_matrix = {"up": np.zeros((norb, norb)), "down": np.zeros((norb,norb))}
-    o1_up, o1_dn = 0, 0
+    o1 = [0, 0]
     for blk_name, blk_dim in solver.gf_struct:
         spin = "up" if blk_name[:2] == "up" else "down"
-        o1 = o1_up if blk_name[:2] == "up" else o1_dn
+        s1 = 0 if blk_name[:2] == "up" else 1
         for iorb in range(blk_dim):
-            density_matrix[spin][o1+iorb, o1+iorb] = solver.results.densities[blk_name][iorb]
-        o1 += blk_dim
-        assert o1 <= norb, "orbital offset excceds band range"
-        if blk_name[:2] == "up":
-            o1_up = o1 % norb
-        else:
-            o1_dn = o1 % norb
+            density_matrix[spin][o1[s1]+iorb, o1[s1]+iorb] = solver.results.densities[blk_name][iorb]
+        o1[s1] += blk_dim
+        assert o1[s1] <= norb, "orbital offset exceeds band range"
 
     # compute HF self-energy
-    o1_up, o1_dn = 0, 0
+    o1 = [0, 0]
     for blk_name, blk_dim in solver.gf_struct:
-        solver.Sigma_Hartree[blk_name] = np.zeros((blk_dim, blk_dim), dtype=float)
+        solver.Sigma_infty[blk_name] = np.zeros((blk_dim, blk_dim), dtype=float)
 
         spin = "up" if blk_name[:2] == "up" else "down"
-        o1 = o1_up if blk_name[:2] == "up" else o1_dn
+        s1 = 0 if blk_name[:2] == "up" else 1
 
         # Sigma_HF_{ij} = \sum_{a,b} n_{ab} \left( 2 Uw0_{i a j b} - U_{i a b j} \right)
         for iorb, jorb in product(range(blk_dim), repeat=2):
             # inner needs to run over the entire norb
             for inner in range(norb):
                 # exchange diagram K
-                solver.Sigma_Hartree[blk_name][iorb, jorb] -= (
-                    density_matrix[spin][inner, inner].real * (Vijkl[o1+iorb, inner, inner, o1+jorb].real))                 
+                solver.Sigma_infty[blk_name][iorb, jorb] -= (
+                    density_matrix[spin][inner, inner].real * (Vijkl[o1[s1]+iorb, inner, inner, o1[s1]+jorb].real))
                 # Hartree (Coulomb) diagram J
-                solver.Sigma_Hartree[blk_name][iorb, jorb] += (
-                    density_matrix[spin][inner, inner].real * (2 * Uw0_ijkl[o1+iorb, inner, o1+jorb, inner].real))
-        
-        o1 = o1 + blk_dim
-        assert o1 <= norb, "orbital offset exceeds band range"
-        if blk_name[:2] == "up":
-            o1_up = o1 % norb
-        else:
-            o1_dn = o1 % norb
+                solver.Sigma_infty[blk_name][iorb, jorb] += (
+                    density_matrix[spin][inner, inner].real * (2 * Uw0_ijkl[o1[s1]+iorb, inner, o1[s1]+jorb, inner].real))
+
+        o1[s1] += blk_dim
+        assert o1[s1] <= norb, "orbital offset exceeds band range"
+
     if post_proc_params['degenerate_blk']:
-        Sigma_Hartree_list = modest.symmetrize(list(solver.Sigma_Hartree.values()), post_proc_params['degenerate_blk'])
-        for i, blk_name in enumerate(solver.Sigma_Hartree.keys()):
-            solver.Sigma_Hartree[blk_name] = Sigma_Hartree_list[i]
+        Sigma_infty_list = modest.symmetrize(list(solver.Sigma_infty.values()), post_proc_params['degenerate_blk'])
+        for i, blk_name in enumerate(solver.Sigma_infty.keys()):
+            solver.Sigma_infty[blk_name] = Sigma_infty_list[i]
 
     # create moments array from this
-    for blk_name, hf_val in solver.Sigma_Hartree.items():
+    for blk_name, hf_val in solver.Sigma_infty.items():
         mpi.report(f"Σ_HF {blk_name}:")
         mpi.report(f"    {hf_val}")
         solver.Sigma_moments[blk_name] = np.array([hf_val], dtype=complex)
@@ -315,14 +309,15 @@ def post_process_sigma(solver, **post_proc_params):
     if post_proc_params['degenerate_blk']:
         solver.Sigma_iw << modest.symmetrize(solver.Sigma_iw, post_proc_params['degenerate_blk'])
 
-    solver.Sigma_dynamic = solver.Sigma_iw.copy()
-    for bl, g in solver.Sigma_dynamic:
-        solver.Sigma_dynamic[bl] << g - solver.Sigma_Hartree[bl]
-
+    # update G(iw) with the fitted self-energy
     solver.G_iw << inverse( inverse(solver.G0_iw) - solver.Sigma_iw )
     solver.G_iw << make_hermitian(solver.G_iw)
     if post_proc_params['degenerate_blk']:
         solver.G_iw << modest.symmetrize(solver.G_iw, post_proc_params['degenerate_blk'])
+
+    # remove the static part of the self-energy
+    for bl, g in solver.Sigma_iw:
+        solver.Sigma_iw[bl] << g - solver.Sigma_infty[bl]
 
     
 def tail_fit(Sigma_iw, 
@@ -427,7 +422,6 @@ def find_block_name(color, gf_struct):
             return blk_name
         bl+=1
     raise ValueError(f"Color index {color} out of bounds for gf_struct of total size {colors_so_far}")
-    return "none"
 
 
 def find_index_in_block(color, gf_struct):
@@ -437,7 +431,6 @@ def find_index_in_block(color, gf_struct):
         if color < colors_so_far:
             return color - (colors_so_far - blk_dim)
     raise ValueError(f"Color index {color} out of bounds for gf_struct of total size {colors_so_far}")
-    return 0
 
 
 def find_orbital_index(color, gf_struct):
@@ -464,5 +457,39 @@ def find_orbital_index(color, gf_struct):
             assert o_dn <= n_orb, f"Spin down orbital index {o_dn} excceds band range {n_orb}"    
 
     raise ValueError(f"Color index {color} out of bounds for gf_struct of total size {colors_so_far}")
-    return 0
+
+
+def fill_dlr_imfreq_gf(g_iw, wmax, eps):
+
+    assert isinstance(g_iw.mesh, MeshImFreq), (
+        "fill_dlr_imfreq_gf: input Green's function should live on MeshImFreq."
+    )
+
+    mesh_dlr_iw = MeshDLRImFreq(
+        beta=g_iw.mesh.beta, statistic=g_iw.mesh.statistic,
+        w_max=wmax, eps=eps, symmetrize=True
+    )
+
+    mesh_dlr_idx = np.array([iw.index for iw in mesh_dlr_iw])
+    max_dlr_idx = max(abs(mesh_dlr_idx[0]), abs(mesh_dlr_idx[-1]))
+    assert max_dlr_idx <= g_iw.mesh.n_iw, (
+        f"fill_dlr_imfreq_gf: g_iw.mesh.n_iw = {g_iw.mesh.n_iw} < maximum DLRImFreq index ({max_dlr_idx})."
+    )
+
+    if isinstance(g_iw, BlockGf):
+        gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in g_iw]
+        g_dlr_iw = BlockGf(mesh=mesh_dlr_iw, gf_struct=gf_struct)
+        for w in g_dlr_iw.mesh:
+            for block, gf in g_dlr_iw:
+                gf[w] = g_iw[block](w)
+        return g_dlr_iw
+
+    elif isinstance(g_iw, Gf):
+        g_dlr_iw = Gf(mesh=mesh_dlr_iw, target_shape=g_iw.target_shape)
+        for w in g_dlr_iw.mesh:
+            g_dlr_iw[w] = g_iw(w)
+        return g_dlr_iw
+
+    else:
+        raise NotImplemented
 

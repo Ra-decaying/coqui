@@ -36,18 +36,17 @@ of EDMFT, including:
 
 Dependencies
 ------------
-This module relies heavily on the TRIQS ecosystem, in particular:
+This module relies on the TRIQS ecosystem, in particular:
 - `triqs.gf` for Green’s function containers and operations
 - `triqs.operators` for operator algebra
 - `triqs.utility.mpi` for parallelism
-- `h5` (HDFArchive) for reading and writing HDF5 data
 """
 import triqs.utility.mpi as mpi
 from h5 import HDFArchive
 import numpy as np
 import itertools
 
-from triqs.gf import Gf, make_gf_dlr, BlockGf, Block2Gf
+from triqs.gf import Gf, make_gf_dlr, BlockGf, Block2Gf, MeshImFreq, MeshDLRImFreq
 from triqs.operators import c_dag, c, Operator, util
 
 
@@ -706,106 +705,145 @@ def solve_gw_dc(G_t, V, W_t, u_weiss_iw, ir_kernel, density_only=True,
         pi_dc_iw = [pi_dc_iw]
 
     return {
-        "Vhf_dc_data": vhf_dc,
-        "Sigma_dynamic_dc_data": sigma_dc_iw,
-        "Pi_dc_data": pi_dc_iw
+        "Sigma_infty_dc": vhf_dc,
+        "Sigma_iw_dc_data": sigma_dc_iw,
+        "Pi_iw_dc_data": pi_dc_iw
     }
 
 
-def imp_results_to_raw_data(sigma_dynamic, pi_iw, ir_kernel=None):
-    """
-    """
-    # solver_res.Sigma_dynamic (TRIQS BlockGf) -> solver_res.Sigma_dynamic_data (block array)
-    sigma_dynamic_data = blk_gf_to_blk_arr(sigma_dynamic)
+def imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel=None):
+    if isinstance(sigma_iw.mesh, MeshDLRImFreq) and isinstance(pi_iw.mesh, MeshDLRImFreq):
+        return _dlr_imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel)
+    elif isinstance(sigma_iw.mesh, MeshImFreq) and isinstance(pi_iw.mesh, MeshImFreq):
+        return _full_mesh_imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel)
+    else:
+        raise ValueError("Incompatible mesh types for sigma_iw and pi_iw.")
 
+
+def _dlr_imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel=None):
+    """
+    Convert impurity self-energy and polarization Green's functions from TRIQS objects
+    to raw NumPy array representations, optionally projected onto an intermediate
+    representation (IR) Matsubara frequency mesh.
+
+    Parameters
+    ----------
+    sigma_iw : BlockGf on MeshDLRImFreq mesh
+    pi_iw : Gf on MeshDLRImFreq mesh
+    ir_kernel : optional
+        IR kernel object providing methods to obtain the IR Matsubara frequency meshes.
+        If provided, both `sigma_iw` and `pi_iw` will be interpolated on these IR grids.
+        If None, the data on the original full Matsubara mesh are returned.
+
+    Returns
+    -------
+    dict
+        A dictionary containing:
+        - ``"Sigma_iw_data"`` : list of ndarray
+            Block array representation of the impurity self-energy.
+        - ``"Pi_iw_data"`` : list of ndarray
+            Block array representation of the impurity polarizability.
+    """
+    if ir_kernel is None:
+        # solver_res.Sigma_iw (TRIQS BlockGf) -> solver_res.Sigma_iw_data (block array)
+        sigma_iw_data = blk_gf_to_blk_arr(sigma_iw)
+        # solver_res.pi_iw (TRIQS Gf) -> solver_res.pi_iw_data (block array)
+        pi_iw_data = [pi_iw.data[:]]
+
+        return {"Sigma_iw_data": sigma_iw_data, "Pi_iw_data": pi_iw_data}
+
+    # converter Sigma and Pi to IR Matsubara mesh
+    Sigma_dlr = make_gf_dlr(sigma_iw)
+    ir_idx_f = ir_kernel.wn_mesh(stats='f', ir_notation=False)
+    nw_f_half = ir_kernel.nw_f // 2
+    iw_mesh_uniform_f = MeshImFreq(
+        beta=sigma_iw.mesh.beta,
+        statistic=sigma_iw.mesh.statistic,
+        n_iw=ir_idx_f[-1]+10
+    )
+
+    sigma_iw_data = []
+    for blk_name, sigma in Sigma_dlr:
+        sigma_dyn_ir = np.zeros((ir_kernel.nw_f,) + sigma.data[:].shape[1:], dtype=complex)
+        for idx in range(nw_f_half):
+            iw_pos = nw_f_half + idx
+            iw_neg = nw_f_half - idx - 1
+            sigma_dyn_ir[iw_pos] = sigma(iw_mesh_uniform_f(ir_idx_f[iw_pos]))
+            sigma_dyn_ir[iw_neg] = sigma(iw_mesh_uniform_f(ir_idx_f[iw_pos])).conj()
+        sigma_iw_data.append(sigma_dyn_ir)
+
+    Pi_dlr = make_gf_dlr(pi_iw)
+    ir_idx_b = ir_kernel.wn_mesh(stats='b', ir_notation=False, positive_only=True)
+    nw_b_pos = len(ir_idx_b)
+    iw_mesh_uniform_b = MeshImFreq(
+        beta=Pi_dlr.mesh.beta,
+        statistic=Pi_dlr.mesh.statistic,
+        n_iw=ir_idx_b[-1]+10
+    )
+    pi_iw_ir = np.zeros((nw_b_pos,) + pi_iw.data[:].shape[1:], dtype=complex)
+    for i, idx in enumerate(ir_idx_b):
+        pi_iw_ir[i] = Pi_dlr(iw_mesh_uniform_b(idx))
+    pi_iw_data = [pi_iw_ir]
+
+    return {"Sigma_iw_data": sigma_iw_data, "Pi_iw_data": pi_iw_data}
+
+
+def _full_mesh_imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel=None):
+    """
+    Convert impurity self-energy and polarization Green's functions from TRIQS objects
+    to raw NumPy array representations, optionally projected onto an intermediate
+    representation (IR) Matsubara frequency mesh.
+
+    Parameters
+    ----------
+    sigma_iw : BlockGf on MeshImFreq mesh
+    pi_iw : Gf on MeshImFreq mesh
+    ir_kernel : optional
+        IR kernel object providing methods to obtain the IR Matsubara frequency meshes.
+        If provided, both `sigma_iw` and `pi_iw` will be interpolated on these IR grids.
+        If None, the data on the original full Matsubara mesh are returned.
+
+    Returns
+    -------
+    dict
+        A dictionary containing:
+        - ``"Sigma_iw_data"`` : list of ndarray
+            Block array representation of the impurity self-energy.
+        - ``"Pi_iw_data"`` : list of ndarray
+            Block array representation of the impurity polarizability.
+    """
+    # solver_res.Sigma_iw (TRIQS BlockGf) -> solver_res.Sigma_iw_data (block array)
+    sigma_iw_data = blk_gf_to_blk_arr(sigma_iw)
     # solver_res.Pi_iw (TRIQS Gf) -> solver_res.Pi_iw_data (block array)
     pi_iw_data = [pi_iw.data[:]]
 
-    if ir_kernel is not None:
-        # converter Sigma and Pi to IR Matsubara mesh
-        ir_idx_f = ir_kernel.wn_mesh(stats='f', ir_notation=False)
-        nw_f = len(ir_idx_f)
-        nw_f_half = nw_f // 2
-        Sigma_dyn_blk_ir = []
-        for sigma_dyn in sigma_dynamic_data:
-            sigma_dyn_ir = np.zeros((nw_f,) + sigma_dyn.shape[1:], dtype=complex)
-            for idx in range(nw_f_half):
-                iw_pos = nw_f_half + idx
-                iw_neg = nw_f_half - idx - 1
-                data_idx = sigma_dynamic.mesh.to_data_index(ir_idx_f[iw_pos])
-                sigma_dyn_ir[iw_pos] = sigma_dyn[data_idx]
-                sigma_dyn_ir[iw_neg] = sigma_dyn[data_idx].conj()
-            Sigma_dyn_blk_ir.append(sigma_dyn_ir)
-        sigma_dynamic_data = Sigma_dyn_blk_ir
+    if ir_kernel is None:
+        return {"Sigma_iw_data": sigma_iw_data, "Pi_iw_data": pi_iw_data}
 
-        # interpolate solver_res.Pi_iw to ir grid
-        ir_idx_b = ir_kernel.wn_mesh(stats='b', ir_notation=False, positive_only=True)
-        nw_b_pos = len(ir_idx_b)
-        pi_iw_ir = np.zeros((nw_b_pos,) + pi_iw_data[0].shape[1:], dtype=complex)
-        for idx in range(nw_b_pos):
-            data_idx = pi_iw.mesh.to_data_index(ir_idx_b[idx])
-            pi_iw_ir[idx] = pi_iw_data[0][data_idx]
-        pi_iw_data[0] = pi_iw_ir
+    # converter Sigma and Pi to IR Matsubara mesh
+    ir_idx_f = ir_kernel.wn_mesh(stats='f', ir_notation=False)
+    nw_f = len(ir_idx_f)
+    nw_f_half = nw_f // 2
+    for i, sigma_dyn in enumerate(sigma_iw_data):
+        sigma_dyn_ir = np.zeros((nw_f,) + sigma_dyn.shape[1:], dtype=complex)
+        for idx in range(nw_f_half):
+            iw_pos = nw_f_half + idx
+            iw_neg = nw_f_half - idx - 1
+            data_idx = sigma_iw.mesh.to_data_index(ir_idx_f[iw_pos])
+            sigma_dyn_ir[iw_pos] = sigma_dyn[data_idx]
+            sigma_dyn_ir[iw_neg] = sigma_dyn[data_idx].conj()
+        sigma_iw_data[i] = sigma_dyn_ir
 
-    return {"Sigma_dynamic_data": sigma_dynamic_data, "Pi_iw_data": pi_iw_data}
+    # interpolate solver_res.Pi_iw to ir grid
+    ir_idx_b = ir_kernel.wn_mesh(stats='b', ir_notation=False, positive_only=True)
+    nw_b_pos = len(ir_idx_b)
+    pi_iw_ir = np.zeros((nw_b_pos,) + pi_iw_data[0].shape[1:], dtype=complex)
+    for idx in range(nw_b_pos):
+        data_idx = pi_iw.mesh.to_data_index(ir_idx_b[idx])
+        pi_iw_ir[idx] = pi_iw_data[0][data_idx]
+    pi_iw_data[0] = pi_iw_ir
 
-
-def impurity_results_to_coqui(solver_res):
-    """
-    Convert the impurity results in TRIQS Gf containers to raw data in the IR basis 
-
-    solver_res: [INPUT/OUTPUT] SolverResults
-        
-        TRIQS impurity results are stored in 
-        
-            - Sigma_Hartree: block matrix 
-              Static impurity self-energy 
-
-            - Sigma_dynamic: TRIQS BlockGf
-              Dynamic impurity self-energy on the Matsubara axis 
-
-            - Pi_iw: TRIQS Gf
-              Impurity polarizability on the Matsubara axis 
-
-        Raw data in the IR basis are updated to 
-
-            - Vhf_imp_mat: numpy.ndarray(nspin, n_orb, n_orb)
-              Static impurity self-energy
-
-            - Sigma_imp_iw_mat: numpy.ndarray(niw, nspin, n_orb, n_orb)
-              Dynamic impurity self-energy on the IR Matsubara points
-
-            - Pi_imp_iw_mat: numpy.ndarray(niw_half, n_orb, n_orb, n_orb, n_orb)
-              Impurity polarizability on the positive IR Matsubara points
-    
-    """
-    # convert solver_res.Sigma_Hartree from the blk structure to a numpy array
-    solver_res.Vhf_imp_mat = blk_arr_to_arr(solver_res.Sigma_Hartree, solver_res.gf_struct)
-    n_orb = solver_res.Vhf_imp_mat.shape[-1]
-    
-    # interpolate solver_res.Sigma_dynamic to ir grid and convert from blk structure to numpy array
-    Sigma_dyn = block_gf_to_gf(solver_res.Sigma_dynamic, solver_res.gf_struct)
-    
-    ir_idx_f = solver_res.ir_kernel.wn_mesh(stats='f', ir_notation=False)
-    nw_f_half = len(ir_idx_f) // 2
-    solver_res.Sigma_imp_iw_mat = np.zeros((len(ir_idx_f), 2, n_orb, n_orb), dtype=complex)
-    for idx in range(nw_f_half):
-        iw_pos = nw_f_half + idx
-        iw_neg = nw_f_half - idx - 1
-        data_idx = solver_res.iw_mesh_f.to_data_index(ir_idx_f[iw_pos])
-        solver_res.Sigma_imp_iw_mat[iw_pos] = Sigma_dyn.data[data_idx]
-        solver_res.Sigma_imp_iw_mat[iw_neg] = Sigma_dyn.data[data_idx].conj()
-
-    solver_res.Sigma_dynamic_gf = Sigma_dyn
-    
-    # interpolate solver_res.Pi_iw_pb to ir grid
-    ir_idx_b = solver_res.ir_kernel.wn_mesh(stats='b', ir_notation=False)
-    nw_b_half = len(ir_idx_b)//2
-    solver_res.Pi_imp_iw_mat = np.zeros((nw_b_half+1, n_orb, n_orb, n_orb, n_orb), dtype=complex)
-    for idx in range(nw_b_half+1):
-        data_idx = solver_res.iw_mesh_b.to_data_index(ir_idx_b[nw_b_half+idx])
-        solver_res.Pi_imp_iw_mat[idx] = solver_res.Pi_iw.data[data_idx]
-    
+    return {"Sigma_iw_data": sigma_iw_data, "Pi_iw_data": pi_iw_data}
 
 
 def block_gf_to_gf(block_gf, gf_struct):
@@ -995,37 +1033,9 @@ def arr_to_blk_arr(array, gf_struct):
     return blk_array
 
 
-def block_mat_to_mat(block_mat, gf_struct):
-    assert len(block_mat) == len(gf_struct), f"Inconistent number of blocks from block_mat ({len(block_mat)}) and gf_struct ({len(gf_struct)})."
-
-    n_orb = sum(dim for name, dim in gf_struct if name[:2]=="up")
-    
-    # assume nspin = 2
-    mat = np.zeros((2, n_orb, n_orb), dtype=block_mat[0].dtype)
-    offsets = [0, 0]
-    for (blk_name, dim), blk_data in zip(gf_struct, block_mat):
-        s = 0 if blk_name[:2] == "up" else 1
-        mat[s, offsets[s]:offsets[s]+dim, offsets[s]:offsets[s]+dim] = blk_data
-        offsets[s] += dim
-
-    return mat
-        
-
-def print_title_box(name, box_width=19):
-    top_left = '╔'
-    top_right = '╗'
-    bottom_left = '╚'
-    bottom_right = '╝'
-    horizontal = '═'
-    vertical = '║'
-
-    title = f"{vertical}{name.center(box_width - 2)}{vertical}"
-    top_border = f"{top_left}{horizontal * (box_width - 2)}{top_right}"
-    bottom_border = f"{bottom_left}{horizontal * (box_width - 2)}{bottom_right}"
-
-    mpi.report("\n"+top_border)
-    mpi.report(title)
-    mpi.report(bottom_border+"\n")
+def blk_gf_to_arr(block_gf, gf_struct):
+    blk_array = blk_gf_to_blk_arr(block_gf)
+    return blk_arr_to_arr(blk_array, gf_struct)
 
 
 def compute_rot_matrix(embedding, A_ij):
@@ -1044,3 +1054,89 @@ def compute_rot_matrix(embedding, A_ij):
     U = np.eye(n_orb, dtype=float)
 
     return U
+
+
+def embedding(embeding_1e, embeding_2e, solver_results, ir_kernel=None, spin_average=False):
+
+    # convert from TRIQS Gfs to numpy arrays and optionally on the IR basis
+    for Res in solver_results:
+        Res.update( imp_results_to_raw_data(Res['Sigma_iw'], Res['Pi_iw'], ir_kernel) )
+
+    # A list of 3D arrays (w, i, j) with the length of the list = number of spins
+    Sigma_imp_embed = embeding_1e.embed_wij([ Res['Sigma_iw_data'] for Res in solver_results ])
+    Vhf_imp_embed   = embeding_1e.embed_ij([ Res['Sigma_infty'] for Res in solver_results ])
+    Pi_imp_embed    = embeding_2e.embed_wij([ Res['Pi_iw_data'] for Res in solver_results ])
+
+    # The same applied to the DC terms
+    Sigma_dc_embed = embeding_1e.embed_wij([ Res['Sigma_iw_dc_data'] for Res in solver_results ])
+    Vhf_dc_embed   = embeding_1e.embed_ij([ Res['Sigma_infty_dc'] for Res in solver_results ])
+    Pi_dc_embed    = embeding_2e.embed_wij([ Res['Pi_iw_dc_data'] for Res in solver_results ])
+
+    #combine spins to a single array and add auxiliary impurity index
+    Sigma_imp_embed = np.stack(Sigma_imp_embed, axis=1)[:,:,None]
+    Sigma_dc_embed  = np.stack(Sigma_dc_embed, axis=1)[:,:,None]
+    Vhf_imp_embed   = np.stack(Vhf_imp_embed, axis=0)[:,None]
+    Vhf_dc_embed    = np.stack(Vhf_dc_embed, axis=0)[:,None]
+    Pi_imp_embed    = Pi_imp_embed[0]
+    Pi_dc_embed     = Pi_dc_embed[0]
+
+    if spin_average:
+        # Average over spin
+        Sigma_imp_embed = np.sum(Sigma_imp_embed, axis=1)[:, None] * 0.5
+        Sigma_dc_embed = np.sum(Sigma_dc_embed, axis=1)[:, None] * 0.5
+        Vhf_imp_embed = np.sum(Vhf_imp_embed, axis=0)[None, :] * 0.5
+        Vhf_dc_embed = np.sum(Vhf_dc_embed, axis=0)[None, :] * 0.5
+
+    local_sigma_w = {'imp': Sigma_imp_embed, 'dc': Sigma_dc_embed}
+    local_hf      = {'imp': Vhf_imp_embed, 'dc': Vhf_dc_embed}
+    local_pi_w    = {
+        'imp': density_density_to_product_basis(Pi_imp_embed),
+        'dc': density_density_to_product_basis(Pi_dc_embed)
+    }
+
+    return local_sigma_w, local_hf, local_pi_w
+
+
+def hubbard_kanamori_coulomb(V_abcd):
+    n_orb = V_abcd.shape[0]
+    U, Up, J_pair, J_spin = 0.0, 0.0, 0.0, 0.0
+
+    # intra-orbital U
+    for i in range(n_orb):
+        U += V_abcd[i, i, i, i]
+    U /= n_orb
+
+    if n_orb == 1:
+        return U, Up, J_pair, J_spin
+
+    # inter-orbital U
+    for i in range(n_orb):
+        for j in range(i+1, n_orb):
+            if i != j:
+                Up += V_abcd[i, i, j, j]
+    Up /= (n_orb * (n_orb - 1)) / 2
+
+    # Hund's coupling J: pair-hopping
+    for i in range(n_orb):
+        for j in range(i+1, n_orb):
+            if i != j:
+                J_pair += V_abcd[i, j, i, j]
+    J_pair /= (n_orb * (n_orb - 1)) / 2
+
+    # Hund's coupling J: spin-flip
+    for i in range(n_orb):
+        for j in range(i+1, n_orb):
+            if i != j:
+                J_spin += V_abcd[i, j, j, i]
+    J_spin /= (n_orb * (n_orb - 1)) / 2
+
+    if U.imag > 1e-8:
+        mpi.report("Warning: complex value encountered in intra-orbital U.imag = {U.imag}.")
+    if Up.imag > 1e-8:
+        mpi.report("Warning: complex value encountered in inter-orbital U.imag = {Up.imag}.")
+    if J_pair.imag > 1e-8:
+        mpi.report("Warning: complex value encountered in pair-hopping J.imag = {J_pair.imag}.")
+    if J_spin.imag > 1e-8:
+        mpi.report("Warning: complex value encountered in spin-flip J.imag = {J_spin.imag}.")
+
+    return U.real, Up.real, J_pair.real, J_spin.real

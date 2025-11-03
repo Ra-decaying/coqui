@@ -64,7 +64,7 @@ def solve_dynamic_full_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_p
     """
     gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
     beta  = Delta_iw.mesh.beta
-    n_iw = len(Delta_iw.mesh) // 2
+    n_iw = Delta_iw.mesh.n_iw
     solver_interface_params.pop('n_iw', None)
     n_tau = solver_interface_params.pop('n_tau', 10001)
     n_tau_bosonic = solver_interface_params.pop('n_tau_bosonic', n_tau)
@@ -98,7 +98,7 @@ def solve_dynamic_full_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_p
         S.D0_tau[name1, name2] << make_gf_from_fourier(
             D0_iw[name1, name2],                                          # D0(iω)
             S.D0_tau[name1, name2].mesh,                                  # time mesh
-            fit_hermitian_tail(D0_iw[name1, name2], make_zero_tail(D0_iw[name1, name2], 1))[0] # tail
+            fit_hermitian_tail(D0_iw[name1, name2], make_zero_tail(D0_iw[name1, name2], n_moments=2))[0] # tail
         )
         
     # call solver
@@ -111,44 +111,85 @@ def solve_dynamic_full_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_p
     ctseg_utils.post_process(S, **post_proc_params)
     
     return SolverResults(# required
-                         G_iw  = S.G_iw, 
-                         Sigma_Hartree = list(S.Sigma_Hartree.values()),
-                         Sigma_dynamic = S.Sigma_dynamic, 
-                         Pi_iw = S.Pi_iw, 
-                         W_dynamic = S.W_iw, 
+        G_iw  = S.G_iw,
+        Sigma_infty = list(S.Sigma_infty.values()),
+        Sigma_iw = S.Sigma_iw,
+        Pi_iw = S.Pi_iw,
+        W_iw = S.W_iw,
 
-                         # optional
-                         G_tau = S.results.G_tau,
-                         Sigma_iw = S.Sigma_iw, 
-                         orbital_occupations = S.results.densities, 
-                         average_order = S.results.average_order_Delta,
-                         average_sign = S.results.average_sign
+        # optional
+        G_tau = S.results.G_tau,
+        orbital_occupations = S.results.densities,
+        average_order = S.results.average_order_Delta,
+        average_sign = S.results.average_sign
+    )
+
+def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_params):
+    """
+    Solve the impurity with dynamic interactions
+
+    Delta_iw : triqs.BlockGf
+    h_loc0: triqs.operator
+    D0_iw : triqs.Block2Gf
+    h_int: triqs.operator
+    """
+    gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
+    beta, wmax, eps  = Delta_iw.mesh.beta, Delta_iw.mesh.w_max, Delta_iw.mesh.eps
+    n_iw = solver_interface_params.pop('n_iw', 1025)
+    n_tau = solver_interface_params.pop('n_tau', 10001)
+    n_tau_bosonic = solver_interface_params.pop('n_tau_bosonic', n_tau)
+
+    S = Solver(gf_struct=gf_struct, beta=beta, n_tau=n_tau, n_tau_bosonic=n_tau_bosonic)
+
+    # initialization for post proccessing
+    post_proc_params = {}
+    post_proc_params['perform_tail_fit'] = solver_interface_params.pop('perform_tail_fit', False)
+    post_proc_params['fit_max_moment']   = solver_interface_params.pop('fit_max_moment', 3)
+    post_proc_params['fit_min_w']        = solver_interface_params.pop('fit_min_w', None)
+    post_proc_params['fit_max_w']        = solver_interface_params.pop('fit_max_w', None)
+    post_proc_params['fit_min_n']        = solver_interface_params.pop('fit_min_n', None)
+    post_proc_params['fit_max_n']        = solver_interface_params.pop('fit_max_n', None)
+    post_proc_params['analytic_hf']      = solver_interface_params.pop('analytic_hf', False)
+    post_proc_params['degenerate_blk']   = solver_interface_params.pop('degenerate_blk', None)
+    S.n_iw, S.beta, S.gf_struct = n_iw, beta, gf_struct     # useful and necessary for post-processing
+    S.h_int = h_int
+    S.h_loc0_mat = block_matrix_from_op(h_loc0, gf_struct)
+
+    # prepare Delta_tau
+    S.Delta_tau << make_gf_imtime(Delta_iw, n_tau)
+
+    # prepare D0_tau
+    for name1, name2 in D0_iw.indices:
+        S.D0_tau[name1, name2] << make_gf_imtime(D0_iw[name1, name2], n_tau)
+
+    # call solver
+    solver_interface_params['measure_densities'] = True
+    solver_interface_params['measure_F_tau']     = True
+    solver_interface_params['measure_nn_tau']    = True
+    S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
+
+    # post process
+    ctseg_utils.post_process(S, **post_proc_params)
+
+    return SolverResults(# required
+        G_iw  = ctseg_utils.fill_dlr_imfreq_gf(S.G_iw, wmax, eps),
+        Sigma_infty = list(S.Sigma_infty.values()),
+        Sigma_iw = ctseg_utils.fill_dlr_imfreq_gf(S.Sigma_iw, wmax, eps),
+        Pi_iw = ctseg_utils.fill_dlr_imfreq_gf(S.Pi_iw, wmax, eps),
+        W_iw  = ctseg_utils.fill_dlr_imfreq_gf(S.W_iw, wmax, eps),
+
+        # optional
+        orbital_occupations = S.results.densities,
+        average_order = S.results.average_order_Delta,
+        average_sign = S.results.average_sign
     )
     
 
 def solve_dynamic_imp(Delta_iw, h_loc0, U_iw, h_int, **solver_params):
-    return solve_dynamic_full_mesh(Delta_iw, h_loc0, U_iw, h_int, **solver_params)
-    
+    if isinstance(Delta_iw.mesh, MeshImFreq):
+        return solve_dynamic_full_mesh(Delta_iw, h_loc0, U_iw, h_int, **solver_params)
+    elif isinstance(Delta_iw.mesh, MeshDLRImFreq):
+        return solve_dynamic_dlr_mesh(Delta_iw, h_loc0, U_iw, h_int, **solver_params)
+    else:
+        raise NotImplemented
 
-def write_impurity_results(h5_grp, impurity_results):
-    h5_grp['G_iw'] = impurity_results.G_iw
-    h5_grp['Sigma_Hartree'] = impurity_results.Sigma_Hartree
-    h5_grp['Sigma_dynamic'] = impurity_results.Sigma_dynamic
-    h5_grp['Pi_iw'] = impurity_results.Pi_iw
-    h5_grp['W_dynamic'] = impurity_results.W_dynamic
-    h5_grp['orbital_occupations'] = impurity_results.orbital_occupations
-    h5_grp['average_order'] = impurity_results.average_order
-    h5_grp['average_sign'] = impurity_results.average_sign
-
-def save_all_impurities(all_results, h5_filename, iteration=-1):
-    with HDFArchive(h5_filename, 'a') as ar:
-        if iteration == -1:
-            iteration = 1 if "final_iteration" not in ar.keys() else ar["final_iteration"] + 1
-
-        ar.create_group(f"iter{iteration}")
-        for I, Res in enumerate(all_results):
-            ar[f"iter{iteration}"].create_group(f"impurity_{I}")
-            res_grp = ar[f"iter{iteration}/impurity_{I}"]
-            write_impurity_results(res_grp, Res)
-
-        ar["final_iteration"] = iteration
