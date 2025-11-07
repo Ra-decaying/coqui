@@ -146,6 +146,7 @@ class DMFTState(object):
             mpi.report("No solver checkpoint file found. Will skip loading impurity results.\n")
             return
 
+        # TODO for "each" impurity, load the previous results if existing, otherwise initialize to empty
         self.iteration = edmft_io.read_impurity_chkpt(self.solver_results, solver_chkpt) + 1
         for res in self.solver_results:
             assert res['Sigma_iw'].mesh == res['iw_mesh_f'], (

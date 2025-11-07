@@ -114,8 +114,9 @@ def read_impurity_chkpt(solver_results, h5_filename, iteration=-1):
             if iteration == -1:
                 iteration = ar['final_iteration']
             for imp_index, res in enumerate(solver_results):
+                # TODO check if impurity results exist, if not skip it
                 imp_grp = ar[f'iter{iteration}/impurity_{imp_index}/results']
-                res_tmp = _read_impurity_results(imp_grp)
+                res_tmp.update(_read_impurity_results(imp_grp))
                 res_tmp = mpi.bcast(res_tmp)
                 res.update(res_tmp)
     else:
