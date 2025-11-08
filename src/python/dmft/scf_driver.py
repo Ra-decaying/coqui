@@ -188,7 +188,9 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                 solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
                     delta_iw, threshold=solver_params['degenerate_blk_thresh']
                 )
-            coqui_dmft.print_degenerate_blks(solver_params['degenerate_blk'], Res['gf_struct'], imp_index)
+            else:
+                solver_params['degenerate_blk'] = [np.array(x) for x in solver_params["degenerate_blk"]]
+            coqui_dmft.print_degenerate_blks(solver_params['degenerate_blk'], Res['gf_struct'])
             delta_iw = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
