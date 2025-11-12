@@ -24,7 +24,7 @@ conv_thr  = 1e-6
 output    = "scgw"
 div_treatment = "gygi"
 [gw.iter_alg]
-alg    = "diis"
-mixing = 0.7
+alg            = "diis"
 max_subsp_size = 6
-diis_start = 4
+diis_warmup    = 4
+mixing         = 0.7

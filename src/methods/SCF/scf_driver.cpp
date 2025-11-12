@@ -82,12 +82,11 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
   auto& sG_tskij = mb_state.sG_tskij.value();
   auto& sSigma_tskij = mb_state.sSigma_tskij.value();
   double mu = 0.0;
-  long init_it = 0;
   if (!restart) {
     hamilt::set_fock(*mf, dyson.PSP(), sF_skij, true);
   } else {
-    init_it = chkpt::read_scf(mpi->node_comm, sF_skij, sSigma_tskij, mu,
-                              mb_state.coqui_prefix, input_grp, input_iter);
+    input_iter = chkpt::read_scf(mpi->node_comm, sF_skij, sSigma_tskij, mu,
+                                 mb_state.coqui_prefix, input_grp, input_iter);
   }
 
   Timer.start("DYSON");
@@ -104,12 +103,27 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
   Timer.stop("WRITE");
 
   double F_conv, Sigma_conv;
-  double e_1e, e_hf, e_corr;
-  double e_tot = 0.0;
-  double e_tot_diff = 0.0;
-  long it = 1 + init_it;
+  std::vector<double> energies(4, 0.0);
+  std::vector<double> energies_diff(3, 0.0);
+  auto converged = [&]() {
+    bool energy_converged = std::all_of(energies_diff.begin(), energies_diff.end(),
+                                        [conv_tol](double x) { return std::abs(x) < conv_tol; });
+    if (iter_solver!=nullptr) {
+      return (energy_converged and std::abs(F_conv) <= std::abs(conv_tol) and std::abs(Sigma_conv) <= std::abs(conv_tol));
+    } else {
+      return energy_converged;
+    }
+  };
+  // Determine output iteration
+  // 1) The output h5 group is always "scf"
+  // 2) The output iteration is scf/final_iter + 1
+  std::tie(mb_state.mbpt_iter, mb_state.df_1e_iter, mb_state.df_2e_iter, mb_state.embed_iter) =
+      chkpt::read_input_iterations(mb_state.coqui_prefix+".mbpt.h5");
+  long output_iter_init = mb_state.mbpt_iter+1;
+  long output_iter = output_iter_init;
+  // start SCF iteration
   do {
-    app_log(1, "\n** Iteration # {} **", it);
+    app_log(1, "\n** Iteration # {} **", output_iter);
     Timer.start("MBPT_SOLVERS");
     // HF
     if (mb_solver.hf != nullptr) {
@@ -137,9 +151,9 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
     if (mb_solver.corr != nullptr) {
 
       if (mb_solver.scr_eri != nullptr)
-        mb_solver.scr_eri->update_w(mb_state, mb_eri.corr_eri->get(), it);
+        mb_solver.scr_eri->update_w(mb_state, mb_eri.corr_eri->get(), output_iter);
 
-      mb_solver.corr->iter() = it;
+      mb_solver.corr->iter() = output_iter;
       mb_solver.corr->evaluate(mb_state, mb_eri.corr_eri->get());
       mpi->comm.barrier();
     }
@@ -153,8 +167,11 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
 
 
     Timer.start("ITERATIVE");
-    std::tie(F_conv, Sigma_conv) = solve_iterative(*mpi, *iter_solver, it, mb_state.coqui_prefix,
-                                                   sF_skij, sSigma_tskij, &FT, restart);
+    if (iter_solver != nullptr) {
+      std::tie(F_conv, Sigma_conv) = solve_iterative(*mpi, *iter_solver, output_iter,
+                                                     mb_state.coqui_prefix,
+                                                     sF_skij, sSigma_tskij, &FT);
+    }
     Timer.stop("ITERATIVE");
 
     Timer.start("DYSON");
@@ -169,10 +186,10 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
 
 
     auto k_weight = mf->k_weight();
-    std::tie(e_1e, e_hf) = eval_hf_energy(sDm_skij, sF_skij, dyson.sH0_skij(), k_weight, false);
-    e_corr = (mb_solver.corr != nullptr)? eval_corr_energy(mpi->comm, FT, sG_tskij, sSigma_tskij, k_weight) : 0.0;
-    double e_tot_new = e_1e + e_hf + e_corr;
-    e_tot_diff = e_tot_new - e_tot;
+    auto [e_1e, e_hf] = eval_hf_energy(sDm_skij, sF_skij, dyson.sH0_skij(), k_weight, false);
+    double e_corr = (mb_solver.corr != nullptr)? eval_corr_energy(mpi->comm, FT, sG_tskij, sSigma_tskij, k_weight) : 0.0;
+    energies_diff = {e_1e - energies[0], e_hf - energies[1], e_corr - energies[2]};
+    energies = {e_1e, e_hf, e_corr, e_1e+e_hf+e_corr};
 
     // print energies and scf convergence
     app_log(1, "\nEnergy contributions");
@@ -180,18 +197,24 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
     app_log(1, "  non-interacting (H0):           {} a.u.", e_1e);
     app_log(1, "  Hartree-Fock:                   {} a.u.", e_hf);
     app_log(1, "  correlation:                    {} a.u.", e_corr);
-    app_log(1, "  total energy:                   {} a.u.", e_tot_new);
+    app_log(1, "  total energy:                   {} a.u.", e_1e+e_hf+e_corr);
     app_log(1, " ");
-    app_log(1, "energy difference:                {} a.u.", e_tot_diff);
-    app_log(1, "abs max diff of Fock matrix:   {}", F_conv);
-    if (mb_solver.corr!=nullptr)
-      app_log(1, "abs max diff of self-energy:   {}\n", Sigma_conv);
-    e_tot  = e_tot_new;
+    app_log(1, "energy difference");
+    app_log(1, "  - non-interacting (H0):         {} a.u.", energies_diff[0]);
+    app_log(1, "  - Hartree-Fock:                 {} a.u.", energies_diff[1]);
+    app_log(1, "  - correlation:                  {} a.u.", energies_diff[2]);
+
+    if (iter_solver != nullptr) {
+      app_log(1, "abs max diff of Fock matrix:   {}", F_conv);
+      if (mb_solver.corr != nullptr)
+        app_log(1, "abs max diff of self-energy:   {}\n", Sigma_conv);
+    }
     Timer.start("WRITE");
-    chkpt::dump_scf(mpi->comm, it, sDm_skij, sG_tskij, sF_skij, sSigma_tskij, mu, mb_state.coqui_prefix);
+    chkpt::dump_scf(mpi->comm, output_iter, sDm_skij, sG_tskij, sF_skij,
+                    sSigma_tskij, mu, mb_state.coqui_prefix);
     Timer.stop("WRITE");
-    it++;
-  } while(it<init_it+niter+1 and (std::abs(F_conv) > std::abs(conv_tol) or std::abs(Sigma_conv) > std::abs(conv_tol)));
+    output_iter++;
+  } while (output_iter<output_iter_init+niter and not converged());
   Timer.stop("SCF_TOTAL");
 
   app_log(2, "\n  Dyson-SCF timers");
@@ -203,7 +226,7 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
   app_log(2, "    Write:                {0:.3f} sec\n", Timer.elapsed("WRITE"));
 
   app_log(1, "####### SCF routines end #######\n");
-  return std::make_tuple(e_1e+e_hf, e_corr);
+  return std::make_tuple(energies[0]+energies[1], energies[2]);
 }
 
 

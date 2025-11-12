@@ -50,13 +50,25 @@ namespace iter_scf {
           auto alg = io::get_value<std::string>(pt,"alg","iter_alg - missing alg type: damping");
           auto mixing = io::get_value_with_default<double>(pt,"mixing",0.7);
           auto max_subsp_size = io::get_value_with_default<size_t>(pt,"max_subsp_size",5);
-          auto diis_start = io::get_value_with_default<size_t>(pt,"diis_start",3);
+          auto warmup_iter = io::get_value_with_default<size_t>(pt,"diis_warmup",3);
+          auto diis_start = io::get_value_with_default<size_t>(pt,"diis_start",-1);
+          if (diis_start != -1) {
+            app_log(1, "[WARNING] 'diis_start' is deprecated. Please use 'diis_warmup' instead \n"
+                       "for setting up the number of damping iteration before the DIIS execution.\n");
+            app_log(1, "╔═════════════════════════════════════════════════╗");
+            app_log(1, "║ [ WARNING ]                                     ║");
+            app_log(1, "║ \"diis_start\" is deprecated.                     ║");
+            app_log(1, "║ Use \"diis_warmup\" instead to set the number of  ║");
+            app_log(1, "║ damping iteration before DIIS execution.        ║");
+            app_log(1, "╚═════════════════════════════════════════════════╝\n");
+            warmup_iter = diis_start;
+          }
           io::tolower(alg);
 
           if (alg == "damping") {
             return iter_scf_t(damp_t(mixing));
           } else if (alg == "diis") {
-            return iter_scf_t(diis_t(mixing, max_subsp_size, diis_start));
+            return iter_scf_t(diis_t(mixing, max_subsp_size, warmup_iter));
           } else {
             utils::check(false, "Unrecognized algorithm type for iterative solver. ");
             return iter_scf_t("damping");

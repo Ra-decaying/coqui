@@ -73,7 +73,8 @@ namespace iter_scf {
                  h5::group &grp, long iter)  {
         return std::array<double, 2>{
             solve(F, dataset_F, grp, iter),
-            solve(Sigma, dataset_Sigma, grp, iter)};
+            solve(Sigma, dataset_Sigma, grp, iter)
+        };
     }
 
     void metadata_log() const {
@@ -89,6 +90,7 @@ namespace iter_scf {
 
   public:
     double mixing = 0.7;
+    bool initialized = true;
 
   };
 } // iter_scf
