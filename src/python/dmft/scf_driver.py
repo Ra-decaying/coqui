@@ -52,7 +52,7 @@ def gw_edmft_loop(mf, thc, solver_chkpt_h5,
         wmax_imp=impurity_params.pop('dlr_wmax', None),
         prec_imp=impurity_params.pop('dlr_eps', None),
         spin_average=mf.nspin()==1,
-        verbal=True if coqui_mpi.root() else False
+        verbal=coqui_mpi.root()
     )
     if restart:
         dmft_state.load(solver_chkpt_h5)
@@ -69,7 +69,7 @@ def gw_edmft_loop(mf, thc, solver_chkpt_h5,
                      local_polarizabilities = dmft_state.local_pi_w)
         coqui_mpi.barrier()
 
-        # Set the Green's function used for RPA polarizability
+        # Set the Green's function for the non-local RPA polarizability
         with HDFArchive(coqui_chkpt_h5, 'r') as ar:
             mbpt_final_iter = ar["scf/final_iter"]
             pi_rpa_input = ar[f"scf/iter{mbpt_final_iter}/input_grp"]
@@ -163,6 +163,8 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                 Input['g_weiss_iw'], dmft_state.ir_kernel
             )
 
+            dmft_state.save_impurity_inputs(solver_chkpt_h5, imp_index)
+
             # GW double counting contributions
             Res.update(
                 coqui_dmft.solve_gw_dc(
@@ -200,16 +202,15 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                 coqui_dmft.ctseg.solve_dynamic_imp(delta_iw, h0, u_weiss_iw, h_int, **solver_kwargs)
             )
 
-        # iterative solver
-        dmft_state.damp_impurity_results(
-            solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7)
-        )
+            dmft_state.damp_impurity_results(
+                solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7), impurity_indices=[imp_index]
+            )
+
+            # save solver results for current impuprity
+            dmft_state.save_impurity_results(solver_chkpt_h5, imp_index)
 
         # Embed impurity results
         dmft_state.embed_impurity_results()
-
-        # Save solver results
-        dmft_state.save(solver_chkpt_h5)
 
         # Upfolding
         coqui.dmft_embed(
@@ -218,8 +219,6 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             local_hf_potentials = dmft_state.local_sigma_infty,
             local_sigma_dynamic = dmft_state.local_sigma_w
         )
-        coqui_mpi.barrier()
-
         dmft_state.iteration += 1
-
+        coqui_mpi.barrier()
 

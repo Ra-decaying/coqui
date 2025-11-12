@@ -22,14 +22,17 @@ import os
 import numpy as np
 
 import triqs.utility.mpi as mpi
+from h5 import HDFArchive
 
 from coqui.utils.imag_axes_ft import IAFT
-import coqui.embed.triqs_interface.utils as edmft_utils
-import coqui.embed.triqs_interface.io as edmft_io
+import coqui.dmft.utils as dmft_utils
+import coqui.dmft.io as dmft_io
 
 """
 Data structure for DMFT state 
 """
+
+# TODO use coqui MPIHandler? or triqs mpi wrapper?
 
 def _mix_into(curr, prev, mixing_factor=0.7):
     """In-place: handles ndarray OR list-of-ndarrays; falls back to object algebra."""
@@ -147,7 +150,7 @@ class DMFTState(object):
             return
 
         # TODO for "each" impurity, load the previous results if existing, otherwise initialize to empty
-        self.iteration = edmft_io.read_impurity_chkpt(self.solver_results, solver_chkpt) + 1
+        self.iteration = dmft_io.update_impurity_results_from_chkpt(self.solver_results, solver_chkpt) + 1
         for res in self.solver_results:
             assert res['Sigma_iw'].mesh == res['iw_mesh_f'], (
                 "Incompatible fermionic Matsubara mesh in loaded impurity results."
@@ -160,7 +163,7 @@ class DMFTState(object):
                 "Incompatible bosonic Matsubara mesh in loaded impurity results."
             )
 
-        self.local_sigma_w, self.local_sigma_infty, self.local_pi_w = edmft_utils.embedding(
+        self.local_sigma_w, self.local_sigma_infty, self.local_pi_w = dmft_utils.embedding(
             self.embedding['1e'], self.embedding['2e'], self.solver_results,
             self.ir_kernel, self.spin_average
         )
@@ -173,15 +176,38 @@ class DMFTState(object):
         mpi.barrier()
 
 
+    def save_impurity_inputs(self, solver_chkpt, impurity_index):
+        if mpi.is_master_node():
+            with HDFArchive(solver_chkpt, 'a') as ar:
+                dmft_io.save_impurities(
+                    ar, solver_inputs = self.solver_inputs,
+                    impurity_index = impurity_index, iteration = self.iteration
+                )
+        mpi.barrier()
+
+
+    def save_impurity_results(self, solver_chkpt, impurity_index):
+        if mpi.is_master_node():
+            with HDFArchive(solver_chkpt, 'a') as ar:
+                dmft_io.save_impurities(
+                    ar, solver_results = self.solver_results,
+                    impurity_index = impurity_index, iteration = self.iteration
+                )
+        mpi.barrier()
+
     def save(self, solver_chkpt):
         if mpi.is_master_node():
-            edmft_io.save_impurities(solver_chkpt, self.solver_results, self.solver_inputs, self.iteration)
+            with HDFArchive(solver_chkpt, 'a') as ar:
+                dmft_io.save_impurities(
+                    ar, solver_results = self.solver_results,
+                    solver_inputs = self.solver_inputs, iteration = self.iteration
+                )
         mpi.barrier()
 
 
     def embed_impurity_results(self):
         local_sigma_w, local_sigma_infty, local_pi_w = (
-            edmft_utils.embedding(
+            dmft_utils.embedding(
                 self.embedding['1e'], self.embedding['2e'],
                 self.solver_results,
                 self.ir_kernel,
@@ -220,20 +246,25 @@ class DMFTState(object):
         mpi.barrier()
 
 
-    def damp_impurity_results(self, solver_chkpt, mixing=0.7):
-        if self.iteration <= 0:
-            # no iterative solve on the first iteration
+    def damp_impurity_results(self, solver_chkpt, mixing=0.7, *, impurity_indices=None):
+        if self.iteration <= 0: # no damping in the first iteration
             return
 
-        solver_results_prev = [ {} for _ in range(self.embedding['1e'].n_impurities) ]
-        iteration_prev = edmft_io.read_impurity_chkpt(solver_results_prev, solver_chkpt, self.iteration-1)
-        assert iteration_prev == self.iteration-1, (
-            "Oh oh, something went wrong when reading previous iteration impurity results."
+        solver_results_prev = dmft_io.read_impurity_chkpt(
+            solver_chkpt, self.iteration-1, only_results=True, impurity_indices=impurity_indices
         )
+
+        if impurity_indices is not None:
+            assert isinstance(impurity_indices, list), "impurity_indices should be a list of integers."
+        else:
+            impurity_indices = np.arange(len(self.solver_results))
+
         keys_to_damp = ['Sigma_infty', 'Sigma_infty_dc',
                         'Sigma_iw', 'Sigma_iw_dc_data',
                         'Pi_iw', 'Pi_iw_dc_data']
-        for imp_idx, (res, res_prev) in enumerate(zip(self.solver_results, solver_results_prev)):
+        for idx, imp_idx in enumerate(impurity_indices):
+            res = self.solver_results[imp_idx]
+            res_prev = solver_results_prev[idx]
             for key in keys_to_damp:
                 if key not in res or key not in res_prev:
                     raise KeyError(f"Missing key '{key}' for impurity {imp_idx} during damping.")

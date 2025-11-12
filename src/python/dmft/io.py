@@ -50,33 +50,46 @@ def print_degenerate_blks(deg_blks, gf_struct):
         mpi.report(f"Shell {i}: {subset}\n")
 
 
-def save_impurities(h5_filename, solver_results, solver_inputs=None, iteration=-1):
-    with HDFArchive(h5_filename, 'a') as ar:
-        if iteration == -1:
-            iteration = 1 if "final_iteration" not in ar.keys() else ar["final_iteration"] + 1
+def save_impurities(h5_ar, *, solver_results=None, solver_inputs=None, impurity_index=-1, iteration=-1):
+    if solver_results is None and solver_inputs is None:
+        raise ValueError("Either solver_results or solver_inputs must be provided.")
 
-        ar.create_group(f"iter{iteration}")
-        iter_grp = ar[f"iter{iteration}"]
+    if iteration == -1:
+        iteration = 1 if "final_iteration" not in h5_ar.keys() else h5_ar["final_iteration"] + 1
 
-        # Handle single or multiple results
-        if isinstance(solver_results, (list, tuple)):
-            for i, res in enumerate(solver_results):
-                iter_grp.create_group(f"impurity_{i}")
-                imp_grp = iter_grp[f"impurity_{i}"]
-                _write_impurity_results(imp_grp, res)
-                if solver_inputs is not None:
-                    _write_impurity_inputs(imp_grp, solver_inputs[i])
-        else:
-            # Single result only
-            iter_grp.create_group(f"impurity_0")
-            imp_grp = iter_grp["impurity_0"]
-            _write_impurity_results(imp_grp, solver_results)
+    if solver_results and solver_inputs:
+        assert len(solver_results) == len(solver_inputs), "solver_results and solver_inputs must have the same length."
+        num_impurities = len(solver_results)
+    elif solver_results:
+        num_impurities = len(solver_results)
+    else:
+        num_impurities = len(solver_inputs)
 
-        ar["final_iteration"] = iteration
+    if impurity_index == -1:
+        impurity_list = np.arange(num_impurities)
+    else:
+        assert impurity_index < num_impurities, f"impurity_index {impurity_index} is out of range [0, {num_impurities})."
+        impurity_list = [impurity_index]
+
+    if f"iter{iteration}" not in h5_ar.keys():
+        h5_ar.create_group(f"iter{iteration}")
+    iter_grp = h5_ar[f"iter{iteration}"]
+
+    for imp_i in impurity_list:
+        if f"impurity_{imp_i}" not in iter_grp.keys():
+            iter_grp.create_group(f"impurity_{imp_i}")
+        imp_grp = iter_grp[f"impurity_{imp_i}"]
+        if solver_results is not None:
+            _write_impurity_results(imp_grp, solver_results[imp_i])
+        if solver_inputs is not None:
+            _write_impurity_inputs(imp_grp, solver_inputs[imp_i])
+
+    h5_ar["final_iteration"] = iteration
 
 
 def _write_impurity_results(h5_grp, impurity_results):
-    h5_grp.create_group("results")
+    if "results" not in h5_grp.keys():
+        h5_grp.create_group("results")
     res_grp = h5_grp["results"]
     res_grp['gf_struct'] = impurity_results['gf_struct']
     res_grp['G_iw'] = impurity_results['G_iw']
@@ -95,7 +108,8 @@ def _write_impurity_results(h5_grp, impurity_results):
 
 
 def _write_impurity_inputs(h5_grp, impurity_inputs):
-    h5_grp.create_group("inputs")
+    if "inputs" not in h5_grp.keys():
+        h5_grp.create_group("inputs")
     inp_grp = h5_grp["inputs"]
     inp_grp['Gloc_t'] = impurity_inputs['Gloc_t']
     inp_grp['Wloc_t'] = impurity_inputs['Wloc_t']
@@ -106,8 +120,64 @@ def _write_impurity_inputs(h5_grp, impurity_inputs):
     inp_grp['h0'] = impurity_inputs['h0']
 
 
-def read_impurity_chkpt(solver_results, h5_filename, iteration=-1):
-    mpi.report(f"Reading impurity results from checkpoint file: {h5_filename}\n")
+def read_impurity_chkpt(h5_filename, iteration=-1, *, only_results=False, impurity_indices=None):
+    mpi.report(f"Reading impurity checkpoint file: {h5_filename}")
+    solver_results, solver_inputs = [], []
+    res_tmp, inp_tmp = {}, {}
+    num_impurities = -1
+
+    if mpi.is_master_node():
+        with HDFArchive(h5_filename, 'r') as ar:
+            if iteration == -1:
+                iteration = ar["final_iteration"]
+
+            iter_grp = ar[f"iter{iteration}"]
+            num_impurities = len([k for k in iter_grp.keys() if k.startswith("impurity_")])
+            mpi.bcast(num_impurities)
+
+            # Determine which impurities to read
+            if impurity_indices is None:
+                impurity_indices = np.arange(num_impurities)
+            else:
+                assert isinstance(impurity_indices, list), "impurity_indices must be a list of integers."
+            mpi.report(f"impurity list = {impurity_indices}\n")
+
+            for i in impurity_indices:
+                res_grp = iter_grp[f"impurity_{i}/results"]
+                res_tmp = read_all_keys(res_grp)
+                mpi.bcast(res_tmp)
+                solver_results.append(res_tmp)
+
+                if not only_results:
+                    inp_grp = iter_grp[f"impurity_{i}/inputs"]
+                    inp_tmp = read_all_keys(inp_grp)
+                    mpi.bcast(inp_tmp)
+                    solver_inputs.append(inp_tmp)
+    else:
+        num_impurities = mpi.bcast(num_impurities)
+
+        # Determine which impurities to read
+        if impurity_indices is None:
+            impurity_indices = np.arange(num_impurities)
+        else:
+            assert isinstance(impurity_indices, list), "impurity_indices must be a list of integers."
+
+        for _ in impurity_indices:
+            res_tmp = mpi.bcast(res_tmp)
+            solver_results.append(res_tmp)
+            if not only_results:
+                inp_tmp = mpi.bcast(inp_tmp)
+                solver_inputs.append(inp_tmp)
+
+    mpi.barrier()
+
+    if only_results:
+        return solver_results
+    return solver_results, solver_inputs
+
+
+def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1):
+    mpi.report(f"Updating the impurity results from checkpoint file: {h5_filename}\n")
     res_tmp = {}
     if mpi.is_master_node():
         with HDFArchive(h5_filename, 'r') as ar:
@@ -116,7 +186,7 @@ def read_impurity_chkpt(solver_results, h5_filename, iteration=-1):
             for imp_index, res in enumerate(solver_results):
                 # TODO check if impurity results exist, if not skip it
                 imp_grp = ar[f'iter{iteration}/impurity_{imp_index}/results']
-                res_tmp.update(_read_impurity_results(imp_grp))
+                res_tmp.update(read_all_keys(imp_grp))
                 res_tmp = mpi.bcast(res_tmp)
                 res.update(res_tmp)
     else:
@@ -129,15 +199,8 @@ def read_impurity_chkpt(solver_results, h5_filename, iteration=-1):
     return iteration
 
 
-def _read_impurity_results(h5_grp):
-    res = {}
-    res['G_iw'] = h5_grp['G_iw']
-    res['Sigma_infty'] = h5_grp['Sigma_infty']
-    res['Sigma_iw'] = h5_grp['Sigma_iw']
-    res['Pi_iw'] = h5_grp['Pi_iw']
-    res['W_iw'] = h5_grp['W_iw']
-    res['Sigma_infty_dc'] = h5_grp['Sigma_infty_dc']
-    res['Sigma_iw_dc_data'] = h5_grp['Sigma_iw_dc_data']
-    res['Pi_iw_dc_data'] = h5_grp['Pi_iw_dc_data']
-
-    return res
+def read_all_keys(h5_grp):
+    output = {}
+    for key in h5_grp.keys():
+        output[key] = h5_grp[key]
+    return output

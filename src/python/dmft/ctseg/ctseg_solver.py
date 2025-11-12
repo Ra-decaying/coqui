@@ -9,7 +9,7 @@ from triqs.operators.util.U_matrix import reduce_4index_to_2index
 from triqs.operators.util.extractors import block_matrix_from_op
 
 from triqs_ctseg import Solver
-import coqui.embed.triqs_interface.ctseg.ctseg_utils as ctseg_utils
+import coqui.dmft.ctseg.ctseg_utils as ctseg_utils
 
 
 class SmartList(list):
