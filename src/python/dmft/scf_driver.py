@@ -132,6 +132,10 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             Input['Gloc_t'], Input['Wloc_t'], Input['Vloc'] = G_t, W_t, V
 
             # Fermionic and bosonic Weiss fields
+            if solver_params.get('set_sigma_infty_to_dc', False):
+                Vhf_imp = Res['Sigma_infty_dc']
+            else:
+                Vhf_imp = Res['Sigma_infty']
             Input['g_weiss_iw'], Input['u_weiss_iw'] = (
                 coqui_dmft.compute_weiss_fields_w(
                     ir_kernel = dmft_state.ir_kernel,
@@ -141,15 +145,24 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                         "Vloc": Input['Vloc']
                     },
                     impurity_selfenergies = {
-                        "Vhf_imp": coqui_dmft.blk_arr_to_arr(Res['Sigma_infty'], Res['gf_struct']),
+                        "Vhf_imp": coqui_dmft.blk_arr_to_arr(Vhf_imp, Res['gf_struct']),
                         "Sigma_imp_w": coqui_dmft.blk_arr_to_arr(Res['Sigma_iw_data'], Res['gf_struct']),
                         "Pi_imp_w": Res['Pi_iw_data'][0] if Res['Pi_iw_data'] else None
                     },
                     density_only=True
                 )
             )
+            # h0: (nspin, norb, norb), delta_iw: (niw, nspin, norb, norb)
+            Input['h0'], Input['delta_iw'] = coqui_dmft.extract_h0_and_delta(
+                Input['g_weiss_iw'], dmft_state.ir_kernel
+            )
+
             Ub, Ubp, Jb_spin, Jb_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc'])
             U, Up, J_spin, J_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc']+Input['u_weiss_iw'][0])
+            dm = -dmft_state.ir_kernel.tau_interpolate(
+                coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
+                [dmft_state.ir_kernel.beta], 'f')[0]
+            impurity_density = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
             if coqui_mpi.root():
                 print("Hubbard-Kanamori interaction at bare and zero frequency")
                 print("--------------------------------------------------------")
@@ -158,10 +171,11 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                 print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
                 print(f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
 
-            # h0: (nspin, norb, norb), delta_iw: (niw, nspin, norb, norb)
-            Input['h0'], Input['delta_iw'] = coqui_dmft.extract_h0_and_delta(
-                Input['g_weiss_iw'], dmft_state.ir_kernel
-            )
+                print("Impurity densities ")
+                print("-------------------")
+                print(f"Total: {impurity_density}")
+                print(f"Spin up: {np.diag(dm[0]).real}")
+                print(f"Spin down: {np.diag(dm[1]).real}\n")
 
             dmft_state.save_impurity_inputs(solver_chkpt_h5, imp_index)
 
@@ -198,15 +212,22 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
             solver_kwargs = solver_params.copy()
             solver_kwargs.pop('degenerate_blk_thresh', None)
+            solver_kwargs.pop('set_sigma_infty_to_dc', None)
             Res.update(
                 coqui_dmft.ctseg.solve_dynamic_imp(delta_iw, h0, u_weiss_iw, h_int, **solver_kwargs)
             )
+            impurity_density_out = 0.0
+            for blk_name, occ in Res['orbital_occupations'].items():
+                impurity_density_out += occ.sum()
+            if coqui_mpi.root():
+                print(f"Total impurity densities = {impurity_density_out}")
+                print(f"Convergence of impurity density: {impurity_density_out - impurity_density}\n")
 
             dmft_state.damp_impurity_results(
                 solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7), impurity_indices=[imp_index]
             )
 
-            # save solver results for current impuprity
+            # save solver results for current impurity
             dmft_state.save_impurity_results(solver_chkpt_h5, imp_index)
 
         # Embed impurity results

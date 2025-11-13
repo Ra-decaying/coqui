@@ -50,12 +50,12 @@ def print_degenerate_blks(deg_blks, gf_struct):
         mpi.report(f"Shell {i}: {subset}\n")
 
 
-def save_impurities(h5_ar, *, solver_results=None, solver_inputs=None, impurity_index=-1, iteration=-1):
+def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impurity_index=-1, iteration=-1):
     if solver_results is None and solver_inputs is None:
         raise ValueError("Either solver_results or solver_inputs must be provided.")
 
     if iteration == -1:
-        iteration = 1 if "final_iteration" not in h5_ar.keys() else h5_ar["final_iteration"] + 1
+        iteration = 1 if "final_iteration" not in dmft_grp.keys() else dmft_grp["final_iteration"] + 1
 
     if solver_results and solver_inputs:
         assert len(solver_results) == len(solver_inputs), "solver_results and solver_inputs must have the same length."
@@ -71,9 +71,9 @@ def save_impurities(h5_ar, *, solver_results=None, solver_inputs=None, impurity_
         assert impurity_index < num_impurities, f"impurity_index {impurity_index} is out of range [0, {num_impurities})."
         impurity_list = [impurity_index]
 
-    if f"iter{iteration}" not in h5_ar.keys():
-        h5_ar.create_group(f"iter{iteration}")
-    iter_grp = h5_ar[f"iter{iteration}"]
+    if f"iter{iteration}" not in dmft_grp.keys():
+        dmft_grp.create_group(f"iter{iteration}")
+    iter_grp = dmft_grp[f"iter{iteration}"]
 
     for imp_i in impurity_list:
         if f"impurity_{imp_i}" not in iter_grp.keys():
@@ -84,7 +84,7 @@ def save_impurities(h5_ar, *, solver_results=None, solver_inputs=None, impurity_
         if solver_inputs is not None:
             _write_impurity_inputs(imp_grp, solver_inputs[imp_i])
 
-    h5_ar["final_iteration"] = iteration
+    dmft_grp["final_iteration"] = iteration
 
 
 def _write_impurity_results(h5_grp, impurity_results):
@@ -111,6 +111,7 @@ def _write_impurity_inputs(h5_grp, impurity_inputs):
     if "inputs" not in h5_grp.keys():
         h5_grp.create_group("inputs")
     inp_grp = h5_grp["inputs"]
+    inp_grp['gf_struct'] = impurity_inputs['gf_struct']
     inp_grp['Gloc_t'] = impurity_inputs['Gloc_t']
     inp_grp['Wloc_t'] = impurity_inputs['Wloc_t']
     inp_grp['Vloc'] = impurity_inputs['Vloc']
@@ -120,8 +121,31 @@ def _write_impurity_inputs(h5_grp, impurity_inputs):
     inp_grp['h0'] = impurity_inputs['h0']
 
 
-def read_impurity_chkpt(h5_filename, iteration=-1, *, only_results=False, impurity_indices=None):
+def read_impurity_chkpt(h5_filename, iteration=-1, *, read="both", impurity_indices=None):
+    """
+    Read impurity checkpoint file from a DMFT run.
+
+    Parameters
+    ----------
+    h5_filename : str
+        Path to the checkpoint file.
+    iteration : int, optional
+        Iteration index to read. If -1, read the final iteration.
+    read : {"results", "inputs", "both"}, optional
+        Which part of the checkpoint to read.
+    impurity_indices : list of int, optional
+        Specific impurity indices to read. If None, read all.
+
+    Returns
+    -------
+    Depending on `read`:
+        - "results" → list of solver_results
+        - "inputs"  → list of solver_inputs
+        - "both"    → (solver_results, solver_inputs)
+    """
     mpi.report(f"Reading impurity checkpoint file: {h5_filename}")
+    assert read in {"results", "inputs", "both"}, \
+        "Argument 'read' must be one of {'results', 'inputs', 'both'}."
     solver_results, solver_inputs = [], []
     res_tmp, inp_tmp = {}, {}
     num_impurities = -1
@@ -129,9 +153,9 @@ def read_impurity_chkpt(h5_filename, iteration=-1, *, only_results=False, impuri
     if mpi.is_master_node():
         with HDFArchive(h5_filename, 'r') as ar:
             if iteration == -1:
-                iteration = ar["final_iteration"]
+                iteration = ar["dmft/final_iteration"]
 
-            iter_grp = ar[f"iter{iteration}"]
+            iter_grp = ar[f"dmft/iter{iteration}"]
             num_impurities = len([k for k in iter_grp.keys() if k.startswith("impurity_")])
             mpi.bcast(num_impurities)
 
@@ -143,12 +167,13 @@ def read_impurity_chkpt(h5_filename, iteration=-1, *, only_results=False, impuri
             mpi.report(f"impurity list = {impurity_indices}\n")
 
             for i in impurity_indices:
-                res_grp = iter_grp[f"impurity_{i}/results"]
-                res_tmp = read_all_keys(res_grp)
-                mpi.bcast(res_tmp)
-                solver_results.append(res_tmp)
+                if read in {"results", "both"}:
+                    res_grp = iter_grp[f"impurity_{i}/results"]
+                    res_tmp = read_all_keys(res_grp)
+                    mpi.bcast(res_tmp)
+                    solver_results.append(res_tmp)
 
-                if not only_results:
+                if read in {"inputs", "both"}:
                     inp_grp = iter_grp[f"impurity_{i}/inputs"]
                     inp_tmp = read_all_keys(inp_grp)
                     mpi.bcast(inp_tmp)
@@ -163,17 +188,21 @@ def read_impurity_chkpt(h5_filename, iteration=-1, *, only_results=False, impuri
             assert isinstance(impurity_indices, list), "impurity_indices must be a list of integers."
 
         for _ in impurity_indices:
-            res_tmp = mpi.bcast(res_tmp)
-            solver_results.append(res_tmp)
-            if not only_results:
+            if read in {"results", "both"}:
+                res_tmp = mpi.bcast(res_tmp)
+                solver_results.append(res_tmp)
+            if read in {"inputs", "both"}:
                 inp_tmp = mpi.bcast(inp_tmp)
                 solver_inputs.append(inp_tmp)
 
     mpi.barrier()
 
-    if only_results:
+    if read == "results":
         return solver_results
-    return solver_results, solver_inputs
+    elif read == "inputs":
+        return solver_inputs
+    else:
+        return solver_results, solver_inputs
 
 
 def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1):
@@ -182,10 +211,10 @@ def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1
     if mpi.is_master_node():
         with HDFArchive(h5_filename, 'r') as ar:
             if iteration == -1:
-                iteration = ar['final_iteration']
+                iteration = ar['dmft/final_iteration']
             for imp_index, res in enumerate(solver_results):
                 # TODO check if impurity results exist, if not skip it
-                imp_grp = ar[f'iter{iteration}/impurity_{imp_index}/results']
+                imp_grp = ar[f'dmft/iter{iteration}/impurity_{imp_index}/results']
                 res_tmp.update(read_all_keys(imp_grp))
                 res_tmp = mpi.bcast(res_tmp)
                 res.update(res_tmp)

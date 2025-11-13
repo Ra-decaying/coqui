@@ -179,8 +179,10 @@ class DMFTState(object):
     def save_impurity_inputs(self, solver_chkpt, impurity_index):
         if mpi.is_master_node():
             with HDFArchive(solver_chkpt, 'a') as ar:
+                if "dmft" not in ar.keys():
+                    ar.create_group("dmft")
                 dmft_io.save_impurities(
-                    ar, solver_inputs = self.solver_inputs,
+                    ar["dmft"], solver_inputs = self.solver_inputs,
                     impurity_index = impurity_index, iteration = self.iteration
                 )
         mpi.barrier()
@@ -189,8 +191,10 @@ class DMFTState(object):
     def save_impurity_results(self, solver_chkpt, impurity_index):
         if mpi.is_master_node():
             with HDFArchive(solver_chkpt, 'a') as ar:
+                if "dmft" not in ar.keys():
+                    ar.create_group("dmft")
                 dmft_io.save_impurities(
-                    ar, solver_results = self.solver_results,
+                    ar["dmft"], solver_results = self.solver_results,
                     impurity_index = impurity_index, iteration = self.iteration
                 )
         mpi.barrier()
@@ -198,8 +202,10 @@ class DMFTState(object):
     def save(self, solver_chkpt):
         if mpi.is_master_node():
             with HDFArchive(solver_chkpt, 'a') as ar:
+                if "dmft" not in ar.keys():
+                    ar.create_group("dmft")
                 dmft_io.save_impurities(
-                    ar, solver_results = self.solver_results,
+                    ar["dmft"], solver_results = self.solver_results,
                     solver_inputs = self.solver_inputs, iteration = self.iteration
                 )
         mpi.barrier()
@@ -251,7 +257,7 @@ class DMFTState(object):
             return
 
         solver_results_prev = dmft_io.read_impurity_chkpt(
-            solver_chkpt, self.iteration-1, only_results=True, impurity_indices=impurity_indices
+            solver_chkpt, self.iteration-1, read="results", impurity_indices=impurity_indices
         )
 
         if impurity_indices is not None:
