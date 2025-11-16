@@ -206,12 +206,18 @@ def read_impurity_chkpt(h5_filename, iteration=-1, *, read="both", impurity_indi
 
 
 def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1):
-    mpi.report(f"Updating the impurity results from checkpoint file: {h5_filename}\n")
     res_tmp = {}
     if mpi.is_master_node():
         with HDFArchive(h5_filename, 'r') as ar:
             if iteration == -1:
                 iteration = ar['dmft/final_iteration']
+            try:
+                _ = ar[f'dmft/iter{iteration}/impurity_0/results']
+            except KeyError:
+                # automatically go to the previous iteration if the current one does not exist
+                iteration -= 1
+
+            mpi.report(f"Updating the impurity results from checkpoint file {h5_filename} at iteration {iteration}\n")
             for imp_index, res in enumerate(solver_results):
                 # TODO check if impurity results exist, if not skip it
                 imp_grp = ar[f'dmft/iter{iteration}/impurity_{imp_index}/results']

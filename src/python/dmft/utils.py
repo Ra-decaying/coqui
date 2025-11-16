@@ -172,18 +172,19 @@ def h_int_slater(V_abcd, gf_struct, force_real=True):
 
 def h0_operator(h0_sab, gf_struct, *, diagonal=True, force_real=True):
     assert len(h0_sab.shape) == 3, "incorrect h0_sab.shape"
-    H0 = Operator()
+    assert diagonal, "h0_operator: only diagonal=True is supported for now."
+    h0_op = Operator()
     o1 = [0, 0]
     for blk_name, blk_dim in gf_struct:
         s = 0 if blk_name[:2] == "up" else 1
         for i in range(blk_dim):
             if force_real:
-                H0 += h0_sab[s, o1[s]+i, o1[s]+i].real * c_dag(blk_name, i) * c(blk_name, i)
+                h0_op += h0_sab[s, o1[s]+i, o1[s]+i].real * c_dag(blk_name, i) * c(blk_name, i)
             else:
-                H0 += h0_sab[s, o1[s]+i, o1[s]+i] * c_dag(blk_name, i) * c(blk_name, i)
+                h0_op += h0_sab[s, o1[s]+i, o1[s]+i] * c_dag(blk_name, i) * c(blk_name, i)
             o1[s] += blk_dim
 
-    return H0
+    return h0_op
 
 
 def product_basis_to_density_density(A_abcd):
@@ -359,33 +360,34 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
         "Convertion to non-density-density Hamiltonian is not implemented yet."
     )
 
+    h0 = h0_operator(h0, gf_struct, diagonal=density_hamiltonian, force_real=real_hamiltonian)
+    h_int = h_int_density_density(Vimp, gf_struct, force_real=real_hamiltonian)
+
     if real_hamiltonian:
         # FT to tau space and enforce to real values
         delta_tau = ir_kernel.w_to_tau(delta_iw, 'f')
         delta_tau.imag = 0.0
-        delta_iw = ir_kernel.tau_to_w(delta_tau, 'f')
+        delta_iw_gf = to_block_gf(ir_kernel.tau_to_w(delta_tau, 'f'), ir_kernel,
+                                  gf_struct, triqs_iw_mesh["fermion"])
+    else:
+        delta_iw_gf = to_block_gf(delta_iw, ir_kernel,
+                                  gf_struct, triqs_iw_mesh["fermion"])
 
+    if real_hamiltonian:
         u_weiss_tau = ir_kernel.w_to_tau_phsym(u_weiss_iw, 'b')
         u_weiss_tau.imag = 0.0
-        u_weiss_iw = ir_kernel.tau_to_w_phsym(u_weiss_tau, 'b')
+        u_weiss_iw_real = ir_kernel.tau_to_w_phsym(u_weiss_tau, 'b')
+        u_weiss_iw_gf = to_block2_gf(
+            product_basis_to_density_density(u_weiss_iw_real),
+            ir_kernel, gf_struct, triqs_iw_mesh["boson"]
+        )
+    else:
+        u_weiss_iw_gf = to_block2_gf(
+            product_basis_to_density_density(u_weiss_iw),
+            ir_kernel, gf_struct, triqs_iw_mesh["boson"]
+        )
 
-    # one-particle
-    h0 = h0_operator(h0, gf_struct, diagonal=density_hamiltonian, 
-                     force_real=real_hamiltonian)
-    delta_iw = to_block_gf(delta_iw, ir_kernel, 
-                           gf_struct, triqs_iw_mesh["fermion"])
-    
-    # two-particle
-    u_weiss_iw = to_block2_gf(
-        product_basis_to_density_density(u_weiss_iw),
-        ir_kernel, gf_struct, triqs_iw_mesh["boson"]
-    )
-    h_int = h_int_density_density(
-        Vimp, gf_struct, 
-        force_real=real_hamiltonian
-    )
-
-    return h0, delta_iw, h_int, u_weiss_iw
+    return h0, delta_iw_gf, h_int, u_weiss_iw_gf
 
 
 def Gf_dlr_from_ir(Giw_ir, ir_kernel, mesh_dlr_iw, dim=2):
@@ -521,37 +523,84 @@ def extract_h0_and_delta(g_weiss_wsab, ir_kernel, high_freq_multiplier=10):
     return t_sIab_estimate, delta_estimate
 
 
-def compute_weiss_fields_w(*, ir_kernel, local_gf, impurity_selfenergies=None, density_only=False):
+def init_weiss_fields_w(*, ir_kernel, local_gf, init_weiss_type="dc", density_only=False):
+    # checking inputs
+    missing = {"Gloc_t", "Wloc_t", "Vloc"} - local_gf.keys()
+    if missing:
+        raise ValueError(f"Missing keys in local_gf: {missing}")
+
+    if init_weiss_type not in {"dc", "zero"}:
+        raise ValueError(f"init_weiss_type must be 'dc' or 'zero', got {init_weiss_type}")
+
+    # bosonic first
+    if init_weiss_type == "dc":
+        mpi.report("Evaluate the bosonic Weiss field at the RPA level.")
+        pi_imp_w = ir_kernel.tau_to_w_phsym(eval_pi_rpa(local_gf["Gloc_t"], density_only=density_only), stats='b')
+        if len(pi_imp_w.shape) == 3:
+            pi_imp_w = density_density_to_product_basis(pi_imp_w)
+    else:
+        mpi.report("Evaluate the bosonic Weiss fields using zero impurity polarizability.")
+        pi_imp_w = None
+
+    u_weiss_w = compute_weiss_boson_w(
+        local_gf["Vloc"],
+        ir_kernel.tau_to_w_phsym(local_gf["Wloc_t"], stats='b'),
+        pi_imp_w
+    )
+    if mpi.is_master_node():
+        ir_kernel.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
+    mpi.report("")
+    mpi.barrier()
+
+    # fermionic
+    if init_weiss_type == "dc":
+        mpi.report("Evaluate the fermionic Weiss field using the local GW self-energy.")
+        vhf_imp = eval_hf_dc(
+            -ir_kernel.tau_interpolate(local_gf["Gloc_t"], [ir_kernel.beta], stats='f')[0],
+            local_gf["Vloc"],
+            u_weiss_w[0]+local_gf["Vloc"]
+        )
+        sigma_imp_w = ir_kernel.tau_to_w(eval_gw_dc_t(local_gf["Gloc_t"], local_gf["Wloc_t"]), stats='f')
+    else:
+        mpi.report("Evaluate the fermionic Weiss field using zero impurity self-energy.")
+        vhf_imp, sigma_imp_w = None, None
+
+    g_weiss_w = compute_weiss_fermion_w(
+        ir_kernel.tau_to_w(local_gf["Gloc_t"], stats='f'),
+        vhf_imp, sigma_imp_w
+    )
+    if mpi.is_master_node():
+        ir_kernel.check_leakage(g_weiss_w, 'f', 'g_weiss', w_input=True)
+    mpi.report("")
+    mpi.barrier()
+
+    return g_weiss_w, u_weiss_w
+
+
+
+def compute_weiss_fields_w(*, ir_kernel, local_gf, impurity_selfenergies, density_only=False):
     # checking inputs 
     missing = {"Gloc_t", "Wloc_t", "Vloc"} - local_gf.keys()
     if missing:
         raise ValueError(f"Missing keys in local_gf: {missing}")
 
-    if impurity_selfenergies is not None:
-        missing = {"Vhf_imp", "Sigma_imp_w", "Pi_imp_w"} - impurity_selfenergies.keys()
-        if missing:
-            raise ValueError(f"Missing keys in impurity_selfenergies: {missing}")
-    else:
-        impurity_selfenergies = {"Vhf_imp": None, "Sigma_imp_w": None, "Pi_imp_w": None}
+    missing = {"Vhf_imp", "Sigma_imp_w", "Pi_imp_w"} - impurity_selfenergies.keys()
+    if missing:
+        raise ValueError(f"Missing keys in impurity_selfenergies: {missing}")
 
     # bosonic first 
-    if impurity_selfenergies["Pi_imp_w"] is not None:
-        mpi.report("Evaluate the bosonic Weiss field using the provided impurity polarizability.")
-        Pi_imp_w = impurity_selfenergies["Pi_imp_w"]
+    mpi.report("Evaluate the bosonic Weiss field using the provided impurity polarizability.")
+    pi_imp_w = impurity_selfenergies["Pi_imp_w"]
+    # check if pi_imp_w contains only density-density
+    if len(pi_imp_w.shape) == 3:
+        pi_imp_w_pb = density_density_to_product_basis(pi_imp_w)
     else:
-        mpi.report("Evaluate the bosonic Weiss field at the RPA level.")
-        Pi_imp_w = ir_kernel.tau_to_w_phsym(eval_pi_rpa(local_gf["Gloc_t"], density_only=density_only), stats='b')
-
-    # check if Pi_imp_w contains only density-density
-    if len(Pi_imp_w.shape) == 3:
-        Pi_imp_w_pb = density_density_to_product_basis(Pi_imp_w)
-    else:
-        Pi_imp_w_pb = Pi_imp_w
+        pi_imp_w_pb = pi_imp_w
         
     u_weiss_w = compute_weiss_boson_w(
         local_gf["Vloc"],
         ir_kernel.tau_to_w_phsym(local_gf["Wloc_t"], stats='b'),
-        Pi_imp_w_pb
+        pi_imp_w_pb
     )
     if mpi.is_master_node():
         ir_kernel.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
@@ -559,23 +608,13 @@ def compute_weiss_fields_w(*, ir_kernel, local_gf, impurity_selfenergies=None, d
     mpi.barrier()
 
     # fermionic 
-    if impurity_selfenergies["Vhf_imp"] is not None and impurity_selfenergies["Sigma_imp_w"] is not None:
-        mpi.report("Evaluate the fermionic Weiss field using the provided impurity self-energy.")
-        Vhf_imp = impurity_selfenergies["Vhf_imp"]
-        Sigma_imp_w = impurity_selfenergies["Sigma_imp_w"]
-    else:
-        mpi.report("Evaluate the fermionic Weiss field using the local GW self-energy.")
-        Vhf_imp = eval_hf_dc(
-            -ir_kernel.tau_interpolate(local_gf["Gloc_t"], [ir_kernel.beta], stats='f')[0], 
-            local_gf["Vloc"], 
-            u_weiss_w[0]+local_gf["Vloc"]
-        )
-        Sigma_imp_w = ir_kernel.tau_to_w(eval_gw_dc_t(local_gf["Gloc_t"], local_gf["Wloc_t"]), stats='f')
-                   
+    mpi.report("Evaluate the fermionic Weiss field using the provided impurity self-energy.")
+    vhf_imp = impurity_selfenergies["Vhf_imp"]
+    sigma_imp_w = impurity_selfenergies["Sigma_imp_w"]
+
     g_weiss_w = compute_weiss_fermion_w(
         ir_kernel.tau_to_w(local_gf["Gloc_t"], stats='f'),
-        Vhf_imp, 
-        Sigma_imp_w
+        vhf_imp, sigma_imp_w
     )
 
     if mpi.is_master_node():
@@ -586,21 +625,30 @@ def compute_weiss_fields_w(*, ir_kernel, local_gf, impurity_selfenergies=None, d
     return g_weiss_w, u_weiss_w
 
 
-def compute_weiss_fermion_w(G_wsab, vhf_sab, sigma_wsab):
-    nw, nspin, nbnd = G_wsab.shape[:3]
-    g_wsab = np.zeros(G_wsab.shape, dtype=G_wsab.dtype)
+def compute_weiss_fermion_w(g_wsab, vhf_sab, sigma_wsab):
+    if vhf_sab is None:
+        assert sigma_wsab is None, (
+            "compute_weiss_fermion_w: sigma_wsab should be None if vhf_sab is None"
+        )
+        return g_wsab.copy()
+
+    nw, nspin, nbnd = g_wsab.shape[:3]
+    g_weiss_wsab = np.zeros(g_wsab.shape, dtype=g_wsab.dtype)
 
     #  g(w) = [G(w)^{-1} + Sigma_imp]^{-1]
     for ws in range(nw*nspin):
         w = ws // nspin
         s = ws % nspin
-        X_inv = np.linalg.solve(G_wsab[w, s], np.eye(nbnd)) + vhf_sab[s] + sigma_wsab[w, s]
-        g_wsab[w, s] = np.linalg.solve(X_inv, np.eye(nbnd))
+        X_inv = np.linalg.solve(g_wsab[w, s], np.eye(nbnd)) + vhf_sab[s] + sigma_wsab[w, s]
+        g_weiss_wsab[w, s] = np.linalg.solve(X_inv, np.eye(nbnd))
 
-    return g_wsab
+    return g_weiss_wsab
 
 
 def compute_weiss_boson_w(V_abcd, W_wabcd, Pi_wabcd):
+    if Pi_wabcd is None:
+        return W_wabcd
+
     nbnd = V_abcd.shape[0]
     nbnd2 = nbnd*nbnd
     Wfull_pb = (W_wabcd + V_abcd).reshape(-1,nbnd2,nbnd2)
@@ -678,7 +726,6 @@ def eval_gw_dc_t(G_tsab, W_tabcd):
 
     nts, nts_half = G_tsab.shape[0], W_tabcd.shape[0]
     sigma_tsab = np.zeros(G_tsab.shape, dtype=G_tsab.dtype)
-
     for t in range(nts_half):
         mt = nts-t-1
         sigma_tsab[t] = -1 * np.einsum('sab,aibj->sij', G_tsab[t], W_tabcd[t])
@@ -1131,12 +1178,12 @@ def hubbard_kanamori_coulomb(V_abcd):
     J_spin /= (n_orb * (n_orb - 1)) / 2
 
     if U.imag > 1e-8:
-        mpi.report("Warning: complex value encountered in intra-orbital U.imag = {U.imag}.")
+        mpi.report(f"Warning: complex value encountered in intra-orbital U.imag = {U.imag}.")
     if Up.imag > 1e-8:
-        mpi.report("Warning: complex value encountered in inter-orbital U.imag = {Up.imag}.")
+        mpi.report(f"Warning: complex value encountered in inter-orbital U.imag = {Up.imag}.")
     if J_pair.imag > 1e-8:
-        mpi.report("Warning: complex value encountered in pair-hopping J.imag = {J_pair.imag}.")
+        mpi.report(f"Warning: complex value encountered in pair-hopping J.imag = {J_pair.imag}.")
     if J_spin.imag > 1e-8:
-        mpi.report("Warning: complex value encountered in spin-flip J.imag = {J_spin.imag}.")
+        mpi.report(f"Warning: complex value encountered in spin-flip J.imag = {J_spin.imag}.")
 
     return U.real, Up.real, J_pair.real, J_spin.real

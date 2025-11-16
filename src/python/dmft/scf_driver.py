@@ -132,26 +132,7 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             Input['Gloc_t'], Input['Wloc_t'], Input['Vloc'] = G_t, W_t, V
 
             # Fermionic and bosonic Weiss fields
-            if solver_params.get('set_sigma_infty_to_dc', False):
-                Vhf_imp = Res['Sigma_infty_dc']
-            else:
-                Vhf_imp = Res['Sigma_infty']
-            Input['g_weiss_iw'], Input['u_weiss_iw'] = (
-                coqui_dmft.compute_weiss_fields_w(
-                    ir_kernel = dmft_state.ir_kernel,
-                    local_gf = {
-                        "Gloc_t": coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Res['gf_struct']),
-                        "Wloc_t": Input['Wloc_t'],
-                        "Vloc": Input['Vloc']
-                    },
-                    impurity_selfenergies = {
-                        "Vhf_imp": coqui_dmft.blk_arr_to_arr(Vhf_imp, Res['gf_struct']),
-                        "Sigma_imp_w": coqui_dmft.blk_arr_to_arr(Res['Sigma_iw_data'], Res['gf_struct']),
-                        "Pi_imp_w": Res['Pi_iw_data'][0] if Res['Pi_iw_data'] else None
-                    },
-                    density_only=True
-                )
-            )
+            Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(Res, Input, solver_params, dmft_state.ir_kernel)
             # h0: (nspin, norb, norb), delta_iw: (niw, nspin, norb, norb)
             Input['h0'], Input['delta_iw'] = coqui_dmft.extract_h0_and_delta(
                 Input['g_weiss_iw'], dmft_state.ir_kernel
@@ -166,14 +147,14 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             if coqui_mpi.root():
                 print("Hubbard-Kanamori interaction at bare and zero frequency")
                 print("--------------------------------------------------------")
-                print(f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV} eV")
-                print(f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV} eV")
+                print(f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
+                print(f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
                 print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
                 print(f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
 
                 print("Impurity densities ")
                 print("-------------------")
-                print(f"Total: {impurity_density}")
+                print(f"Total: {impurity_density:.4f}")
                 print(f"Spin up: {np.diag(dm[0]).real}")
                 print(f"Spin down: {np.diag(dm[1]).real}\n")
 
@@ -213,6 +194,7 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             solver_kwargs = solver_params.copy()
             solver_kwargs.pop('degenerate_blk_thresh', None)
             solver_kwargs.pop('set_sigma_infty_to_dc', None)
+            solver_kwargs.pop('init_weiss_type', None)
             Res.update(
                 coqui_dmft.ctseg.solve_dynamic_imp(delta_iw, h0, u_weiss_iw, h_int, **solver_kwargs)
             )
@@ -242,4 +224,36 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
         )
         dmft_state.iteration += 1
         coqui_mpi.barrier()
+
+
+def _compute_weiss_fields(imp_results, imp_inputs, solver_params, ir_kernel):
+    if imp_results['Sigma_iw_data'] is not None:
+        if solver_params.get('set_sigma_infty_to_dc', False):
+            Vhf_imp =  imp_results['Sigma_infty_dc']
+        else:
+            Vhf_imp =  imp_results['Sigma_infty']
+        return (
+            coqui_dmft.compute_weiss_fields_w(
+                ir_kernel = ir_kernel,
+                local_gf = {"Gloc_t": coqui_dmft.blk_arr_to_arr(imp_inputs['Gloc_t'], imp_inputs['gf_struct']),
+                            "Wloc_t": imp_inputs['Wloc_t'], "Vloc": imp_inputs['Vloc']},
+                impurity_selfenergies = {
+                    "Vhf_imp": coqui_dmft.blk_arr_to_arr(Vhf_imp, imp_results['gf_struct']),
+                    "Sigma_imp_w": coqui_dmft.blk_arr_to_arr(imp_results['Sigma_iw_data'], imp_results['gf_struct']),
+                    "Pi_imp_w": imp_results['Pi_iw_data'][0] if imp_results['Pi_iw_data'] else None
+                },
+                density_only=True
+            )
+        )
+    else:
+        return (
+            coqui_dmft.init_weiss_fields_w(
+                ir_kernel = ir_kernel,
+                local_gf = {"Gloc_t": coqui_dmft.blk_arr_to_arr(imp_inputs['Gloc_t'], imp_inputs['gf_struct']),
+                            "Wloc_t": imp_inputs['Wloc_t'], "Vloc": imp_inputs['Vloc']},
+                init_weiss_type = solver_params.get('init_weiss_type', 'dc'),
+                density_only=True
+            )
+        )
+
 

@@ -256,14 +256,15 @@ class DMFTState(object):
         if self.iteration <= 0: # no damping in the first iteration
             return
 
-        solver_results_prev = dmft_io.read_impurity_chkpt(
-            solver_chkpt, self.iteration-1, read="results", impurity_indices=impurity_indices
-        )
-
         if impurity_indices is not None:
             assert isinstance(impurity_indices, list), "impurity_indices should be a list of integers."
         else:
             impurity_indices = np.arange(len(self.solver_results))
+
+        mpi.report(f"Damping impurity results for impurities {impurity_indices}\n")
+        solver_results_prev = dmft_io.read_impurity_chkpt(
+            solver_chkpt, self.iteration-1, read="results", impurity_indices=impurity_indices
+        )
 
         keys_to_damp = ['Sigma_infty', 'Sigma_infty_dc',
                         'Sigma_iw', 'Sigma_iw_dc_data',
