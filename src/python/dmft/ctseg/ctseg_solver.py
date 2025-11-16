@@ -141,7 +141,7 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
 
     S = Solver(gf_struct=gf_struct, beta=beta, n_tau=n_tau, n_tau_bosonic=n_tau_bosonic)
 
-    # initialization for post proccessing
+    # initialization for post-processing
     post_proc_params = {}
     post_proc_params['perform_tail_fit'] = solver_interface_params.pop('perform_tail_fit', False)
     post_proc_params['fit_max_moment']   = solver_interface_params.pop('fit_max_moment', 3)
@@ -193,3 +193,60 @@ def solve_dynamic_imp(Delta_iw, h_loc0, U_iw, h_int, **solver_params):
     else:
         raise NotImplemented
 
+
+def solve_density_dynamic_u_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_params):
+    """
+    Solve the impurity with dynamic interactions
+
+    Delta_iw : triqs.BlockGf
+    h_loc0: triqs.operator
+    D0_iw : triqs.Block2Gf
+    h_int: triqs.operator
+    """
+    gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
+    beta, wmax, eps  = Delta_iw.mesh.beta, Delta_iw.mesh.w_max, Delta_iw.mesh.eps
+    n_tau = solver_interface_params.pop('n_tau', 10001)
+    n_tau_bosonic = solver_interface_params.pop('n_tau_bosonic', n_tau)
+
+    S = Solver(gf_struct=gf_struct, beta=beta, n_tau=n_tau, n_tau_bosonic=n_tau_bosonic)
+
+    # prepare Delta_tau
+    S.Delta_tau << make_gf_imtime(Delta_iw, n_tau)
+
+    # prepare D0_tau
+    for name1, name2 in D0_iw.indices:
+        S.D0_tau[name1, name2] << make_gf_imtime(D0_iw[name1, name2], n_tau)
+
+    # remove unnecessary parameters
+    solver_interface_params.pop('n_iw', 1025)
+    solver_interface_params.pop('perform_tail_fit', False)
+    solver_interface_params.pop('fit_max_moment', 3)
+    solver_interface_params.pop('fit_min_w', None)
+    solver_interface_params.pop('fit_max_w', None)
+    solver_interface_params.pop('fit_min_n', None)
+    solver_interface_params.pop('fit_max_n', None)
+    solver_interface_params.pop('analytic_hf', False)
+    solver_interface_params.pop('degenerate_blk', None)
+
+    # call solver
+    solver_interface_params['measure_densities'] = True
+    solver_interface_params['measure_G_tau']     = False
+    solver_interface_params['measure_F_tau']     = False
+    solver_interface_params['measure_nn_tau']    = False
+    S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
+
+
+    return SolverResults(# required
+        orbital_occupations = S.results.densities,
+        average_order = S.results.average_order_Delta,
+        average_sign = S.results.average_sign
+    )
+
+
+def solve_density_dynamic_u(Delta_iw, h_loc0, U_iw, h_int, **solver_params):
+    if isinstance(Delta_iw.mesh, MeshImFreq):
+        raise NotImplemented
+    elif isinstance(Delta_iw.mesh, MeshDLRImFreq):
+        return solve_density_dynamic_u_dlr_mesh(Delta_iw, h_loc0, U_iw, h_int, **solver_params)
+    else:
+        raise NotImplemented

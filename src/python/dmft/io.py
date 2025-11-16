@@ -92,8 +92,11 @@ def _write_impurity_results(h5_grp, impurity_results):
         h5_grp.create_group("results")
     res_grp = h5_grp["results"]
     res_grp['gf_struct'] = impurity_results['gf_struct']
+    res_grp['mu_imp'] = impurity_results['mu_imp']
     res_grp['G_iw'] = impurity_results['G_iw']
     res_grp['Sigma_infty'] = impurity_results['Sigma_infty']
+    res_grp['Sigma_iw_data'] = impurity_results['Sigma_iw_data']
+    res_grp['Pi_iw_data'] = impurity_results['Pi_iw_data']
     res_grp['Sigma_iw'] = impurity_results['Sigma_iw']
     res_grp['Pi_iw'] = impurity_results['Pi_iw']
     res_grp['W_iw'] = impurity_results['W_iw']

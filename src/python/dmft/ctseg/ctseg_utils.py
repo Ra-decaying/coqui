@@ -47,7 +47,7 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
         index_in_block.append(find_index_in_block(color, solver.gf_struct))
         color_to_orbital.append(find_orbital_index(color, solver.gf_struct))
     
-    # initializaiton 
+    # initialization
     iw_mesh = MeshImFreq(beta = solver.beta, S="Boson", n_max = solver.n_iw)
     tau_mesh = solver.results.nn_tau[block_name[0], block_name[0]].mesh
 
@@ -219,59 +219,18 @@ def post_process_sigma(solver, **post_proc_params):
         solver.G0_iw << modest.symmetrize(solver.G0_iw, post_proc_params['degenerate_blk'])
 
     # Compute the HF self-energy as the first moment of the self-energy
-    solver.Sigma_infty = {}
-    solver.Sigma_moments = {}
-    mpi.report('\nEvaluating static impurity self-energy analytically using CT-SEG interacting density:')
-    # Uijkl is the full 4-index tensor without the block structure 
-    Vijkl = extract_Uijkl_from_h_int(h_int=solver.h_int, gf_struct=solver.gf_struct)
-    Uw0_ijkl = Vijkl + extract_screen_matrix_from_D0_tau(blk2_D0_tau=solver.D0_tau, gf_struct=solver.gf_struct)
-    norb = Vijkl.shape[0]
+    if post_proc_params['analytic_hf']:
+        solver.Sigma_infty = compute_sigma_infty(solver, post_proc_params['degenerate_blk'])
+        solver.Sigma_moments = {}
+        for blk_name, hf_val in solver.Sigma_infty.items():
+            mpi.report(f"Σ_HF {blk_name}:")
+            mpi.report(f"    {hf_val}")
+            solver.Sigma_moments[blk_name] = np.array([hf_val], dtype=complex)
+        mpi.report("")
+    else:
+        solver.Sigma_infty = None
+        solver.Sigma_moments = None
 
-    # compute density matrix without the block structure
-    density_matrix = {"up": np.zeros((norb, norb)), "down": np.zeros((norb,norb))}
-    o1 = [0, 0]
-    for blk_name, blk_dim in solver.gf_struct:
-        spin = "up" if blk_name[:2] == "up" else "down"
-        s1 = 0 if blk_name[:2] == "up" else 1
-        for iorb in range(blk_dim):
-            density_matrix[spin][o1[s1]+iorb, o1[s1]+iorb] = solver.results.densities[blk_name][iorb]
-        o1[s1] += blk_dim
-        assert o1[s1] <= norb, "orbital offset exceeds band range"
-
-    # compute HF self-energy
-    o1 = [0, 0]
-    for blk_name, blk_dim in solver.gf_struct:
-        solver.Sigma_infty[blk_name] = np.zeros((blk_dim, blk_dim), dtype=float)
-
-        spin = "up" if blk_name[:2] == "up" else "down"
-        s1 = 0 if blk_name[:2] == "up" else 1
-
-        # Sigma_HF_{ij} = \sum_{a,b} n_{ab} \left( 2 Uw0_{i a j b} - U_{i a b j} \right)
-        for iorb, jorb in product(range(blk_dim), repeat=2):
-            # inner needs to run over the entire norb
-            for inner in range(norb):
-                # exchange diagram K
-                solver.Sigma_infty[blk_name][iorb, jorb] -= (
-                    density_matrix[spin][inner, inner].real * (Vijkl[o1[s1]+iorb, inner, inner, o1[s1]+jorb].real))
-                # Hartree (Coulomb) diagram J
-                solver.Sigma_infty[blk_name][iorb, jorb] += (
-                    density_matrix[spin][inner, inner].real * (2 * Uw0_ijkl[o1[s1]+iorb, inner, o1[s1]+jorb, inner].real))
-
-        o1[s1] += blk_dim
-        assert o1[s1] <= norb, "orbital offset exceeds band range"
-
-    if post_proc_params['degenerate_blk']:
-        Sigma_infty_list = modest.symmetrize(list(solver.Sigma_infty.values()), post_proc_params['degenerate_blk'])
-        for i, blk_name in enumerate(solver.Sigma_infty.keys()):
-            solver.Sigma_infty[blk_name] = Sigma_infty_list[i]
-
-    # create moments array from this
-    for blk_name, hf_val in solver.Sigma_infty.items():
-        mpi.report(f"Σ_HF {blk_name}:")
-        mpi.report(f"    {hf_val}")
-        solver.Sigma_moments[blk_name] = np.array([hf_val], dtype=complex)
-    mpi.report("")
-    
     # Compute Self-energy
     if solver.results.F_tau is None:
         mpi.report("F(tau) is not measured -> Compute the self-energy via the Dyson equation.\n")
@@ -315,9 +274,20 @@ def post_process_sigma(solver, **post_proc_params):
     if post_proc_params['degenerate_blk']:
         solver.G_iw << modest.symmetrize(solver.G_iw, post_proc_params['degenerate_blk'])
 
+    if solver.Sigma_infty is None:
+        solver.Sigma_infty = {}
+        for block, gf in solver.Sigma_iw:
+            tail, err = gf.fit_hermitian_tail()
+            solver.Sigma_infty[block] = tail[0]
+        mpi.report("Extracting the static self-energy via tail fitting:")
+        for blk_name, hf_val in solver.Sigma_infty.items():
+            mpi.report(f"Σ_HF {blk_name}:")
+            mpi.report(f"    {hf_val}")
+        mpi.report("")
+
     # remove the static part of the self-energy
-    for bl, g in solver.Sigma_iw:
-        solver.Sigma_iw[bl] << g - solver.Sigma_infty[bl]
+    for blk, sigma_infty_value in solver.Sigma_infty.items():
+        solver.Sigma_iw[blk] = solver.Sigma_iw[blk] - sigma_infty_value
 
     
 def tail_fit(Sigma_iw, 
@@ -412,6 +382,62 @@ def extract_screen_matrix_from_D0_tau(blk2_D0_tau, gf_struct):
 
     n_orb = D0_w0.shape[0]//2
     return D0_w0[:n_orb,:n_orb]
+
+
+def compute_sigma_infty(solver, degenerate_blk=None):
+    mpi.report('\nEvaluating static impurity self-energy analytically using CT-SEG interacting density:')
+    Sigma_infty = {}
+
+    # Uijkl is the full 4-index tensor without the block structure
+    Vijkl = extract_Uijkl_from_h_int(h_int=solver.h_int, gf_struct=solver.gf_struct)
+    Uw0_ijkl = Vijkl + extract_screen_matrix_from_D0_tau(blk2_D0_tau=solver.D0_tau, gf_struct=solver.gf_struct)
+    norb = Vijkl.shape[0]
+
+    # compute density matrix without the block structure
+    density_matrix = {"up": np.zeros((norb, norb)), "down": np.zeros((norb,norb))}
+    o1 = [0, 0]
+    for blk_name, blk_dim in solver.gf_struct:
+        spin = "up" if blk_name[:2] == "up" else "down"
+        s1 = 0 if blk_name[:2] == "up" else 1
+        for iorb in range(blk_dim):
+            density_matrix[spin][o1[s1]+iorb, o1[s1]+iorb] = solver.results.densities[blk_name][iorb]
+        o1[s1] += blk_dim
+        assert o1[s1] <= norb, "orbital offset exceeds band range"
+
+    # compute HF self-energy
+    o1 = [0, 0]
+    for blk_name, blk_dim in solver.gf_struct:
+        Sigma_infty[blk_name] = np.zeros((blk_dim, blk_dim), dtype=float)
+        s1 = 0 if blk_name[:2] == "up" else 1
+
+        # Sigma_HF_{ij} = \sum_{a,b} n_{ab} \left( 2 Uw0_{i a j b} - U_{i a b j} \right)
+        for iorb, jorb in product(range(blk_dim), repeat=2):
+            # inner loop needs to run over the entire norb and "spin"
+            for inner in range(norb*2):
+                spin_idx, orb_idx = inner//norb, inner%norb
+                spin_inner = "up" if spin_idx == 0 else "down"
+                # exchange diagram K coming only from the "same-spin" channel
+                if s1 == spin_idx:
+                    Sigma_infty[blk_name][iorb, jorb] -= (
+                        density_matrix[spin_inner][orb_idx, orb_idx].real
+                        * Vijkl[o1[s1]+iorb, orb_idx, orb_idx, o1[s1]+jorb].real
+                    )
+                # Hartree (Coulomb) diagram J
+                Sigma_infty[blk_name][iorb, jorb] += (
+                    density_matrix[spin_inner][orb_idx, orb_idx].real
+                    * Uw0_ijkl[o1[s1]+iorb, orb_idx, o1[s1]+jorb, orb_idx].real
+                )
+
+        o1[s1] += blk_dim
+        assert o1[s1] <= norb, "orbital offset exceeds band range"
+
+    if degenerate_blk:
+        Sigma_infty_list = modest.symmetrize(list(Sigma_infty.values()), degenerate_blk)
+        for i, blk_name in enumerate(Sigma_infty.keys()):
+            Sigma_infty[blk_name] = Sigma_infty_list[i]
+
+    return Sigma_infty
+
 
 
 def find_block_name(color, gf_struct):

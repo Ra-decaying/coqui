@@ -17,6 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==========================================================================
 """
+from functools import partial
 import numpy as np
 from h5 import HDFArchive
 
@@ -37,12 +38,14 @@ def gw_edmft_loop(mf, thc, solver_chkpt_h5,
     """
 
     coqui_mpi = mf.mpi()
+    # TODO Divides # of cycles by mpi.size internally
 
     coqui_chkpt_h5 = gw_params['output']+".mbpt.h5"
     iterative_params = impurity_params.pop('iter_alg', None)
-    assert iterative_params['alg'] == 'damping', (
-        "Only \'damping\' iterative algorithm is supported in GW+EDMFT at the moment."
-    )
+    if iterative_params is not None:
+        assert iterative_params['alg'] == 'damping', (
+            "Only \'damping\' iterative algorithm is supported in GW+EDMFT at the moment."
+        )
     if isinstance(impurity_params['solver'], dict):
         impurity_params['solver'] = [impurity_params['solver']]
 
@@ -94,7 +97,7 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
     coqui_mpi = mf.mpi()
     coqui_chkpt_h5 = gloc_params['outdir']+"/"+gloc_params['prefix']+".mbpt.h5"
 
-    for iteration in range(dmft_state.iteration, dmft_state.iteration+num_iter):
+    for iteration in range(num_iter):
         with HDFArchive(coqui_chkpt_h5, 'r') as ar:
             input_type = "embed" if "embed" in ar.keys() else "scf"
             input_iter = ar[f"{input_type}/final_iter"]
@@ -129,7 +132,9 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             solver_params = solver_params_list[imp_index]
             Res = dmft_state.solver_results[imp_index]
             Input  = dmft_state.solver_inputs[imp_index]
-            Input['Gloc_t'], Input['Wloc_t'], Input['Vloc'] = G_t, W_t, V
+            Input['Gloc_t'] = G_t
+            Input['Wloc_t'] = coqui_dmft.chemistry_to_product_basis(W_t)
+            Input['Vloc'] = coqui_dmft.chemistry_to_product_basis(V)
 
             # Fermionic and bosonic Weiss fields
             Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(Res, Input, solver_params, dmft_state.ir_kernel)
@@ -143,7 +148,7 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             dm = -dmft_state.ir_kernel.tau_interpolate(
                 coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
                 [dmft_state.ir_kernel.beta], 'f')[0]
-            impurity_density = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
+            Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
             if coqui_mpi.root():
                 print("Hubbard-Kanamori interaction at bare and zero frequency")
                 print("--------------------------------------------------------")
@@ -152,9 +157,9 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                 print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
                 print(f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
 
-                print("Impurity densities ")
+                print("Local densities ")
                 print("-------------------")
-                print(f"Total: {impurity_density:.4f}")
+                print(f"Total: {Input['density']:.4f}")
                 print(f"Spin up: {np.diag(dm[0]).real}")
                 print(f"Spin down: {np.diag(dm[1]).real}\n")
 
@@ -191,19 +196,12 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             delta_iw = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
-            solver_kwargs = solver_params.copy()
-            solver_kwargs.pop('degenerate_blk_thresh', None)
-            solver_kwargs.pop('set_sigma_infty_to_dc', None)
-            solver_kwargs.pop('init_weiss_type', None)
-            Res.update(
-                coqui_dmft.ctseg.solve_dynamic_imp(delta_iw, h0, u_weiss_iw, h_int, **solver_kwargs)
-            )
-            impurity_density_out = 0.0
-            for blk_name, occ in Res['orbital_occupations'].items():
-                impurity_density_out += occ.sum()
-            if coqui_mpi.root():
-                print(f"Total impurity densities = {impurity_density_out}")
-                print(f"Convergence of impurity density: {impurity_density_out - impurity_density}\n")
+            # TODO Option to switch between two algorithms
+            #_solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input, **solver_params)
+            _solver_inner_loop_alg2(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input, **solver_params)
+
+            # convert from triqs Gf to numpy arrays and ir mesh
+            Res.update(coqui_dmft.imp_results_to_raw_data(Res['Sigma_iw'], Res['Pi_iw'], dmft_state.ir_kernel))
 
             dmft_state.damp_impurity_results(
                 solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7), impurity_indices=[imp_index]
@@ -257,3 +255,92 @@ def _compute_weiss_fields(imp_results, imp_inputs, solver_params, ir_kernel):
         )
 
 
+def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
+                       solver_results, solver_inputs, **solver_params):
+    solver_params.pop('degenerate_blk_thresh', None)
+    solver_params.pop('set_sigma_infty_to_dc', None)
+    solver_params.pop('init_weiss_type', None)
+    mu_tol = solver_params.pop('mu_tol', None)
+
+    while True:
+        if mu_tol is not None:
+            if coqui_mpi.root():
+                print(f"Applying a shift to impurity H0 -> H0-mu_imp with mu_imp = {solver_results['mu_imp']:.4f}\n")
+            # update h0 = h0 - mu_imp
+            h0_mat_shifted = np.array([ h0_mat - np.eye(h0_mat.shape[0])*solver_results['mu_imp'] for h0_mat in solver_inputs['h0'] ])
+            h0 = coqui_dmft.h0_operator(h0_mat_shifted, solver_inputs['gf_struct'], diagonal=True, force_real=True)
+
+        solver_results.update(coqui_dmft.ctseg.solve_dynamic_imp(delta_iw, h0, u_weiss_iw, h_int, **solver_params))
+        # impurity total density
+        imp_density = 0.0
+        for blk_name, occ in solver_results['orbital_occupations'].items():
+            imp_density += occ.sum()
+
+        if mu_tol is None:
+            break
+        elif abs(imp_density - solver_inputs['density']) <= mu_tol:
+            break
+
+        # find the chemical potential shift if the impurity density is too off
+        compute_nelec_fcn = partial(
+            coqui_dmft.compute_nelec,
+            h0 = coqui_dmft.arr_to_blk_arr(solver_inputs['h0'], solver_inputs['gf_struct']),
+            delta_iw = delta_iw, sigma_infty = solver_results['Sigma_infty'], sigma_iw = solver_results['Sigma_iw']
+        )
+        solver_results['mu_imp'], imp_density = coqui_dmft.compute_mu_impurity(
+            solver_inputs['density'], compute_nelec_fcn,
+            tolerance=mu_tol*0.01, mu0=solver_results['mu_imp'] # set tolerance to be a small value, independent to mu_tol
+        )
+
+    if coqui_mpi.root():
+        print(f"Total impurity densities = {imp_density}")
+        print(f"Convergence of impurity density: {imp_density - solver_inputs['density']}\n")
+
+
+def _solver_inner_loop_alg2(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
+                            solver_results, solver_inputs, **solver_params):
+
+    solver_params.pop('degenerate_blk_thresh', None)
+    solver_params.pop('set_sigma_infty_to_dc', None)
+    solver_params.pop('init_weiss_type', None)
+    mu_tol = solver_params.pop('mu_tol', None)
+
+    n_warmup_cycles_dens = solver_params.pop('n_warmup_cycles_density', None)
+    length_cycle_dens    = solver_params.pop('length_cycle_density', None)
+    n_cycles_dens        = solver_params.pop('n_cycles_density', None)
+    verbosity_dens       = solver_params.pop('verbosity_density', False)
+
+    if mu_tol is not None:
+        dens_params = solver_params.copy()
+        if not verbosity_dens:
+            dens_params['verbosity'] = 0
+        if n_warmup_cycles_dens is not None:
+            dens_params['n_warmup_cycles'] = n_warmup_cycles_dens
+        if length_cycle_dens is not None:
+            dens_params['length_cycle'] = length_cycle_dens
+        if n_cycles_dens is not None:
+            dens_params['n_cycles'] = n_cycles_dens
+
+        compute_nelec_fcn = partial(
+            coqui_dmft.compute_nelec_from_solver,
+            gf_struct=solver_inputs['gf_struct'], h0_sab=solver_inputs['h0'],
+            delta_iw=delta_iw, u_weiss_iw=u_weiss_iw, h_int=h_int,
+            **dens_params
+        )
+        solver_results['mu_imp'], imp_density = coqui_dmft.compute_mu_impurity(
+            solver_inputs['density'], compute_nelec_fcn,
+            tolerance=mu_tol, mu0=solver_results['mu_imp'] # set tolerance to be a small value, independent to mu_tol
+        )
+        # update h0 = h0 - mu_imp
+        h0_mat_shifted = np.array([ h0_mat - np.eye(h0_mat.shape[0])*solver_results['mu_imp'] for h0_mat in solver_inputs['h0'] ])
+        h0 = coqui_dmft.h0_operator(h0_mat_shifted, solver_inputs['gf_struct'], diagonal=True, force_real=True)
+
+    solver_results.update(coqui_dmft.ctseg.solve_dynamic_imp(delta_iw, h0, u_weiss_iw, h_int, **solver_params))
+    # impurity total density
+    imp_density = 0.0
+    for blk_name, occ in solver_results['orbital_occupations'].items():
+        imp_density += occ.sum()
+
+    if coqui_mpi.root():
+        print(f"Total impurity densities = {imp_density}")
+        print(f"Convergence of impurity density: {imp_density - solver_inputs['density']}\n")

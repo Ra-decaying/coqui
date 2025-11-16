@@ -76,9 +76,9 @@ namespace methods {
     app_log(1, "  - Input Green's function ");
     app_log(1, "      HDF5 group                              = {}", g_grp);
     app_log(1, "      Iteration                               = {}", g_iter);
-    app_log(1, "  - Transformation matrices                   = {}", proj.C_file());
     if (proj.C_file() != "")
-      app_log(1, "  - Force real local Hamiltonian              = {}", force_real);
+      app_log(1, "  - Transformation matrices                   = {}", proj.C_file());
+    app_log(1, "  - Force real local Hamiltonian              = {}", force_real);
     app_log(1, "  - Number of impurities                      = {}", proj.nImps());
     app_log(1, "  - Number of local orbitals per impurity     = {}", proj.nImpOrbs());
     app_log(1, "  - Range of primary orbitals for local basis = [{}, {})\n",

@@ -42,12 +42,14 @@ This module relies on the TRIQS ecosystem, in particular:
 - `triqs.utility.mpi` for parallelism
 """
 import triqs.utility.mpi as mpi
+from functools import partial
 from h5 import HDFArchive
 import numpy as np
 import itertools
 
-from triqs.gf import Gf, make_gf_dlr, BlockGf, Block2Gf, MeshImFreq, MeshDLRImFreq
+from triqs.gf import inverse, iOmega_n, Gf, make_gf_dlr, BlockGf, Block2Gf, MeshImFreq, MeshDLRImFreq
 from triqs.operators import c_dag, c, Operator, util
+import coqui.dmft as coqui_dmft
 
 
 def make_h5_sumk_format(mlwf_h5, orb_list=None):
@@ -144,19 +146,15 @@ def get_c_to_solver_mapping(solver_struct):
     return c_to_solver
 
 
-def Vijkl_in_triqs_notation(V_ijkl):
-    # switch inner two indices to match triqs notation
-    V = np.zeros(V_ijkl.shape, dtype=V_ijkl.dtype)
-    nbnd = V.shape[0]
-    for or1, or2, or3, or4 in itertools.product(range(nbnd), repeat=4):
-        V[or1, or2, or3, or4] = V_ijkl[or1, or3, or2, or4]
-    return V
+def v_pb_to_triqs_notation(v_pb_ijkl):
+    v_triqs_jkil = v_pb_ijkl.transpose(1, 2, 0, 3).copy()
+    return v_triqs_jkil
 
 
-def h_int_density_density(V_abcd, gf_struct, force_real=True):    
+def h_int_density_density(v_abcd_pb, gf_struct, force_real=True):
     c_to_solver = get_c_to_solver_mapping(gf_struct)
     V, Vp = util.reduce_4index_to_2index(
-        Vijkl_in_triqs_notation(V_abcd.real if force_real else V_abcd)
+        v_pb_to_triqs_notation(v_abcd_pb.real if force_real else v_abcd_pb)
     )
     h_int = util.h_int_density(['up', 'down'], V.shape[0], U=V, Uprime=Vp, 
                                map_operator_structure=c_to_solver)
@@ -185,6 +183,18 @@ def h0_operator(h0_sab, gf_struct, *, diagonal=True, force_real=True):
             o1[s] += blk_dim
 
     return h0_op
+
+
+def chemistry_to_product_basis(A_abcd_chem):
+    if A_abcd_chem.ndim < 4:
+        raise ValueError("chemistry_to_product_basis: "
+                         "A_abcd must have at least 4 dimensions (..., norb, norb, norb, norb).")
+    n1, n2, n3, n4 = A_abcd_chem.shape[-4:]
+    if not (n1 == n2 == n3 == n4):
+        raise ValueError("The last four axes must have equal length (nbnd).")
+
+    A_abcd_pb = np.swapaxes(A_abcd_chem, -3, -4)
+    return A_abcd_pb
 
 
 def product_basis_to_density_density(A_abcd):
@@ -651,7 +661,7 @@ def compute_weiss_boson_w(V_abcd, W_wabcd, Pi_wabcd):
 
     nbnd = V_abcd.shape[0]
     nbnd2 = nbnd*nbnd
-    Wfull_pb = (W_wabcd + V_abcd).reshape(-1,nbnd2,nbnd2)
+    Wfull_pb = (W_wabcd + V_abcd[np.newaxis, ...]).reshape(-1,nbnd2,nbnd2)
     Pi_pb = Pi_wabcd.reshape(-1,nbnd2,nbnd2)
 
     # U(w) = W(w)[I + Pi(w)*W(w)]^{-1}
@@ -688,12 +698,12 @@ def eval_pi_rpa(G_tsab, *, density_only=False):
 
 def eval_hf_dc(Dm_sab, V_abcd, U0_abcd):
     """
-    Evaluate the Hartree and exchange contributions to the density matrix.
+    Evaluate the Hartree and exchange contributions to the self-energy.
 
     Parameters:
-    - Dm_sab: Density matrix in spin and band indices.
-    - V_abcd: Bare interaction on a product basis.
-    - U0_abcd: Static screened interaction on a product basis.
+    - Dm_sab: Density matrix in dimensions (spin, band, band).
+    - V_abcd: Bare interaction on a product basis (band, band, band, band)
+    - U0_abcd: Static screened interaction on a product basis (band, band, band, band)
 
     Returns:
     - Hartree-Fock potential for an impurity with dynamic interactions.
@@ -737,6 +747,7 @@ def eval_gw_dc_t(G_tsab, W_tabcd):
 
 def solve_gw_dc(G_t, V, W_t, u_weiss_iw, ir_kernel, density_only=True,
                 *, gf_struct=None):
+    # TODO density-density approximation to V and W_t
     dm = -ir_kernel.tau_interpolate(G_t, [ir_kernel.beta], stats='f')[0]
     vhf_dc = eval_hf_dc(dm, V, u_weiss_iw[0]+V)
     
@@ -1085,30 +1096,7 @@ def blk_gf_to_arr(block_gf, gf_struct):
     return blk_arr_to_arr(blk_array, gf_struct)
 
 
-def compute_rot_matrix(embedding, A_ij):
-    """
-    Compute the rotation matrix U for degenerate blocks of A_ij.
-
-    The degeneracy is provided by the embedding object,
-    and the rotation is computed by diagonalizing blocks of A_ij
-
-    :param embedding:
-    :param A_ij:
-    :return:
-    """
-
-    n_orb = A_ij.shape[0]
-    U = np.eye(n_orb, dtype=float)
-
-    return U
-
-
-def embedding(embeding_1e, embeding_2e, solver_results, ir_kernel=None, spin_average=False):
-
-    # convert from TRIQS Gfs to numpy arrays and optionally on the IR basis
-    for Res in solver_results:
-        Res.update( imp_results_to_raw_data(Res['Sigma_iw'], Res['Pi_iw'], ir_kernel) )
-
+def embed_impurities(embeding_1e, embeding_2e, solver_results, spin_average=False):
     # A list of 3D arrays (w, i, j) with the length of the list = number of spins
     Sigma_imp_embed = embeding_1e.embed_wij([ Res['Sigma_iw_data'] for Res in solver_results ])
     Vhf_imp_embed   = embeding_1e.embed_ij([ Res['Sigma_infty'] for Res in solver_results ])
@@ -1187,3 +1175,151 @@ def hubbard_kanamori_coulomb(V_abcd):
         mpi.report(f"Warning: complex value encountered in spin-flip J.imag = {J_spin.imag}.")
 
     return U.real, Up.real, J_pair.real, J_spin.real
+
+
+def get_spin_and_orbital_index(block_name, gf_struct_list, imp_index):
+    """
+    Given a block name (e.g., 'up_3') and a gf_struct (list of (name, size)),
+    return:
+        spin : int (0 for up, 1 for down)
+        orbital_range : tuple(start, stop)  # indices in flattened orbital basis
+    """
+    # Parse spin and block index from the name
+    try:
+        prefix, idx_str = block_name.split('_')
+    except ValueError:
+        raise ValueError(f"Invalid block name '{block_name}'; must look like 'up_0', 'down_3', etc.")
+
+    spin_prefix = prefix.lower()
+    if spin_prefix == "up" or spin_prefix == "ud":
+        spin = 0
+    elif spin_prefix == "down":
+        spin = 1
+    else:
+        raise ValueError(f"Unrecognized spin prefix '{prefix}' in '{block_name}'.")
+
+    # 1) Compute same-spin offset from all previous gf_structs
+    offset = 0
+    for k in range(imp_index):
+        for name, size in gf_struct_list[k]:
+            if name.lower().startswith(spin_prefix):
+                offset += int(size)
+
+    # 2) Find local (start, stop) within the target gf_struct, counting only same-spin blocks
+    gf_struct = gf_struct_list[imp_index]
+    start_local = 0
+    found = False
+    for name, size in gf_struct:
+        if name.startswith(spin_prefix + '_'):
+            if name == block_name:
+                found = True
+                stop_local = start_local + size
+                break
+            start_local += size
+
+    if not found:
+        raise KeyError(f"Block name '{block_name}' not found in gf_struct.")
+
+    # 3) Apply offset
+    start = offset + start_local
+    stop  = offset + stop_local
+
+    return spin, (start, stop)
+
+
+def extract_ij(sigma_infty_embed, embedding):
+    gf_struct_list = [embedding.imp_block_shape[imp] for imp in range(embedding.n_impurities)]
+    sigma_infty_list = []
+    for imp_idx in range(len(gf_struct_list)):
+        imp_out = []
+        for blk_name, blk_dim in gf_struct_list[imp_idx]:
+            spin, orb_range = get_spin_and_orbital_index(blk_name, gf_struct_list, imp_idx)
+            imp_out.append(sigma_infty_embed[spin][orb_range[0]:orb_range[1], orb_range[0]:orb_range[1]])
+        sigma_infty_list.append(imp_out)
+
+    return sigma_infty_list
+
+def extract_wij(sigma_iw_embed, embedding):
+    gf_struct_list = [embedding.imp_block_shape[imp] for imp in range(embedding.n_impurities)]
+    sigma_iw_list = []
+    for imp_idx in range(len(gf_struct_list)):
+        imp_out = []
+        for blk_name, blk_dim in gf_struct_list[imp_idx]:
+            spin, orb_range = get_spin_and_orbital_index(blk_name, gf_struct_list, imp_idx)
+            imp_out.append(sigma_iw_embed[spin][:, orb_range[0]:orb_range[1], orb_range[0]:orb_range[1]])
+        sigma_iw_list.append(imp_out)
+
+    return sigma_iw_list
+
+
+def get_Giw(h0, delta_iw, sigma_infty, sigma_iw, mu):
+    G_iw = sigma_iw.copy()
+    for blk_idx, (blk_name, g) in enumerate(G_iw):
+        g << inverse(iOmega_n + mu - h0[blk_idx] - sigma_infty[blk_idx] - delta_iw[blk_name] - sigma_iw[blk_name])
+    return G_iw
+
+
+def compute_nelec(h0, delta_iw, sigma_infty, sigma_iw, mu):
+    g_iw = get_Giw(h0, delta_iw, sigma_infty, sigma_iw, mu)
+    nelec = 0.0
+    for blk_name, occ in g_iw.density().items():
+        nelec += np.diag(occ).sum()
+    if nelec.imag >= 1e-6:
+        mpi.report(f"WARNING: nelec.imag = {nelec.imag} >= 1e-6")
+    return nelec.real
+
+
+def compute_nelec_from_solver(gf_struct, h0_sab, delta_iw, u_weiss_iw, h_int, mu, **solver_params):
+    # update h0 = h0 - mu_imp
+    h0_mat_shifted = np.array([ h0_mat - np.eye(h0_mat.shape[0])*mu for h0_mat in h0_sab ])
+    h0_op = h0_operator(h0_mat_shifted, gf_struct, diagonal=True, force_real=True)
+
+    density_res = coqui_dmft.ctseg.solve_density_dynamic_u(delta_iw, h0_op, u_weiss_iw, h_int, **solver_params)
+    imp_density = 0.0
+    for blk_name, occ in density_res['orbital_occupations'].items():
+        imp_density += occ.sum()
+    return imp_density
+
+
+def compute_mu_impurity(nelec_target, compute_nelec_fcn, tolerance=1e-2, mu0=0):
+
+    mu, delta = mu0, 0.2
+    nelec = compute_nelec_fcn(mu=mu0)
+
+    mpi.report(f"Initial impurity chemical potential (mu_imp) = {mu0}, nelec = {nelec}")
+
+    if abs(nelec - nelec_target) < tolerance:
+        mpi.report(f"Impurity chemical potential (mu_imp) found = {mu}")
+        mpi.report(f"Number of electron per impurity = {nelec}\n")
+        return mu, nelec
+
+    if nelec >= nelec_target:
+        mu1, mu2 = mu0-delta, mu0
+        nelec1 = compute_nelec_fcn(mu=mu1)
+        while nelec1 > nelec_target:
+            mu1 -= delta
+            nelec1 = compute_nelec_fcn(mu=mu1)
+        mpi.report(f"mu = {mu1}, nelec = {nelec1}")
+    else:
+        mu1, mu2 = mu0, mu0+delta
+        nelec2 = compute_nelec_fcn(mu=mu2)
+        while nelec2 < nelec_target:
+            mu2 += delta
+            nelec2 = compute_nelec_fcn(mu=mu2)
+        mpi.report(f"mu = {mu2}, nelec = {nelec2}")
+    mu_mid = (mu1 + mu2) * 0.5
+    nelec = compute_nelec_fcn(mu=mu_mid)
+    mpi.report(f"mu = {mu_mid}, nelec = {nelec}")
+    while abs(nelec - nelec_target) >= tolerance:
+        if nelec >= nelec_target:
+            mu2 = mu_mid
+        else:
+            mu1 = mu_mid
+        mu_mid = (mu1 + mu2) * 0.5
+        nelec = compute_nelec_fcn(mu=mu_mid)
+        mpi.report(f"mu = {mu_mid}, nelec = {nelec}")
+
+    mu = mu_mid
+    mpi.report(f"Impurity chemical potential (mu_imp) found = {mu}")
+    mpi.report(f"Number of electron per impurity = {nelec}\n")
+    return mu, nelec

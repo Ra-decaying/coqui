@@ -96,6 +96,7 @@ class DMFTState(object):
             'symm_blks': None,
             'iw_mesh_f': iw_mesh_f,
             'iw_mesh_b': iw_mesh_b,
+            'mu_imp': 0.0,
             'Sigma_infty': None,
             'Sigma_iw': None,      # triqs BlockGf version
             'Sigma_iw_data': None, # numpy array on IR mesh
@@ -151,21 +152,34 @@ class DMFTState(object):
 
         # TODO for "each" impurity, load the previous results if existing, otherwise initialize to empty
         self.iteration = dmft_io.update_impurity_results_from_chkpt(self.solver_results, solver_chkpt) + 1
-        for res in self.solver_results:
-            assert res['Sigma_iw'].mesh == res['iw_mesh_f'], (
-                "Incompatible fermionic Matsubara mesh in loaded impurity results."
-            )
-            gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in res['Sigma_iw']]
-            assert gf_struct == res['gf_struct'], (
-                "Incompatible gf_struct in loaded impurity results."
-            )
-            assert res['Pi_iw'].mesh == res['iw_mesh_b'], (
-                "Incompatible bosonic Matsubara mesh in loaded impurity results."
-            )
 
-        self.local_sigma_w, self.local_sigma_infty, self.local_pi_w = dmft_utils.embedding(
-            self.embedding['1e'], self.embedding['2e'], self.solver_results,
-            self.ir_kernel, self.spin_average
+        # check dimensions of loaded impurity results
+        nw_b_half = self.ir_kernel.nw_b//2 if self.ir_kernel.nw_b%2==0 else self.ir_kernel.nw_b//2 + 1
+        for imp_idx, res in enumerate(self.solver_results):
+            for blk_idx, (blk_name, blk_dim) in enumerate(res['gf_struct']):
+                assert (res['Sigma_infty'][blk_idx].shape[0] == blk_dim and
+                        res['Sigma_infty'][blk_idx].shape[1] == blk_dim), (
+                    "Incompatible block dimension for the loaded impurity Sigma"
+                )
+                assert res['Sigma_iw_data'][blk_idx].shape[0] == self.ir_kernel.nw_f, (
+                    "Incompatible fermionic Matsubara mesh for the loaded impurity Sigma"
+                )
+                assert (res['Sigma_iw_data'][blk_idx].shape[1] == blk_dim and
+                        res['Sigma_iw_data'][blk_idx].shape[2] == blk_dim), (
+                    "Incompatible block dimension for the loaded impurity Sigma"
+                )
+            gf_struct_2e = self.embedding['2e'].imp_block_shape[imp_idx]
+            for blk_idx, (blk_name, blk_dim) in enumerate(gf_struct_2e):
+                assert res['Pi_iw_data'][blk_idx].shape[0] == nw_b_half, (
+                    "Incompatible bosonic Matsubara mesh for the loaded impurity Pi"
+                )
+                assert (res['Pi_iw_data'][blk_idx].shape[1] == blk_dim and
+                        res['Pi_iw_data'][blk_idx].shape[2] == blk_dim), (
+                    "Incompatible block dimension for the loaded impurity Pi"
+                )
+
+        self.local_sigma_w, self.local_sigma_infty, self.local_pi_w = dmft_utils.embed_impurities(
+            self.embedding['1e'], self.embedding['2e'], self.solver_results, self.spin_average
         )
         if mpi.is_master_node():
             self.ir_kernel.check_leakage(self.local_sigma_w["imp"], stats='f', name='Sigma_imp', w_input=True)
@@ -212,14 +226,10 @@ class DMFTState(object):
 
 
     def embed_impurity_results(self):
-        local_sigma_w, local_sigma_infty, local_pi_w = (
-            dmft_utils.embedding(
-                self.embedding['1e'], self.embedding['2e'],
-                self.solver_results,
-                self.ir_kernel,
-                self.spin_average
-            )
+        local_sigma_w, local_sigma_infty, local_pi_w = dmft_utils.embed_impurities(
+            self.embedding['1e'], self.embedding['2e'], self.solver_results, self.spin_average
         )
+
         # check convergence:
         if self.local_sigma_w and self.local_sigma_infty and self.local_pi_w:
             max_diff_sigma_w = np.max(
@@ -267,8 +277,8 @@ class DMFTState(object):
         )
 
         keys_to_damp = ['Sigma_infty', 'Sigma_infty_dc',
-                        'Sigma_iw', 'Sigma_iw_dc_data',
-                        'Pi_iw', 'Pi_iw_dc_data']
+                        'Sigma_iw_data', 'Sigma_iw_dc_data',
+                        'Pi_iw_data', 'Pi_iw_dc_data']
         for idx, imp_idx in enumerate(impurity_indices):
             res = self.solver_results[imp_idx]
             res_prev = solver_results_prev[idx]
