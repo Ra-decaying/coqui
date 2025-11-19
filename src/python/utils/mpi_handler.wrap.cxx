@@ -56,8 +56,8 @@ template <>
 constexpr initproc c2py::tp_init<coqui_py::MpiHandler> =
     c2py::pyfkw_constructor<init_0>;
 template <>
-const std::string c2py::tp_ctor_doc<coqui_py::MpiHandler> = init_0.doc(
-    R"DOC()DOC", std::vector<std::string>{}, std::vector<std::string>{});
+const std::string c2py::tp_ctor_doc<coqui_py::MpiHandler> =
+    init_0.doc(R"DOC()DOC");
 // barrier
 static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::MpiHandler const &self) { return self.barrier(); }, "self")};
@@ -104,91 +104,64 @@ static auto const fun_8 = c2py::dispatcher_f_kw_t{c2py::cmethod(
 static auto const fun_9 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::MpiHandler const &self) { return self.root(); }, "self")};
 
-static const auto doc_d_0 =
-    fun_0.doc(R"DOC(
+static const auto doc_d_0 = fun_0.doc(R"DOC(
 MPI barrier for the global communicator.
-)DOC",
-              std::vector<std::string>{}, std::vector<std::string>{});
-static const auto doc_d_1 =
-    fun_1.doc(R"DOC(
+)DOC");
+static const auto doc_d_1 = fun_1.doc(R"DOC(
 Returns
 -------
 {ret_0}
    the rank of the current process in the global communicator.
 )DOC",
-              std::vector<std::string>{},
-              std::vector<std::string>{
-                  std::vector<std::string>{c2py::python_typename<int>()}});
-static const auto doc_d_2 =
-    fun_2.doc(R"DOC(
+                                      {}, {c2py::python_typename<int>()});
+static const auto doc_d_2 = fun_2.doc(R"DOC(
 Returns
 -------
 {ret_0}
    the size of the global communicator, i.e., the total number of processes.
 )DOC",
-              std::vector<std::string>{},
-              std::vector<std::string>{
-                  std::vector<std::string>{c2py::python_typename<int>()}});
-static const auto doc_d_3 =
-    fun_3.doc(R"DOC(
+                                      {}, {c2py::python_typename<int>()});
+static const auto doc_d_3 = fun_3.doc(R"DOC(
 MPI barrier for the internode communicator.
-)DOC",
-              std::vector<std::string>{}, std::vector<std::string>{});
-static const auto doc_d_4 =
-    fun_4.doc(R"DOC(
+)DOC");
+static const auto doc_d_4 = fun_4.doc(R"DOC(
 Returns
 -------
 {ret_0}
    the rank of the current process in the internode communicator.
 )DOC",
-              std::vector<std::string>{},
-              std::vector<std::string>{
-                  std::vector<std::string>{c2py::python_typename<int>()}});
-static const auto doc_d_5 =
-    fun_5.doc(R"DOC(
+                                      {}, {c2py::python_typename<int>()});
+static const auto doc_d_5 = fun_5.doc(R"DOC(
 Returns
 -------
 {ret_0}
    the size of the internode communicator, i.e., the number of nodes.
 )DOC",
-              std::vector<std::string>{},
-              std::vector<std::string>{
-                  std::vector<std::string>{c2py::python_typename<int>()}});
-static const auto doc_d_6 =
-    fun_6.doc(R"DOC(
+                                      {}, {c2py::python_typename<int>()});
+static const auto doc_d_6 = fun_6.doc(R"DOC(
 MPI barrier for the intranode communicator.
-)DOC",
-              std::vector<std::string>{}, std::vector<std::string>{});
-static const auto doc_d_7 =
-    fun_7.doc(R"DOC(
+)DOC");
+static const auto doc_d_7 = fun_7.doc(R"DOC(
 Returns
 -------
 {ret_0}
    the rank of the current process in the intranode communicator.
 )DOC",
-              std::vector<std::string>{},
-              std::vector<std::string>{
-                  std::vector<std::string>{c2py::python_typename<int>()}});
-static const auto doc_d_8 =
-    fun_8.doc(R"DOC(
+                                      {}, {c2py::python_typename<int>()});
+static const auto doc_d_8 = fun_8.doc(R"DOC(
 Returns
 -------
 {ret_0}
    the size of the intranode communicator, i.e., the number of processes within a node.
 )DOC",
-              std::vector<std::string>{},
-              std::vector<std::string>{
-                  std::vector<std::string>{c2py::python_typename<int>()}});
-static const auto doc_d_9 =
-    fun_9.doc(R"DOC(
+                                      {}, {c2py::python_typename<int>()});
+static const auto doc_d_9 = fun_9.doc(R"DOC(
 Returns
 -------
 {ret_0}
    true if the current process is the root, false otherwise.
 )DOC",
-              std::vector<std::string>{},
-              std::vector<std::string>{
-                  std::vector<std::string>{c2py::python_typename<bool>()}});
+                                      {}, {c2py::python_typename<bool>()});
 
 // ----- Method table ----
 template <>

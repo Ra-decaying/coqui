@@ -184,18 +184,12 @@ static auto const fun_5 = c2py::dispatcher_f_kw_t{
         "eri", "df_params", "C_ksIai", "band_window", "kpts_crys",
         "local_polarizabilities")};
 
-static const auto doc_d_0 = fun_0.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_1 = fun_1.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_2 = fun_2.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_3 = fun_3.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_4 = fun_4.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_5 = fun_5.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
+static const auto doc_d_0 = fun_0.doc(R"DOC()DOC");
+static const auto doc_d_1 = fun_1.doc(R"DOC()DOC");
+static const auto doc_d_2 = fun_2.doc(R"DOC()DOC");
+static const auto doc_d_3 = fun_3.doc(R"DOC()DOC");
+static const auto doc_d_4 = fun_4.doc(R"DOC()DOC");
+static const auto doc_d_5 = fun_5.doc(R"DOC()DOC");
 //--------------------- module function table  -----------------------------
 
 static PyMethodDef module_methods[] = {

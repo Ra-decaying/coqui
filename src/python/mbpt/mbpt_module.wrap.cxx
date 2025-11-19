@@ -184,8 +184,7 @@ static auto const fun_0 = c2py::dispatcher_f_kw_t{
         "solver_type", "mbpt_params", "h_int", "h_int_hartree",
         "h_int_exchange")};
 
-static const auto doc_d_0 = fun_0.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
+static const auto doc_d_0 = fun_0.doc(R"DOC()DOC");
 //--------------------- module function table  -----------------------------
 
 static PyMethodDef module_methods[] = {
