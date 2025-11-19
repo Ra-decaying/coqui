@@ -58,8 +58,8 @@ template <>
 constexpr initproc c2py::tp_init<coqui_py::ThcCoulomb> =
     c2py::pyfkw_constructor<init_0>;
 template <>
-const std::string c2py::tp_ctor_doc<coqui_py::ThcCoulomb> = init_0.doc(
-    R"DOC()DOC", std::vector<std::string>{}, std::vector<std::string>{});
+const std::string c2py::tp_ctor_doc<coqui_py::ThcCoulomb> =
+    init_0.doc(R"DOC()DOC");
 // Np
 static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::ThcCoulomb const &self) { return self.Np(); }, "self")};
@@ -110,30 +110,18 @@ static auto const fun_11 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::ThcCoulomb const &self) { return self.nspin_in_basis(); },
     "self")};
 
-static const auto doc_d_0 = fun_0.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_1 = fun_1.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_2 = fun_2.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_3 = fun_3.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_4 = fun_4.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_5 = fun_5.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_6 = fun_6.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_7 = fun_7.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_8 = fun_8.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_9 = fun_9.doc(R"DOC()DOC", std::vector<std::string>{},
-                                      std::vector<std::string>{});
-static const auto doc_d_10 = fun_10.doc(R"DOC()DOC", std::vector<std::string>{},
-                                        std::vector<std::string>{});
-static const auto doc_d_11 = fun_11.doc(R"DOC()DOC", std::vector<std::string>{},
-                                        std::vector<std::string>{});
+static const auto doc_d_0 = fun_0.doc(R"DOC()DOC");
+static const auto doc_d_1 = fun_1.doc(R"DOC()DOC");
+static const auto doc_d_2 = fun_2.doc(R"DOC()DOC");
+static const auto doc_d_3 = fun_3.doc(R"DOC()DOC");
+static const auto doc_d_4 = fun_4.doc(R"DOC()DOC");
+static const auto doc_d_5 = fun_5.doc(R"DOC()DOC");
+static const auto doc_d_6 = fun_6.doc(R"DOC()DOC");
+static const auto doc_d_7 = fun_7.doc(R"DOC()DOC");
+static const auto doc_d_8 = fun_8.doc(R"DOC()DOC");
+static const auto doc_d_9 = fun_9.doc(R"DOC()DOC");
+static const auto doc_d_10 = fun_10.doc(R"DOC()DOC");
+static const auto doc_d_11 = fun_11.doc(R"DOC()DOC");
 
 // ----- Method table ----
 template <>
@@ -185,8 +173,8 @@ template <>
 constexpr initproc c2py::tp_init<coqui_py::CholCoulomb> =
     c2py::pyfkw_constructor<init_1>;
 template <>
-const std::string c2py::tp_ctor_doc<coqui_py::CholCoulomb> = init_1.doc(
-    R"DOC()DOC", std::vector<std::string>{}, std::vector<std::string>{});
+const std::string c2py::tp_ctor_doc<coqui_py::CholCoulomb> =
+    init_1.doc(R"DOC()DOC");
 // mf
 static auto const fun_12 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::CholCoulomb const &self) { return self.mf(); }, "self")};
@@ -195,10 +183,8 @@ static auto const fun_12 = c2py::dispatcher_f_kw_t{c2py::cmethod(
 static auto const fun_13 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::CholCoulomb const &self) { return self.mpi(); }, "self")};
 
-static const auto doc_d_12 = fun_12.doc(R"DOC()DOC", std::vector<std::string>{},
-                                        std::vector<std::string>{});
-static const auto doc_d_13 = fun_13.doc(R"DOC()DOC", std::vector<std::string>{},
-                                        std::vector<std::string>{});
+static const auto doc_d_12 = fun_12.doc(R"DOC()DOC");
+static const auto doc_d_13 = fun_13.doc(R"DOC()DOC");
 
 // ----- Method table ----
 template <>
@@ -230,8 +216,7 @@ static auto const fun_14 = c2py::dispatcher_f_kw_t{c2py::cfun(
     },
     "mf", "thc_params")};
 
-static const auto doc_d_14 = fun_14.doc(R"DOC()DOC", std::vector<std::string>{},
-                                        std::vector<std::string>{});
+static const auto doc_d_14 = fun_14.doc(R"DOC()DOC");
 //--------------------- module function table  -----------------------------
 
 static PyMethodDef module_methods[] = {
