@@ -17,6 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==========================================================================
 """
+from copy import deepcopy
 from functools import partial
 import numpy as np
 from h5 import HDFArchive
@@ -28,26 +29,51 @@ import coqui.dmft as coqui_dmft
 
 Hartree_eV = 27.211386245988
 
-def gw_edmft_loop(mf, thc, solver_chkpt_h5,
-                  proj_info, embedding_1e, embedding_2e,
-                  gw_params, gloc_params, wloc_params, impurity_params, embed_params,
-                  inner_num_iter, outer_num_iter, restart=False):
+
+# TODO option to use pi_dc as pi_iw.
+#  Do we overwrite DMFTState['pi_iw_data'] with [pi_iw_dc_data'] (maybe keep pi_iw still),
+#  or inform functions to use pi_iw_dc_data whenever needed?
+def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
+                  inner_num_iter, outer_num_iter, **gw_edmft_params):
     """
     GW+EDMFT self-consistency loop
     :return:
     """
 
     coqui_mpi = mf.mpi()
-    # TODO Divides # of cycles by mpi.size internally
+    if coqui_mpi.root():
+        coqui_dmft.print_gw_edmft_banner()
 
-    coqui_chkpt_h5 = gw_params['output']+".mbpt.h5"
-    iterative_params = impurity_params.pop('iter_alg', None)
+    # deep copy to avoid any changes in gw_edmft_params affecting outside the function.
+    gw_edmft_params = deepcopy(gw_edmft_params)
+    try:
+        gw_params        = gw_edmft_params.pop('gw', None)
+        wloc_params      = gw_edmft_params.pop('wloc')
+        gloc_params      = gw_edmft_params.pop('gloc')
+        embed_params     = gw_edmft_params.pop('dmft_embed')
+        impurity_params  = gw_edmft_params.pop('impurity')
+        iterative_params = impurity_params.pop('iter_alg', None)
+    except KeyError as e:
+        raise KeyError(f"gw_edmft_loop: Missing required gw_edmft_params key: {e.args[0]}")
+
+    if isinstance(impurity_params['solver'], dict):
+        impurity_params['solver'] = [impurity_params['solver']]
+    assert isinstance(impurity_params['solver'], list), (
+        "impurity parameters should be a list of params - one for each impurity"
+    )
+    for solver_params in impurity_params['solver']:
+        solver_params['n_cycles'] = int(solver_params['n_cycles']/coqui_mpi.comm_size())
+        mu_params = solver_params.get('chemical_potential')
+        if mu_params and 'n_cycles' in mu_params.keys():
+            mu_params['n_cycles'] = int(mu_params['n_cycles']/coqui_mpi.comm_size())
+
     if iterative_params is not None:
         assert iterative_params['alg'] == 'damping', (
             "Only \'damping\' iterative algorithm is supported in GW+EDMFT at the moment."
         )
-    if isinstance(impurity_params['solver'], dict):
-        impurity_params['solver'] = [impurity_params['solver']]
+
+    coqui_chkpt_h5 = embed_params['outdir']+"/"+embed_params['prefix']+".mbpt.h5"
+    solver_chkpt_h5 = impurity_params.pop('chkpt_h5', coqui_chkpt_h5)
 
     # DMFT state container
     dmft_state = coqui_dmft.DMFTState.make_dmft_state(
@@ -57,19 +83,23 @@ def gw_edmft_loop(mf, thc, solver_chkpt_h5,
         spin_average=mf.nspin()==1,
         verbal=coqui_mpi.root()
     )
-    if restart:
+    if impurity_params.pop('restart', False):
         dmft_state.load(solver_chkpt_h5)
 
     for iteration in range(outer_num_iter):
         with HDFArchive(coqui_chkpt_h5, 'r') as ar:
             input_type = "embed" if "embed" in ar.keys() else "scf"
             input_iter = ar[f"{input_type}/final_iter"]
+        coqui_mpi.barrier()
 
-        # GW
-        gw_params["input_type"] = input_type
-        gw_params["input_iter"] = input_iter
-        coqui.run_gw(gw_params, h_int = thc, projector_info = proj_info,
-                     local_polarizabilities = dmft_state.local_pi_w)
+        # GW if gw_params presents
+        if gw_params is not None:
+            gw_params["input_type"] = input_type
+            gw_params["input_iter"] = input_iter
+            coqui.run_gw(
+                gw_params, h_int = thc, projector_info = proj_info,
+                local_polarizabilities = dmft_state.local_pi_w
+            )
         coqui_mpi.barrier()
 
         # Set the Green's function for the non-local RPA polarizability
@@ -82,7 +112,7 @@ def gw_edmft_loop(mf, thc, solver_chkpt_h5,
         coqui_mpi.barrier()
 
         # inner EDMFT loop
-        edmft_loop(
+        _edmft_loop(
             mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             gloc_params, wloc_params, impurity_params['solver'], embed_params,
             iterative_params, inner_num_iter
@@ -90,7 +120,7 @@ def gw_edmft_loop(mf, thc, solver_chkpt_h5,
 
 
 
-def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
+def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                gloc_params, wloc_params, solver_params_list, embed_params,
                iterative_params, num_iter):
 
@@ -196,9 +226,7 @@ def edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             delta_iw = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
-            # TODO Option to switch between two algorithms
-            #_solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input, **solver_params)
-            _solver_inner_loop_alg2(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input, **solver_params)
+            _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input, **solver_params)
 
             # convert from triqs Gf to numpy arrays and ir mesh
             Res.update(coqui_dmft.imp_results_to_raw_data(Res['Sigma_iw'], Res['Pi_iw'], dmft_state.ir_kernel))
@@ -255,7 +283,7 @@ def _compute_weiss_fields(imp_results, imp_inputs, solver_params, ir_kernel):
         )
 
 
-def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
+def _solver_inner_loop_slow(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
                        solver_results, solver_inputs, **solver_params):
     solver_params.pop('degenerate_blk_thresh', None)
     solver_params.pop('set_sigma_infty_to_dc', None)
@@ -297,35 +325,31 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
         print(f"Convergence of impurity density: {imp_density - solver_inputs['density']}\n")
 
 
-def _solver_inner_loop_alg2(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
-                            solver_results, solver_inputs, **solver_params):
+def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
+                       solver_results, solver_inputs, **solver_params):
 
     solver_params.pop('degenerate_blk_thresh', None)
     solver_params.pop('set_sigma_infty_to_dc', None)
     solver_params.pop('init_weiss_type', None)
-    mu_tol = solver_params.pop('mu_tol', None)
+    mu_params = solver_params.pop('chemical_potential', None)
 
-    n_warmup_cycles_dens = solver_params.pop('n_warmup_cycles_density', None)
-    length_cycle_dens    = solver_params.pop('length_cycle_density', None)
-    n_cycles_dens        = solver_params.pop('n_cycles_density', None)
-    verbosity_dens       = solver_params.pop('verbosity_density', False)
-
-    if mu_tol is not None:
-        dens_params = solver_params.copy()
-        if not verbosity_dens:
-            dens_params['verbosity'] = 0
-        if n_warmup_cycles_dens is not None:
-            dens_params['n_warmup_cycles'] = n_warmup_cycles_dens
-        if length_cycle_dens is not None:
-            dens_params['length_cycle'] = length_cycle_dens
-        if n_cycles_dens is not None:
-            dens_params['n_cycles'] = n_cycles_dens
+    if mu_params is not None:
+        dens_solver_params = solver_params.copy()
+        mu_tol = mu_params.get('tolerance', 0.1)
+        if not mu_params.get('verbosity', False):
+            dens_solver_params['verbosity'] = 0
+        if mu_params.get('n_warmup_cycles'):
+            dens_solver_params['n_warmup_cycles'] = mu_params.get('n_warmup_cycles')
+        if mu_params.get('length_cycle'):
+            dens_solver_params['length_cycle'] = mu_params.get('length_cycle')
+        if mu_params.get('n_cycles'):
+            dens_solver_params['n_cycles'] = mu_params.get('n_cycles')
 
         compute_nelec_fcn = partial(
             coqui_dmft.compute_nelec_from_solver,
             gf_struct=solver_inputs['gf_struct'], h0_sab=solver_inputs['h0'],
             delta_iw=delta_iw, u_weiss_iw=u_weiss_iw, h_int=h_int,
-            **dens_params
+            **dens_solver_params
         )
         solver_results['mu_imp'], imp_density = coqui_dmft.compute_mu_impurity(
             solver_inputs['density'], compute_nelec_fcn,
