@@ -30,7 +30,7 @@ def post_process(solver, **post_proc_params):
 
 
 def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
-    mpi.report("Charge susceptibility is measured for a impurity with dyanmic interations")
+    mpi.report("Charge susceptibility is measured for a impurity with dynamic interactions")
     mpi.report('--> Post-processing the density-density susceptibility to obtain the impurity polarizability.\n')
 
     n_color = 0
@@ -170,10 +170,12 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
             W_iw_pb[i*n_orb+j, j*n_orb+i] << W_iw_pb[j*n_orb+i, i*n_orb+j]
 
     # transform back to density-density basis
+    # TODO is W(iw) density-density only for density-density interaction?
     if not output_in_4idx:
-        # transform back to density-density basis
-        solver.Pi_iw = Gf(mesh=nn_iw_pb.mesh, target_shape=(n_orb, n_orb))
-        solver.W_iw  = solver.Pi_iw.copy()
+        # transform back to the density-density basis
+        solver.Chi_iw = nn_iw_dd
+        solver.Pi_iw  = Gf(mesh=nn_iw_pb.mesh, target_shape=(n_orb, n_orb))
+        solver.W_iw   = solver.Pi_iw.copy()
         for i, j in product(range(n_orb), repeat=2):
             solver.Pi_iw[i,j] << Pi_iw_pb[i*n_orb+i, j*n_orb+j]
             solver.W_iw[i,j] << W_iw_pb[i*n_orb+i, j*n_orb+j]
@@ -181,9 +183,10 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
             solver.Pi_iw << modest.symmetrize(solver.Pi_iw, degenerate_blk)
             solver.W_iw  << modest.symmetrize(solver.W_iw, degenerate_blk)
     else:
-        # transform back to 4-index tensor 
-        solver.Pi_iw = Gf(mesh=nn_iw_pb.mesh, target_shape=(n_orb, n_orb, n_orb, n_orb))
-        solver.W_iw = solver.Pi_iw.copy()
+        # transform back to 4-index tensor
+        solver.chi_iw = nn_iw_pb
+        solver.Pi_iw  = Gf(mesh=nn_iw_pb.mesh, target_shape=(n_orb, n_orb, n_orb, n_orb))
+        solver.W_iw  = solver.Pi_iw.copy()
         for i, j, k, l in product(range(n_orb), repeat=4):
             solver.Pi_iw[i,j,k,l] << Pi_iw_pb[i*n_orb+j, k*n_orb+l]
             solver.W_iw[i,j,k,l] << W_iw_pb[i*n_orb+j, k*n_orb+l]

@@ -400,18 +400,18 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
     return h0, delta_iw_gf, h_int, u_weiss_iw_gf
 
 
-def Gf_dlr_from_ir(Giw_ir, ir_kernel, mesh_dlr_iw, dim=2):
+def gf_dlr_from_ir(giw_ir, ir_kernel, mesh_dlr_iw):
     
-    nbnd = Giw_ir.shape[-1]
     stats = 'f' if mesh_dlr_iw.statistic == 'Fermion' else 'b'
+    target_shape = giw_ir.shape[1:]
 
     if stats == 'b':
-        Giw_ir_pos = Giw_ir.copy()
-        Giw_ir = np.zeros([Giw_ir_pos.shape[0] * 2 - 1] + [nbnd] * dim, dtype=complex)
-        Giw_ir[: Giw_ir_pos.shape[0]] = Giw_ir_pos[::-1]
-        Giw_ir[Giw_ir_pos.shape[0] :] = Giw_ir_pos[1:]
+        giw_ir_pos = giw_ir.copy()
+        giw_ir = np.zeros([giw_ir_pos.shape[0] * 2 - 1] + target_shape, dtype=complex)
+        giw_ir[: giw_ir_pos.shape[0]] = giw_ir_pos[::-1]
+        giw_ir[giw_ir_pos.shape[0] :] = giw_ir_pos[1:]
     
-    Gf_dlr_iw = Gf(mesh=mesh_dlr_iw, target_shape=[nbnd] * dim)
+    gf_dlr_iw = Gf(mesh=mesh_dlr_iw, target_shape=target_shape)
 
     # prepare idx array for spare ir
     if stats == 'f':
@@ -419,9 +419,66 @@ def Gf_dlr_from_ir(Giw_ir, ir_kernel, mesh_dlr_iw, dim=2):
     else:
         mesh_dlr_iw_idx = np.array([iwn.index for iwn in mesh_dlr_iw])
 
-    Gf_dlr_iw.data[:] = ir_kernel.w_interpolate(Giw_ir, mesh_dlr_iw_idx, stats=stats, ir_notation=False)
+    gf_dlr_iw.data[:] = ir_kernel.w_interpolate(giw_ir, mesh_dlr_iw_idx, stats=stats, ir_notation=False)
 
-    return make_gf_dlr(Gf_dlr_iw)
+    return make_gf_dlr(gf_dlr_iw)
+
+
+def gf_dlr_to_ir(gf_dlr, ir_kernel):
+    stats = 'b' if gf_dlr.mesh.statistic == 'Boson' else 'f'
+    ir_idx = ir_kernel.wn_mesh(stats=stats, ir_notation=False)
+    nw = len(ir_idx)
+    nw_half = nw//2 if nw%2==0 else nw//2+1
+    iw_mesh_uniform = MeshImFreq(
+        beta=gf_dlr.mesh.beta,
+        statistic=gf_dlr.mesh.statistic,
+        n_iw=ir_idx[-1]+10
+    )
+    def fill_gf_ir(gf_input):
+        gf_ir_out = np.zeros((nw,) + gf_input.data[:].shape[1:], dtype=complex)
+        # fermions/bosons have even/odd numbers of IR frequencies
+        for idx in range(nw_half):
+            # nw = 11 -> nw_half = 6: (10,0), (9,1), (8,2), (7,3), (6,4), (5,5)
+            # nw = 10 -> nw_half = 5: (9,0), (8,1), (7,2), (6,3), (5,4)
+            iw_pos = nw-idx-1
+            iw_neg = idx
+            gf_ir_out[iw_pos] = gf_input(iw_mesh_uniform(ir_idx[iw_pos]))
+            if iw_pos != iw_neg:
+                gf_ir_out[iw_neg] = gf_input(iw_mesh_uniform(ir_idx[iw_pos])).conj()
+        return gf_ir_out
+
+    if isinstance(gf_dlr, BlockGf):
+
+        gf_iw_data = []
+        for blk_name, gf in gf_dlr:
+            gf_iw_data.append(fill_gf_ir(gf))
+
+        return gf_iw_data
+
+    elif isinstance(gf_dlr, Gf):
+
+        return fill_gf_ir(gf_dlr)
+
+    else:
+        raise ValueError(f"gf_dlr_to_ir: Invalid type of gf_dlr")
+
+
+def gf_dlr_to_ir_phsym(gf_dlr, ir_kernel):
+    assert gf_dlr.mesh.statistic == "Boson", (
+        "gf_dlr_to_ir_phsym: Gf statistics must be Boson"
+    )
+    ir_idx_b = ir_kernel.wn_mesh(stats='b', ir_notation=False, positive_only=True)
+    nw_b_pos = len(ir_idx_b)
+    iw_mesh_uniform_b = MeshImFreq(
+        beta=gf_dlr.mesh.beta,
+        statistic=gf_dlr.mesh.statistic,
+        n_iw=ir_idx_b[-1]+10
+    )
+    gf_iw_data = np.zeros((nw_b_pos,) + gf_dlr.data[:].shape[1:], dtype=complex)
+    for i, idx in enumerate(ir_idx_b):
+        gf_iw_data[i] = gf_dlr(iw_mesh_uniform_b(idx))
+
+    return gf_iw_data
 
 
 def estimate_zero_moment(Aw, iw_mesh):
@@ -769,16 +826,17 @@ def solve_gw_dc(G_t, V, W_t, u_weiss_iw, ir_kernel, density_only=True,
     }
 
 
-def imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel=None):
+def imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, ir_kernel=None):
     if isinstance(sigma_iw.mesh, MeshDLRImFreq) and isinstance(pi_iw.mesh, MeshDLRImFreq):
-        return _dlr_imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel)
+        return _dlr_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, ir_kernel)
     elif isinstance(sigma_iw.mesh, MeshImFreq) and isinstance(pi_iw.mesh, MeshImFreq):
-        return _full_mesh_imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel)
+        raise ValueError("imp_results_to_raw_data for uniform grid is disable for now")
+        #return _full_mesh_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, ir_kernel)
     else:
         raise ValueError("Incompatible mesh types for sigma_iw and pi_iw.")
 
 
-def _dlr_imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel=None):
+def _dlr_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, ir_kernel=None):
     """
     Convert impurity self-energy and polarization Green's functions from TRIQS objects
     to raw NumPy array representations, optionally projected onto an intermediate
@@ -786,67 +844,46 @@ def _dlr_imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel=None):
 
     Parameters
     ----------
+    g_iw     : BlockGf on MeshDLRImFreq mesh
     sigma_iw : BlockGf on MeshDLRImFreq mesh
-    pi_iw : Gf on MeshDLRImFreq mesh
+    w_iw     : Gf on MeshDLRImFreq mesh
+    pi_iw    : Gf on MeshDLRImFreq mesh
     ir_kernel : optional
-        IR kernel object providing methods to obtain the IR Matsubara frequency meshes.
-        If provided, both `sigma_iw` and `pi_iw` will be interpolated on these IR grids.
+        IR kernel to get the IR Matsubara frequency meshes.
+        If provided, results will be interpolated on these IR grids.
         If None, the data on the original full Matsubara mesh are returned.
 
     Returns
     -------
     dict
         A dictionary containing:
-        - ``"Sigma_iw_data"`` : list of ndarray
+        - ``"G_iw_data"``: list of ndarray
+            Block array representation of the impurity Green's function.
+        - ``"Sigma_iw_data"``: list of ndarray
             Block array representation of the impurity self-energy.
-        - ``"Pi_iw_data"`` : list of ndarray
+        - ``"Pi_iw_data"``: list of ndarray
             Block array representation of the impurity polarizability.
+        - ``"W_iw_data"``: list of ndarray
+            Block array representation of the impurity screened interaction.
     """
     if ir_kernel is None:
-        # solver_res.Sigma_iw (TRIQS BlockGf) -> solver_res.Sigma_iw_data (block array)
+        g_iw_data = blk_gf_to_blk_arr(g_iw)
         sigma_iw_data = blk_gf_to_blk_arr(sigma_iw)
-        # solver_res.pi_iw (TRIQS Gf) -> solver_res.pi_iw_data (block array)
         pi_iw_data = [pi_iw.data[:]]
-
-        return {"Sigma_iw_data": sigma_iw_data, "Pi_iw_data": pi_iw_data}
+        w_iw_data = [w_iw.data[:]]
+        return {"G_iw_data": g_iw_data, "Sigma_iw_data": sigma_iw_data,
+                "W_iw_data": w_iw_data, "Pi_iw_data": pi_iw_data}
 
     # converter Sigma and Pi to IR Matsubara mesh
-    Sigma_dlr = make_gf_dlr(sigma_iw)
-    ir_idx_f = ir_kernel.wn_mesh(stats='f', ir_notation=False)
-    nw_f_half = ir_kernel.nw_f // 2
-    iw_mesh_uniform_f = MeshImFreq(
-        beta=sigma_iw.mesh.beta,
-        statistic=sigma_iw.mesh.statistic,
-        n_iw=ir_idx_f[-1]+10
-    )
-
-    sigma_iw_data = []
-    for blk_name, sigma in Sigma_dlr:
-        sigma_dyn_ir = np.zeros((ir_kernel.nw_f,) + sigma.data[:].shape[1:], dtype=complex)
-        for idx in range(nw_f_half):
-            iw_pos = nw_f_half + idx
-            iw_neg = nw_f_half - idx - 1
-            sigma_dyn_ir[iw_pos] = sigma(iw_mesh_uniform_f(ir_idx_f[iw_pos]))
-            sigma_dyn_ir[iw_neg] = sigma(iw_mesh_uniform_f(ir_idx_f[iw_pos])).conj()
-        sigma_iw_data.append(sigma_dyn_ir)
-
-    Pi_dlr = make_gf_dlr(pi_iw)
-    ir_idx_b = ir_kernel.wn_mesh(stats='b', ir_notation=False, positive_only=True)
-    nw_b_pos = len(ir_idx_b)
-    iw_mesh_uniform_b = MeshImFreq(
-        beta=Pi_dlr.mesh.beta,
-        statistic=Pi_dlr.mesh.statistic,
-        n_iw=ir_idx_b[-1]+10
-    )
-    pi_iw_ir = np.zeros((nw_b_pos,) + pi_iw.data[:].shape[1:], dtype=complex)
-    for i, idx in enumerate(ir_idx_b):
-        pi_iw_ir[i] = Pi_dlr(iw_mesh_uniform_b(idx))
-    pi_iw_data = [pi_iw_ir]
-
-    return {"Sigma_iw_data": sigma_iw_data, "Pi_iw_data": pi_iw_data}
+    g_iw_data     = gf_dlr_to_ir(make_gf_dlr(g_iw), ir_kernel)
+    sigma_iw_data = gf_dlr_to_ir(make_gf_dlr(sigma_iw), ir_kernel)
+    pi_iw_data = [gf_dlr_to_ir_phsym(make_gf_dlr(pi_iw), ir_kernel)]
+    w_iw_data = [gf_dlr_to_ir_phsym(make_gf_dlr(w_iw), ir_kernel)]
+    return {"G_iw_data": g_iw_data, "Sigma_iw_data": sigma_iw_data,
+            "W_iw_data": w_iw_data, "Pi_iw_data": pi_iw_data}
 
 
-def _full_mesh_imp_results_to_raw_data(sigma_iw, pi_iw, ir_kernel=None):
+def _full_mesh_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, ir_kernel=None):
     """
     Convert impurity self-energy and polarization Green's functions from TRIQS objects
     to raw NumPy array representations, optionally projected onto an intermediate

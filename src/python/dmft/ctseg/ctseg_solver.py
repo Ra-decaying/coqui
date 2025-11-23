@@ -177,6 +177,7 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
         Sigma_iw = ctseg_utils.fill_dlr_imfreq_gf(S.Sigma_iw, wmax, eps),
         Pi_iw = ctseg_utils.fill_dlr_imfreq_gf(S.Pi_iw, wmax, eps),
         W_iw  = ctseg_utils.fill_dlr_imfreq_gf(S.W_iw, wmax, eps),
+        Chi_iw = ctseg_utils.fill_dlr_imfreq_gf(S.Chi_iw, wmax, eps),
 
         # optional
         orbital_occupations = S.results.densities,

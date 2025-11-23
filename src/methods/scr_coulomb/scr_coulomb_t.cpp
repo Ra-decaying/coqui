@@ -303,8 +303,13 @@ namespace solvers {
 
     if (_screen_type.find("edmft") == std::string::npos
         and (mb_state.sPi_imp_wabcd or mb_state.sPi_dc_wabcd)) {
-      app_log(2, "scr_coulomb_t::eval_Pi_qdep: pi_imp and pi_dc are only used in edmft mode. "
-                 "Ignoring them in {} mode.", _screen_type);
+      app_log(1, "");
+      app_log(1, "╔══════════════════════════════════════════════════════════╗");
+      app_log(1, "║ [ NOTE ]                                                 ║");
+      app_log(1, "║ Screening type is set to non-\"edmft\" type, but local     ║");
+      app_log(1, "║ polarizabilities were found or provided. The calculation ║");
+      app_log(1, "║ will simply ignoring the polarizability correction.      ║");
+      app_log(1, "╚══════════════════════════════════════════════════════════╝\n");
     }
     utils::check(mb_state.sG_tskij.has_value(),
                  "scr_coulomb_t::eval_Pi_qdep: G_tskij is not set in MBState.");

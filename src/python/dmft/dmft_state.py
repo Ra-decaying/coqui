@@ -70,7 +70,8 @@ class DMFTState(object):
     """
     def __init__(self, embedding_1e, embedding_2e,
                  iw_mesh_f, iw_mesh_b, ir_crystal,
-                 spin_average=False, verbal=False):
+                 spin_average=False, screen_type='gw_edmft',
+                 verbal=False):
         self.iteration = 0
         self.spin_average = spin_average
         self.embedding = {'1e': embedding_1e, '2e': embedding_2e}
@@ -79,6 +80,10 @@ class DMFTState(object):
         self.local_sigma_w = None
         self.local_sigma_infty = None
         self.local_pi_w = None
+        assert screen_type in {"rpa", "gw_edmft", "gw_edmft_density"}, (
+            f"DMFTState: incompatible screen_type = {screen_type} detected. "
+            f"Available choices are \"rpa\", \"gw_edmft\" and \"gw_edmft_density\"."
+        )
 
         self.solver_inputs = [ {
             'gf_struct': self.embedding['1e'].imp_block_shape[imp],
@@ -88,7 +93,8 @@ class DMFTState(object):
             'u_weiss_iw': None,
             'g_weiss_iw': None,
             'delta_iw': None,
-            'h0': None
+            'h0': None,
+            'screen_type': screen_type
         } for imp in range(self.embedding['1e'].n_impurities) ]
 
         self.solver_results = [ {
@@ -102,6 +108,8 @@ class DMFTState(object):
             'Sigma_iw_data': None, # numpy array on IR mesh
             'Pi_iw': None,         # triqs Gf version
             'Pi_iw_data': None,    # numpy array on IR mesh
+            'W_iw': None,          # triqs Gf version
+            'W_iw_data': None,     # numpy array on IR mesh
             'Sigma_infty_dc': None,
             'Sigma_iw_dc_data': None,
             'Pi_iw_dc_data': None
@@ -127,7 +135,7 @@ class DMFTState(object):
     @classmethod
     def make_dmft_state(cls, coqui_h5, embedding_1e, embedding_2e,
                         wmax_imp=None, prec_imp=None, spin_average=False,
-                        verbal=False):
+                        screen_type='gw_edmft', verbal=False):
         from triqs.gf import MeshDLRImFreq
         ir_kernel = IAFT.from_coqui_chkpt(coqui_h5, verbose=verbal)
         # Compatible TRIQS meshes: one for fermion and one for boson, where all triqs Gfs live.
@@ -142,7 +150,7 @@ class DMFTState(object):
             beta=ir_kernel.beta, statistic='Boson', w_max=wmax_imp, eps=prec_imp, symmetrize=True
         )
         return cls(embedding_1e, embedding_2e, iw_mesh_f, iw_mesh_b,
-                   ir_kernel, spin_average, verbal)
+                   ir_kernel, spin_average, screen_type, verbal)
 
 
     def load(self, solver_chkpt):
@@ -226,6 +234,9 @@ class DMFTState(object):
 
 
     def embed_impurity_results(self):
+        # pi impurities are embedded even if screen_type == "rpa".
+        # This is okay since coqui.run_gw() and coqui.downfold_wloc()
+        # automatically omit pi_imp if screen_type="rpa"
         local_sigma_w, local_sigma_infty, local_pi_w = dmft_utils.embed_impurities(
             self.embedding['1e'], self.embedding['2e'], self.solver_results, self.spin_average
         )

@@ -30,6 +30,7 @@ def print_gw_edmft_banner():
           "║  ║ ║║═╬╗║ ║║  ║ ╦│││║╣  │││││├┤  │ \n"
           "╚═╝╚═╝╚═╝╚╚═╝╩  ╚═╝└┴┘╚═╝─┴┘┴ ┴└   ┴ \n")
 
+
 def print_title_box(name, box_width=19):
     top_left = '╔'
     top_right = '╗'
@@ -96,23 +97,27 @@ def _write_impurity_results(h5_grp, impurity_results):
     if "results" not in h5_grp.keys():
         h5_grp.create_group("results")
     res_grp = h5_grp["results"]
-    res_grp['gf_struct'] = impurity_results['gf_struct']
-    res_grp['mu_imp'] = impurity_results['mu_imp']
-    res_grp['G_iw'] = impurity_results['G_iw']
-    res_grp['Sigma_infty'] = impurity_results['Sigma_infty']
-    res_grp['Sigma_iw_data'] = impurity_results['Sigma_iw_data']
-    res_grp['Pi_iw_data'] = impurity_results['Pi_iw_data']
-    res_grp['Sigma_iw'] = impurity_results['Sigma_iw']
-    res_grp['Pi_iw'] = impurity_results['Pi_iw']
-    res_grp['W_iw'] = impurity_results['W_iw']
-    res_grp['orbital_occupations'] = impurity_results['orbital_occupations']
-    res_grp['average_order'] = impurity_results['average_order']
-    res_grp['average_sign'] = impurity_results['average_sign']
 
-    # dc corrections if present
-    res_grp['Sigma_infty_dc'] = impurity_results.get('Sigma_infty_dc', None)
-    res_grp['Sigma_iw_dc_data'] = impurity_results.get('Sigma_iw_dc_data', None)
-    res_grp['Pi_iw_dc_data'] = impurity_results.get('Pi_iw_dc_data', None)
+    # ----- optional keys (raw numpy arrays on IR mesh) -----
+    # "_data" appendices imply raw numpy arrays on IR mesh
+    optional_keys = [
+        'gf_struct', 'mu_imp',
+        'G_iw_data', 'Sigma_iw_data',
+        'Pi_iw_data', 'W_iw_data',
+        'Sigma_infty_dc', 'Sigma_iw_dc_data', 'Pi_iw_dc_data'
+    ]
+    for key in optional_keys:
+        if key in impurity_results:
+            res_grp[key] = impurity_results[key]
+
+    # ----- mandatory TRIQS objects directly from the solver -----
+    mandatory_keys = [
+        'Sigma_infty', 'G_iw', 'Sigma_iw',
+        'Pi_iw', 'W_iw', 'Chi_iw',
+        'orbital_occupations', 'average_order', 'average_sign'
+    ]
+    for key in mandatory_keys:
+        res_grp[key] = impurity_results[key]
 
 
 def _write_impurity_inputs(h5_grp, impurity_inputs):
@@ -223,11 +228,24 @@ def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1
                 _ = ar[f'dmft/iter{iteration}/impurity_0/results']
             except KeyError:
                 # automatically go to the previous iteration if the current one does not exist
+                mpi.report(
+                    f"[Warning] Path 'dmft/iter{iteration}/impurity_0/results' "
+                    f"not found in checkpoint file '{h5_filename}'.\n"
+                    f"→ Falling back to the previous iteration: iter{iteration-1}.\n"
+                )
                 iteration -= 1
+            if iteration < 0:
+                raise RuntimeError(
+                    f"[Error] No valid DMFT iteration found in '{h5_filename}'.\n"
+                    f"Expected path 'dmft/iter*/impurity_0/results' but none exist.\n"
+                    f"Ensure the checkpoint file is complete and not corrupted."
+                )
 
-            mpi.report(f"Updating the impurity results from checkpoint file {h5_filename} at iteration {iteration}\n")
+            mpi.report(
+                f"Loading impurity results from checkpoint '{h5_filename}' "
+                f"at DMFT iteration {iteration}.\n"
+            )
             for imp_index, res in enumerate(solver_results):
-                # TODO check if impurity results exist, if not skip it
                 imp_grp = ar[f'dmft/iter{iteration}/impurity_{imp_index}/results']
                 res_tmp.update(read_all_keys(imp_grp))
                 res_tmp = mpi.bcast(res_tmp)
