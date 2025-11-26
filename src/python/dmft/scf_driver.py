@@ -30,9 +30,6 @@ import coqui.dmft as coqui_dmft
 Hartree_eV = 27.211386245988
 
 
-# TODO option to use pi_dc as pi_iw.
-#  Do we overwrite DMFTState['pi_iw_data'] with [pi_iw_dc_data'] (maybe keep pi_iw still),
-#  or inform functions to use pi_iw_dc_data whenever needed?
 def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
                   inner_num_iter, outer_num_iter, **gw_edmft_params):
     """

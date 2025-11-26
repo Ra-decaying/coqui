@@ -20,7 +20,9 @@ limitations under the License.
 
 from .scf_driver import *
 from .dmft_state import DMFTState
-from .utils import *
+from .triqs_utils import *
+from .chemical_potential import *
+from .weiss import *
 from .bath_fit import *
 from .io import *
 from . import ctseg

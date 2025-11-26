@@ -27,7 +27,7 @@ import numpy as np
 
 def bath_fitting(A_wsab, iw_mesh, statistics, Np=5,
                  *, name="", iw_mesh_out=None):
-    mpi.report(f"Causal projection for {name} with nbath/orbital = {Np} and statistics={statistics}")
+    mpi.report(f"Causal projection for {name} with nbath/orbital = {Np} and statistics = {statistics}")
     try:
         from adapol import hybfit as adapol_hybfit
     except ImportError:
