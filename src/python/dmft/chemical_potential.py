@@ -24,7 +24,8 @@ Utility functions for impurity chemical potential
 import triqs.utility.mpi as mpi
 import numpy as np
 
-from triqs.gf import inverse, iOmega_n#, Gf, make_gf_dlr, BlockGf, MeshImFreq, MeshDLRImFreq
+from triqs.gf import inverse, iOmega_n
+from triqs.operators.util.extractors import block_matrix_from_op
 import coqui.dmft as coqui_dmft
 
 
@@ -45,7 +46,7 @@ def compute_nelec(h0, delta_iw, sigma_infty, sigma_iw, mu):
 def compute_nelec_from_solver(gf_struct, h0_sab, delta_iw, u_weiss_iw, h_int, mu, **solver_params):
     # update h0 = h0 - mu_imp
     h0_mat_shifted = np.array([ h0_mat - np.eye(h0_mat.shape[0])*mu for h0_mat in h0_sab ])
-    h0_op = coqui_dmft.h0_operator(h0_mat_shifted, gf_struct, diagonal=True, force_real=True)
+    h0_op = coqui_dmft.h0_operator(h0_mat_shifted, gf_struct, force_real=True)
 
     density_res = coqui_dmft.ctseg.solve_density_dynamic_u(delta_iw, h0_op, u_weiss_iw, h_int, **solver_params)
     imp_density = 0.0

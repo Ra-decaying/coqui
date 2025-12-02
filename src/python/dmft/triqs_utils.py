@@ -43,9 +43,11 @@ This module relies on the TRIQS ecosystem, in particular:
 """
 from h5 import HDFArchive
 import numpy as np
+from itertools import product
 
 from triqs.gf import inverse, iOmega_n, Gf, make_gf_dlr, BlockGf, Block2Gf, MeshImFreq, MeshDLRImFreq
 from triqs.operators import c_dag, c, Operator, util
+from triqs.operators.util.extractors import block_matrix_from_op
 import coqui.dmft as coqui_dmft
 
 
@@ -141,21 +143,20 @@ def h_int_slater(v_abcd_pb, gf_struct, force_real=True):
                               map_operator_structure=c_to_solver)
     
 
-def h0_operator(h0_sab, gf_struct, *, diagonal=True, force_real=True):
-    assert len(h0_sab.shape) == 3, "incorrect h0_sab.shape"
-    assert diagonal, "h0_operator: only diagonal=True is supported for now."
-    h0_op = Operator()
-    o1 = [0, 0]
-    for blk_name, blk_dim in gf_struct:
-        s = 0 if blk_name[:2] == "up" else 1
-        for i in range(blk_dim):
-            if force_real:
-                h0_op += h0_sab[s, o1[s]+i, o1[s]+i].real * c_dag(blk_name, i) * c(blk_name, i)
-            else:
-                h0_op += h0_sab[s, o1[s]+i, o1[s]+i] * c_dag(blk_name, i) * c(blk_name, i)
-            o1[s] += blk_dim
+def h0_operator(h0_sab, gf_struct, *, force_real=True):
+    h0_blk_mat = arr_to_blk_arr(h0_sab, gf_struct)
+    return blk_h0_to_h0_operator(h0_blk_mat, gf_struct, force_real)
 
-    return h0_op
+
+def blk_h0_to_h0_operator(blk_h0, gf_struct, force_real=True):
+    h_loc0_mat = {block : blk_h0[ibl].real if force_real else blk_h0[ibl] for ibl, (block, _) in enumerate(gf_struct) }
+    c_dag_vec  = {block : np.matrix([[c_dag(block, o) for o in range(bl_size)]]) for block, bl_size in gf_struct }
+    c_vec      = {block : np.matrix([[c(block, o) for o in range(bl_size)]]) for block, bl_size in gf_struct }
+    return sum(c_dag_vec[block]*h_loc0_mat[block]*c_vec[block].T for block, bl_size in gf_struct)[0,0]
+
+
+def h0_operator_to_array(h0_op, gf_struct):
+    return blk_arr_to_arr(block_matrix_from_op(h0_op, gf_struct), gf_struct)
 
 
 def to_block_gf(giw_ir, ir_kernel, gf_struct, mesh_iw):
@@ -289,7 +290,7 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
         "Convertion to non-density-density Hamiltonian is not implemented yet."
     )
 
-    h0 = h0_operator(h0, gf_struct, diagonal=density_hamiltonian, force_real=real_hamiltonian)
+    h0 = h0_operator(h0, gf_struct, force_real=real_hamiltonian)
     h_int = h_int_density_density(Vimp, gf_struct, force_real=real_hamiltonian)
 
     if real_hamiltonian:
@@ -721,3 +722,47 @@ def _full_mesh_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, ir_kernel=No
     pi_iw_data[0] = pi_iw_ir
 
     return {"Sigma_iw_data": sigma_iw_data, "Pi_iw_data": pi_iw_data}
+
+
+def symmetrize_blk_mat(blk_mat, deg_blk):
+    blk_mat_sym = blk_mat.copy()
+    for i, blks in enumerate(deg_blk):
+        blk_avg = np.sum(blk_mat[blks]) / len(blks)
+        for b in blks:
+            blk_mat_sym[b] = blk_avg
+    return blk_mat_sym
+
+
+def symmetrize_h0_op(h0_op, deg_blk, gf_struct):
+    h0_blk_mat = block_matrix_from_op(h0_op, gf_struct)
+    h0_blk_sym = symmetrize_blk_mat(h0_blk_mat, deg_blk)
+    return blk_h0_to_h0_operator(h0_blk_sym, gf_struct)
+
+
+def symmetrize_blk2_gf(u_iw_blk_gf2, deg_blk, gf_struct):
+    u_iw_sym = u_iw_blk_gf2.copy()
+    for i, blks in enumerate(deg_blk):
+        # Same-orbital blocks
+        u_diag_buffer = u_iw_blk_gf2[gf_struct[0][0], gf_struct[0][0]].copy()
+        u_diag_buffer << 0.0
+        u_offdiag_buffer = u_diag_buffer.copy()
+        diag_count, offdiag_count = 0, 0
+        for b1, b2 in product(blks, repeat=2):
+            blk_name1, blk_name2 = gf_struct[b1][0], gf_struct[b2][0]
+            if blk_name1.split('_')[1] == blk_name2.split('_')[1]:
+                u_diag_buffer += u_iw_blk_gf2[blk_name1, blk_name2]
+                diag_count += 1
+            else:
+                u_offdiag_buffer += u_iw_blk_gf2[blk_name1, blk_name2]
+                offdiag_count += 1
+        u_diag_buffer /= diag_count
+        u_offdiag_buffer /= offdiag_count
+
+        for b1, b2 in product(blks, repeat=2):
+            blk_name1, blk_name2 = gf_struct[b1][0], gf_struct[b2][0]
+            if blk_name1.split('_')[1] == blk_name2.split('_')[1]:
+                u_iw_sym[blk_name1, blk_name2] << u_diag_buffer
+            else:
+                u_iw_sym[blk_name1, blk_name2] << u_offdiag_buffer
+
+    return u_iw_sym

@@ -53,12 +53,13 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
 
     D0_tau = Gf(mesh=tau_mesh, target_shape=(n_color, n_color))
     nn_tau = D0_tau.copy()
-    for c1 in range(n_color):
-        for c2 in range(n_color):
-            nn_tau.data[:, c1, c2] = (
-                solver.results.nn_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]])
-            D0_tau.data[:, c1, c2] = (
-                solver.D0_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]])
+    for c1, c2 in product(range(n_color), repeat=2):
+        nn_tau.data[:, c1, c2] = (
+            solver.results.nn_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
+        )
+        D0_tau.data[:, c1, c2] = (
+            solver.D0_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
+        )
 
     
     # density for the constant part of chi

@@ -213,10 +213,12 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             else:
                 solver_params['degenerate_blk'] = [np.array(x) for x in solver_params["degenerate_blk"]]
             coqui_dmft.print_degenerate_blks(solver_params['degenerate_blk'], Res['gf_struct'])
-            delta_iw = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
+            delta_iw   = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
+            h0         = coqui_dmft.symmetrize_h0_op(h0, solver_params['degenerate_blk'], Res['gf_struct'])
+            u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, solver_params['degenerate_blk'], Res['gf_struct'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
-            _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input, **solver_params)
+            _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input['density'], **solver_params)
             # convert from triqs Gf to numpy arrays and ir mesh
             Res.update(coqui_dmft.imp_results_to_raw_data(
                 Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], dmft_state.ir_kernel)
@@ -355,7 +357,7 @@ def _solver_inner_loop_slow(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
 
 
 def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
-                       solver_results, solver_inputs, **solver_params):
+                       solver_results, target_density, **solver_params):
 
     solver_params.pop('degenerate_blk_thresh', None)
     solver_params.pop('set_sigma_infty_to_dc', None)
@@ -375,19 +377,21 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
         if mu_params.get('n_cycles'):
             dens_solver_params['n_cycles'] = mu_params.get('n_cycles')
 
+        gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in delta_iw]
+        h0_sab = coqui_dmft.h0_operator_to_array(h0, gf_struct)
         compute_nelec_fcn = partial(
             coqui_dmft.compute_nelec_from_solver,
-            gf_struct=solver_inputs['gf_struct'], h0_sab=solver_inputs['h0'],
+            gf_struct=gf_struct, h0_sab=h0_sab,
             delta_iw=delta_iw, u_weiss_iw=u_weiss_iw, h_int=h_int,
             **dens_solver_params
         )
         solver_results['mu_imp'], imp_density = coqui_dmft.compute_mu_impurity(
-            solver_inputs['density'], compute_nelec_fcn,
+            target_density, compute_nelec_fcn,
             tolerance=mu_tol, mu0=0.0 # always start from mu=0 s.t. mu_imp falls back to 0 at convergence
         )
         # update h0 = h0 - mu_imp
-        h0_mat_shifted = np.array([ h0_mat - np.eye(h0_mat.shape[0])*solver_results['mu_imp'] for h0_mat in solver_inputs['h0'] ])
-        h0 = coqui_dmft.h0_operator(h0_mat_shifted, solver_inputs['gf_struct'], diagonal=True, force_real=True)
+        h0_mat_shifted = np.array([ h0_mat - np.eye(h0_mat.shape[0])*solver_results['mu_imp'] for h0_mat in h0_sab ])
+        h0 = coqui_dmft.h0_operator(h0_mat_shifted, gf_struct, force_real=True)
 
     solver_results.update(coqui_dmft.ctseg.solve_dynamic_imp(delta_iw, h0, u_weiss_iw, h_int, **solver_params))
     # impurity total density
@@ -397,4 +401,4 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
 
     if coqui_mpi.root():
         print(f"Total impurity densities = {imp_density}")
-        print(f"Convergence of impurity density: {imp_density - solver_inputs['density']}\n")
+        print(f"Convergence of impurity density: {imp_density - target_density}\n")

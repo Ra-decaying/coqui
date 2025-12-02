@@ -52,7 +52,7 @@ def print_degenerate_blks(deg_blks, gf_struct):
     mpi.report(f"Degenerate blocks for impurity")
     mpi.report("-------------------------------")
     for i, blks in enumerate(deg_blks):
-        subset = [gf_struct[i] for i in blks]
+        subset = [gf_struct[b] for b in blks]
         mpi.report(f"Shell {i}: {subset}\n")
 
 
