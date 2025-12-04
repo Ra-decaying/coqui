@@ -3,7 +3,7 @@ import numpy as np
 from itertools import product
 
 from triqs.gf import (iOmega_n, MeshImFreq, MeshDLRImFreq, Gf, BlockGf,
-                      make_gf_imfreq, make_gf_imtime,
+                      make_gf_dlr, make_gf_imfreq, make_gf_imtime,
                       make_gf_from_fourier, Idx, make_hermitian, is_gf_hermitian)
 from triqs.gf.gf_fnt import fit_hermitian_tail_on_window, replace_by_tail
 from triqs.gf.tools import inverse, make_zero_tail
@@ -18,7 +18,7 @@ def post_process(solver, **post_proc_params):
     
     post_process_sigma(solver, **post_proc_params)
     
-    if solver.D0_tau is not None and solver.results.nn_tau is not None:
+    if solver.D0_tau is not None and solver.results.nn_nu is not None:
         if post_proc_params['degenerate_blk']:
             deg_blk_2e = []
             for blks in post_proc_params['degenerate_blk']:
@@ -48,14 +48,14 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
         color_to_orbital.append(find_orbital_index(color, solver.gf_struct))
     
     # initialization
-    iw_mesh = MeshImFreq(beta = solver.beta, S="Boson", n_max = solver.n_iw)
-    tau_mesh = solver.results.nn_tau[block_name[0], block_name[0]].mesh
+    tau_mesh = solver.D0_tau[block_name[0], block_name[0]].mesh
+    iw_mesh_dlr = solver.results.nn_nu[block_name[0], block_name[0]].mesh
 
     D0_tau = Gf(mesh=tau_mesh, target_shape=(n_color, n_color))
-    nn_tau = D0_tau.copy()
+    nn_iw_dlr = Gf(mesh=iw_mesh_dlr, target_shape=(n_color, n_color))
     for c1, c2 in product(range(n_color), repeat=2):
-        nn_tau.data[:, c1, c2] = (
-            solver.results.nn_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
+        nn_iw_dlr.data[:, c1, c2] = (
+            solver.results.nn_nu[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
         )
         D0_tau.data[:, c1, c2] = (
             solver.D0_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
@@ -73,22 +73,24 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
                "  2. nn(i, j) = nn(j, i)\n")
 
     for c1, c2 in product(range(n_color), repeat=2):
+        iw_idx = np.array([ iw.index for iw in nn_iw_dlr[c1,c2].mesh ])
+        w0_idx = np.where(iw_idx==0)[0][0]
         if c1 >= c2:
-            # remove the constant part 
-            nn_tau[c1,c2].data[:] -= (densities[c1] * densities[c2])
+            # remove the constant part
+            nn_iw_dlr[c1,c2].data[w0_idx] -= iw_mesh_dlr.beta * (densities[c1] * densities[c2])
             # symmetrization
-            nn_tau[c1,c2].data.imag = 0.0
+            nn_iw_dlr[c1,c2].data.imag = 0.0
             if c1 != c2:
-                nn_tau[c2,c1].data[:] -= (densities[c2] * densities[c1])
-                nn_tau[c1,c2].data[:] += nn_tau[c2,c1].data[:]
-                nn_tau[c1,c2].data[:] /= 2.0
-                nn_tau[c2,c1] << nn_tau[c1,c2]
+                nn_iw_dlr[c2,c1].data[w0_idx] -= iw_mesh_dlr.beta * (densities[c2] * densities[c1])
+                nn_iw_dlr[c1,c2].data[:] += nn_iw_dlr[c2,c1].data[:].real
+                nn_iw_dlr[c1,c2].data[:] /= 2.0
+                nn_iw_dlr[c2,c1] << nn_iw_dlr[c1,c2]
 
-    nn_iw = Gf(mesh = iw_mesh, target_shape = nn_tau.target_shape)
+    nn_iw = make_gf_imfreq(make_gf_dlr(nn_iw_dlr), n_iw = solver.n_iw)
     U_iw = nn_iw.copy()
-    nn_known_moments = make_zero_tail(nn_iw, n_moments=2)
-    nn_iw.set_from_fourier(nn_tau, nn_known_moments)
-    U_iw.set_from_fourier(D0_tau, nn_known_moments)
+    U_iw << 0.0
+    u_known_moments = make_zero_tail(U_iw, n_moments=2)
+    U_iw.set_from_fourier(D0_tau, u_known_moments)
     #assert is_gf_hermitian(nn_iw)
     #nn_iw << make_hermitian(nn_iw)
 

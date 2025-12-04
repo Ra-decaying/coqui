@@ -138,6 +138,8 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
     n_iw = solver_interface_params.pop('n_iw', 1025)
     n_tau = solver_interface_params.pop('n_tau', 10001)
     n_tau_bosonic = solver_interface_params.pop('n_tau_bosonic', n_tau)
+    solver_interface_params.setdefault('dlr_omega_max', wmax)
+    solver_interface_params.setdefault('dlr_epsilon', eps)
 
     S = Solver(gf_struct=gf_struct, beta=beta, n_tau=n_tau, n_tau_bosonic=n_tau_bosonic)
 
@@ -165,7 +167,7 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
     # call solver
     solver_interface_params['measure_densities'] = True
     solver_interface_params['measure_F_tau']     = True
-    solver_interface_params['measure_nn_tau']    = True
+    solver_interface_params['measure_nn_nu']     = True
     S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
 
     # post process

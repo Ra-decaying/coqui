@@ -119,6 +119,9 @@ def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
         )
 
 
+# TODO edmft_loop version 2:
+#  With Gloc and Wloc fixed, iterate (g_weiss, u_weiss) until
+#  Sigma_imp = Sigma_imp[Gloc, Wloc], and Pi_imp = Pi_imp[Gloc, Wloc]
 def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                gloc_params, wloc_params, solver_params_list, embed_params,
                iterative_params, num_iter):
@@ -204,7 +207,7 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             )
 
             # Analyze block symmetry
-            if solver_params['degenerate_blk'] is None:
+            if solver_params.get('degenerate_blk') is None:
                 if coqui_mpi.root():
                     print("Analyzing block symmetries via the hybridization function...\n")
                 solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
