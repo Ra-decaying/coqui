@@ -31,7 +31,8 @@ Hartree_eV = 27.211386245988
 
 
 def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
-                  inner_num_iter, outer_num_iter, **gw_edmft_params):
+                  inner_num_iter, outer_num_iter, inner_loop_alg=1,
+                  **gw_edmft_params):
     """
     GW+EDMFT self-consistency loop
     :return:
@@ -112,16 +113,18 @@ def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
         coqui_mpi.barrier()
 
         # inner EDMFT loop
-        _edmft_loop(
+        edmft_alg = {1: _edmft_loop, 2: _edmft_loop_alg2}
+        try:
+            edmft_impl = edmft_alg[inner_loop_alg]
+        except KeyError:
+            raise ValueError(f"Unknown inner_loop_alg={inner_loop_alg!r} (expected 1 or 2)")
+        edmft_impl(
             mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             gloc_params, wloc_params, impurity_params['solver'], embed_params,
             iterative_params, inner_num_iter
         )
 
 
-# TODO edmft_loop version 2:
-#  With Gloc and Wloc fixed, iterate (g_weiss, u_weiss) until
-#  Sigma_imp = Sigma_imp[Gloc, Wloc], and Pi_imp = Pi_imp[Gloc, Wloc]
 def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                gloc_params, wloc_params, solver_params_list, embed_params,
                iterative_params, num_iter):
@@ -146,12 +149,15 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
         gloc_params["input_type"] = input_type
         gloc_params["input_iter"] = input_iter
         Gloc_t = coqui.downfold_local_gf(mf, gloc_params, projector_info=proj_info)
-        if mf.nspin() == 1:
-            Gloc_t = np.repeat(Gloc_t, repeats=2, axis=1) # duplicate the spin channel
 
         if coqui_mpi.root():
             dmft_state.ir_kernel.check_leakage(Gloc_t, stats='f', name='Gloc in the full MLWF space')
             dmft_state.ir_kernel.check_leakage_phsym(Wloc_t, stats='b', name='Wloc in the full MLWF space')
+
+        # Convert spin axis → list of length nspin
+        Gloc_t = [Gloc_t[:, s] for s in range(Gloc_t.shape[1])]
+        if mf.nspin() == 1:
+            Gloc_t = [Gloc_t[0], Gloc_t[0].copy()]
 
         # Extract local Green's function and screened interactions for each impurity
         Gimp_C    = dmft_state.embedding['1e'].extract_wij(Gloc_t)   # block matrix
@@ -263,6 +269,151 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
         )
         dmft_state.iteration += 1
         coqui_mpi.barrier()
+
+
+def _edmft_loop_alg2(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
+                     gloc_params, wloc_params, solver_params_list, embed_params,
+                     iterative_params, num_iter):
+    coqui_mpi = mf.mpi()
+    coqui_chkpt_h5 = gloc_params['outdir']+"/"+gloc_params['prefix']+".mbpt.h5"
+    with HDFArchive(coqui_chkpt_h5, 'r') as ar:
+        input_type = "embed" if "embed" in ar.keys() else "scf"
+        input_iter = ar[f"{input_type}/final_iter"]
+
+    # downfold for W_loc
+    # input_type and input_iter should be fixed during the inner loop
+    Vloc, Wloc_t = coqui.downfold_local_coulomb(
+        thc, wloc_params,
+        projector_info=proj_info,
+        local_polarizabilities=dmft_state.local_pi_w
+    )
+
+    # downfold for G_loc
+    gloc_params["input_type"] = input_type
+    gloc_params["input_iter"] = input_iter
+    Gloc_t = coqui.downfold_local_gf(mf, gloc_params, projector_info=proj_info)
+
+    if coqui_mpi.root():
+        dmft_state.ir_kernel.check_leakage(Gloc_t, stats='f', name='Gloc in the full MLWF space')
+        dmft_state.ir_kernel.check_leakage_phsym(Wloc_t, stats='b', name='Wloc in the full MLWF space')
+
+    # Convert spin axis → list of length nspin
+    Gloc_t = [Gloc_t[:, s] for s in range(Gloc_t.shape[1])]
+    if mf.nspin() == 1:
+        Gloc_t = [Gloc_t[0], Gloc_t[0].copy()]
+
+    # Extract local Green's function and screened interactions for each impurity
+    Gloc_C    = dmft_state.embedding['1e'].extract_wij(Gloc_t)   # block matrix
+    Vloc_C    = dmft_state.embedding['2e'].extract_ijkl(Vloc)    # (norb, norb, norb, norb)
+    Wloc_C    = dmft_state.embedding['2e'].extract_wijkl(Wloc_t) # (nts, norb, norb, norb, norb)
+
+    for iteration in range(num_iter):
+        for imp_index, (G_t, W_t, V) in enumerate(zip(Gloc_C, Wloc_C, Vloc_C)):
+            coqui_dmft.print_title_box(f"IMPURITY {imp_index}")
+
+            solver_params = solver_params_list[imp_index]
+            Res, Input = dmft_state.solver_results[imp_index], dmft_state.solver_inputs[imp_index]
+            Input['Gloc_t'] = G_t
+            Input['Wloc_t'] = coqui_dmft.chemistry_to_product_basis(W_t)
+            Input['Vloc'] = coqui_dmft.chemistry_to_product_basis(V)
+
+            # Fermionic and bosonic Weiss fields
+            Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(
+                coqui_mpi, Res, Input, solver_params, dmft_state.ir_kernel
+            )
+            # h0: (nspin, norb, norb), delta_iw: (niw, nspin, norb, norb)
+            Input['h0'], Input['delta_iw'] = coqui_dmft.extract_h0_and_delta(
+                Input['g_weiss_iw'], dmft_state.ir_kernel
+            )
+
+            Ub, Ubp, Jb_spin, Jb_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc'])
+            U, Up, J_spin, J_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc']+Input['u_weiss_iw'][0])
+            dm = -dmft_state.ir_kernel.tau_interpolate(
+                coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
+                [dmft_state.ir_kernel.beta], 'f')[0]
+            Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
+            if coqui_mpi.root():
+                print("Hubbard-Kanamori interaction at bare and zero frequency")
+                print("--------------------------------------------------------")
+                print(f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
+                print(f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
+                print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
+                print(f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
+
+                print("Local densities ")
+                print("-------------------")
+                print(f"Total: {Input['density']:.4f}")
+                print(f"Spin up: {np.diag(dm[0]).real}")
+                print(f"Spin down: {np.diag(dm[1]).real}\n")
+
+            dmft_state.save_impurity_inputs(solver_chkpt_h5, imp_index)
+
+            # Convert CoQuí outputs to TRIQS containers
+            h0, delta_iw, h_int, u_weiss_iw = coqui_dmft.to_triqs_containers(
+                Input['h0'], Input['delta_iw'], Input['Vloc'], Input['u_weiss_iw'],
+                dmft_state.ir_kernel, gf_struct = Res['gf_struct'],
+                triqs_iw_mesh = {"fermion": Res['iw_mesh_f'], "boson": Res['iw_mesh_b']},
+                density_hamiltonian = True, real_hamiltonian = True
+            )
+
+            # Analyze block symmetry
+            if solver_params.get('degenerate_blk') is None:
+                if coqui_mpi.root():
+                    print("Analyzing block symmetries via the hybridization function...\n")
+                solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
+                    delta_iw, threshold=solver_params['degenerate_blk_thresh']
+                )
+            else:
+                solver_params['degenerate_blk'] = [np.array(x) for x in solver_params["degenerate_blk"]]
+            coqui_dmft.print_degenerate_blks(solver_params['degenerate_blk'], Res['gf_struct'])
+            delta_iw   = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
+            h0         = coqui_dmft.symmetrize_h0_op(h0, solver_params['degenerate_blk'], Res['gf_struct'])
+            u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, solver_params['degenerate_blk'], Res['gf_struct'])
+
+            # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
+            _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input['density'], **solver_params)
+            # convert from triqs Gf to numpy arrays and ir mesh
+            Res.update(coqui_dmft.imp_results_to_raw_data(
+                Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], dmft_state.ir_kernel)
+            )
+            # Causal projection
+            Res.update(coqui_dmft.causal_projection_boson(
+                Res['Pi_iw_data'], Res['W_iw_data'],
+                dmft_state.ir_kernel, solver_params.get("causal_projection"))
+            )
+
+            # GW double counting contributions
+            Res.update(
+                coqui_dmft.solve_gw_dc(
+                    coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Res['gf_struct']),
+                    Input['Vloc'], Input['Wloc_t'], Input['u_weiss_iw'],
+                    dmft_state.ir_kernel, density_only=True,
+                    gf_struct=Res['gf_struct']
+                )
+            )
+
+            # mixing impurity and dc solutions to facilitate convergence
+            dmft_state.damp_impurity_results(
+                solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7), impurity_indices=[imp_index]
+            )
+
+            # save solver results for current impurity
+            dmft_state.save_impurity_results(solver_chkpt_h5, imp_index)
+
+        # Embed impurity results
+        dmft_state.embed_impurity_results()
+
+        dmft_state.iteration += 1
+        coqui_mpi.barrier()
+
+    # Upfolding
+    coqui.dmft_embed(
+        mf, embed_params,
+        projector_info = proj_info,
+        local_hf_potentials = dmft_state.local_sigma_infty,
+        local_sigma_dynamic = dmft_state.local_sigma_w
+    )
+    coqui_mpi.barrier()
 
 
 def _compute_weiss_fields(coqui_mpi, imp_results, imp_inputs, solver_params, ir_kernel):

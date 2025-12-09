@@ -584,6 +584,7 @@ def arr_to_blk_arr(array, gf_struct):
     return blk_array
 
 
+# deprecated - it is implemented in modest now
 def extract_ij(sigma_infty_embed, embedding):
     gf_struct_list = [embedding.imp_block_shape[imp] for imp in range(embedding.n_impurities)]
     sigma_infty_list = []
@@ -596,6 +597,8 @@ def extract_ij(sigma_infty_embed, embedding):
 
     return sigma_infty_list
 
+
+# deprecated - it is implemented in modest now
 def extract_wij(sigma_iw_embed, embedding):
     gf_struct_list = [embedding.imp_block_shape[imp] for imp in range(embedding.n_impurities)]
     sigma_iw_list = []
