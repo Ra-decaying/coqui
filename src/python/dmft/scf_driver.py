@@ -213,18 +213,19 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             )
 
             # Analyze block symmetry
-            if solver_params.get('degenerate_blk') is None:
+            if solver_params.get('degenerate_blk'):
+                solver_params['degenerate_blk'] = [np.array(x) for x in solver_params["degenerate_blk"]]
+            elif solver_params.get('degenerate_blk_thresh'):
                 if coqui_mpi.root():
                     print("Analyzing block symmetries via the hybridization function...\n")
                 solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
                     delta_iw, threshold=solver_params['degenerate_blk_thresh']
                 )
-            else:
-                solver_params['degenerate_blk'] = [np.array(x) for x in solver_params["degenerate_blk"]]
-            coqui_dmft.print_degenerate_blks(solver_params['degenerate_blk'], Res['gf_struct'])
-            delta_iw   = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
-            h0         = coqui_dmft.symmetrize_h0_op(h0, solver_params['degenerate_blk'], Res['gf_struct'])
-            u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, solver_params['degenerate_blk'], Res['gf_struct'])
+            if solver_params.get('degenerate_blk'):
+                coqui_dmft.print_degenerate_blks(solver_params['degenerate_blk'], Res['gf_struct'])
+                delta_iw   = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
+                h0         = coqui_dmft.symmetrize_h0_op(h0, solver_params['degenerate_blk'], Res['gf_struct'])
+                u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, solver_params['degenerate_blk'], Res['gf_struct'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
             _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input['density'], **solver_params)
