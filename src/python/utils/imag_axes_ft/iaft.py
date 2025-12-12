@@ -114,18 +114,18 @@ class IAFT(object):
         self.prec  = set_precision(prec)
         self.statisics = {'f', 'b'}
 
-        self.bases = sparse_ir.FiniteTempBasisSet(beta=self.beta, wmax=self.wmax, eps=self.prec)
-        self.tau_mesh_f = self.bases.smpl_tau_f.sampling_points
-        self.tau_mesh_b = self.bases.smpl_tau_b.sampling_points
-        self._wn_mesh_f = self.bases.smpl_wn_f.sampling_points
-        self._wn_mesh_b = self.bases.smpl_wn_b.sampling_points
+        self._bases = sparse_ir.FiniteTempBasisSet(beta=self.beta, wmax=self.wmax, eps=self.prec)
+        self.tau_mesh_f = self._bases.smpl_tau_f.sampling_points
+        self.tau_mesh_b = self._bases.smpl_tau_b.sampling_points
+        self._wn_mesh_f = self._bases.smpl_wn_f.sampling_points
+        self._wn_mesh_b = self._bases.smpl_wn_b.sampling_points
         self.nt_f, self.nw_f = self.tau_mesh_f.shape[0], self._wn_mesh_f.shape[0]
         self.nt_b, self.nw_b = self.tau_mesh_b.shape[0], self._wn_mesh_b.shape[0]
 
-        Ttl_ff = self.bases.basis_f.u(self.tau_mesh_f).T
-        Twl_ff = self.bases.basis_f.uhat(self._wn_mesh_f).T
-        Ttl_bb = self.bases.basis_b.u(self.tau_mesh_b).T
-        Twl_bb = self.bases.basis_b.uhat(self._wn_mesh_b).T
+        Ttl_ff = self._bases.basis_f.u(self.tau_mesh_f).T
+        Twl_ff = self._bases.basis_f.uhat(self._wn_mesh_f).T
+        Ttl_bb = self._bases.basis_b.u(self.tau_mesh_b).T
+        Twl_bb = self._bases.basis_b.uhat(self._wn_mesh_b).T
 
         self.Tlt_ff = np.linalg.pinv(Ttl_ff)
         self.Tlt_bb = np.linalg.pinv(Ttl_bb)
@@ -385,7 +385,7 @@ class IAFT(object):
             raise ValueError(
                 "w_interpolate: Number of w points are inconsistent: {} and {}".format(Ow.shape[0], Tlw.shape[1]))
 
-        Twl_interp = self.bases.basis_f.uhat(wn_indices).T if stats == 'f' else self.bases.basis_b.uhat(wn_indices).T
+        Twl_interp = self._bases.basis_f.uhat(wn_indices).T if stats == 'f' else self._bases.basis_b.uhat(wn_indices).T
         Tww = np.dot(Twl_interp, Tlw)
 
         Ow_shape = Ow.shape
@@ -461,7 +461,7 @@ class IAFT(object):
                 imw = self.nw_b // 2 - n
                 Tlw_pos[l, n] = Tlw[l, iw] if iw == imw else Tlw[l, iw] + Tlw[l, imw]
 
-        Twl_interp = self.bases.basis_b.uhat(wn_indices).T
+        Twl_interp = self._bases.basis_b.uhat(wn_indices).T
         Tww = np.dot(Twl_interp, Tlw_pos)
 
         Ow_shape = Ow.shape
@@ -495,7 +495,7 @@ class IAFT(object):
             raise ValueError(
                 "t_interpolate: Number of tau points are inconsistent: {} and {}".format(Ot.shape[0], Tlt.shape[1]))
 
-        Ttl_interp = self.bases.basis_f.u(tau_mesh_interp).T if stats == 'f' else self.bases.basis_b.u(tau_mesh_interp).T
+        Ttl_interp = self._bases.basis_f.u(tau_mesh_interp).T if stats == 'f' else self._bases.basis_b.u(tau_mesh_interp).T
         Ttt = np.dot(Ttl_interp, Tlt)
 
         Ot_shape = Ot.shape
@@ -557,7 +557,7 @@ class IAFT(object):
                 imt = self.nt_b - it - 1
                 Tlt_pos[l, it] = Tlt[l, it] if it == imt else Tlt[l, it] + Tlt[l, imt]
 
-        Ttl_interp = self.bases.basis_b.u(tau_mesh_interp).T
+        Ttl_interp = self._bases.basis_b.u(tau_mesh_interp).T
         Ttt = np.dot(Ttl_interp, Tlt_pos)
 
         Ot_shape = Ot.shape
