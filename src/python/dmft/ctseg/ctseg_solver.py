@@ -1,3 +1,4 @@
+import triqs.utility.mpi as mpi
 import numpy as np
 from h5 import HDFArchive
 from triqs.gf import MeshImFreq, Gf, BlockGf, Block2Gf, MeshDLRImFreq, MeshImFreq, make_gf_from_fourier, fit_hermitian_tail, make_hermitian
@@ -135,11 +136,20 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
     """
     gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
     beta, wmax, eps  = Delta_iw.mesh.beta, Delta_iw.mesh.w_max, Delta_iw.mesh.eps
+
     n_iw = solver_interface_params.pop('n_iw', 1025)
     n_tau = solver_interface_params.pop('n_tau', 10001)
     n_tau_bosonic = solver_interface_params.pop('n_tau_bosonic', n_tau)
     solver_interface_params.setdefault('dlr_omega_max', wmax)
     solver_interface_params.setdefault('dlr_epsilon', eps)
+
+    # check if n_iw is compatible with dlr mesh
+    mesh_dlr_idx = np.array([iw.index for iw in Delta_iw.mesh])
+    max_dlr_idx = max(abs(mesh_dlr_idx[0]), abs(mesh_dlr_idx[-1]))
+    if max_dlr_idx > n_iw:
+        mpi.report(f"WARNING: n_iw = {n_iw} is smaller than the maximum DLR frequency index"
+                   f" ({max_dlr_idx}). Setting n_iw to {max_dlr_idx+1}.")
+        n_iw = max_dlr_idx+1
 
     S = Solver(gf_struct=gf_struct, beta=beta, n_tau=n_tau, n_tau_bosonic=n_tau_bosonic)
 
@@ -237,7 +247,6 @@ def solve_density_dynamic_u_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_in
     solver_interface_params['measure_F_tau']     = False
     solver_interface_params['measure_nn_tau']    = False
     S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
-
 
     return SolverResults(# required
         orbital_occupations = S.results.densities,
