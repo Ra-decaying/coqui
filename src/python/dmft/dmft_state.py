@@ -25,7 +25,7 @@ import triqs.utility.mpi as mpi
 from h5 import HDFArchive
 
 from coqui.utils.imag_axes_ft import IAFT
-import coqui.dmft.utils as dmft_utils
+from coqui.dmft.weiss import embed_impurities
 import coqui.dmft.io as dmft_io
 
 """
@@ -186,7 +186,7 @@ class DMFTState(object):
                     "Incompatible block dimension for the loaded impurity Pi"
                 )
 
-        self.local_sigma_w, self.local_sigma_infty, self.local_pi_w = dmft_utils.embed_impurities(
+        self.local_sigma_w, self.local_sigma_infty, self.local_pi_w = embed_impurities(
             self.embedding['1e'], self.embedding['2e'], self.solver_results, self.spin_average
         )
         if mpi.is_master_node():
@@ -238,7 +238,7 @@ class DMFTState(object):
         # pi impurities are embedded even if screen_type == "rpa".
         # This is okay since coqui.run_gw() and coqui.downfold_wloc()
         # automatically omit pi_imp if screen_type="rpa"
-        local_sigma_w, local_sigma_infty, local_pi_w = dmft_utils.embed_impurities(
+        local_sigma_w, local_sigma_infty, local_pi_w = embed_impurities(
             self.embedding['1e'], self.embedding['2e'], self.solver_results, self.spin_average
         )
 
