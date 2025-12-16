@@ -158,6 +158,14 @@ class IAFT(object):
 
         return cls(beta, wmax, prec, verbose)
 
+    def save(self, h5_grp):
+        if 'imaginary_fourier_transform' in h5_grp:
+            return
+        h5_grp.create_group('imaginary_fourier_transform')
+        h5_grp['imaginary_fourier_transform']['beta'] = self.beta
+        h5_grp['imaginary_fourier_transform']['wmax'] = self.wmax
+        h5_grp['imaginary_fourier_transform']['prec'] = self.prec
+
     def __str__(self):
         return ("Mesh details on the imaginary axis\n" \
                 "----------------------------------\n" \

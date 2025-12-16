@@ -293,6 +293,18 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
     h0 = h0_operator(h0, gf_struct, force_real=real_hamiltonian)
     h_int = h_int_density_density(Vimp, gf_struct, force_real=real_hamiltonian)
 
+    if "fermion" not in triqs_iw_mesh:
+        triqs_iw_mesh['fermion'] = MeshDLRImFreq(
+            beta=ir_kernel.beta, statistic='Fermion',
+            w_max=triqs_iw_mesh['dlr_wmax'], eps=triqs_iw_mesh['dlr_eps'], symmetrize=True
+        )
+    if "boson" not in triqs_iw_mesh:
+        triqs_iw_mesh['boson'] = MeshDLRImFreq(
+            beta=ir_kernel.beta, statistic='Boson',
+            w_max=triqs_iw_mesh['dlr_wmax'], eps=triqs_iw_mesh['dlr_eps'], symmetrize=True
+        )
+
+
     if real_hamiltonian:
         # FT to tau space and enforce to real values
         delta_tau = ir_kernel.w_to_tau(delta_iw, 'f')

@@ -25,6 +25,7 @@ from h5 import HDFArchive
 import triqs_modest as modest
 
 import coqui
+from coqui.utils.imag_axes_ft import IAFT
 import coqui.dmft as coqui_dmft
 
 Hartree_eV = 27.211386245988
@@ -228,7 +229,9 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                 u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, solver_params['degenerate_blk'], Res['gf_struct'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
-            _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input['density'], **solver_params)
+            Res.update(
+                _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Input['density'], **solver_params)
+            )
             # convert from triqs Gf to numpy arrays and ir mesh
             Res.update(coqui_dmft.imp_results_to_raw_data(
                 Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], dmft_state.ir_kernel)
@@ -372,7 +375,9 @@ def _edmft_loop_alg2(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, solver_params['degenerate_blk'], Res['gf_struct'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
-            _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Res, Input['density'], **solver_params)
+            Res.update(
+                _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Input['density'], **solver_params)
+            )
             # convert from triqs Gf to numpy arrays and ir mesh
             Res.update(coqui_dmft.imp_results_to_raw_data(
                 Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], dmft_state.ir_kernel)
@@ -512,7 +517,7 @@ def _solver_inner_loop_slow(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
 
 
 def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
-                       solver_results, target_density, **solver_params):
+                       target_density, **solver_params):
 
     solver_params.pop('degenerate_blk_thresh', None)
     solver_params.pop('set_sigma_infty_to_dc', None)
@@ -540,15 +545,18 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
             delta_iw=delta_iw, u_weiss_iw=u_weiss_iw, h_int=h_int,
             **dens_solver_params
         )
-        solver_results['mu_imp'], imp_density = coqui_dmft.compute_mu_impurity(
+        mu_imp, imp_density = coqui_dmft.compute_mu_impurity(
             target_density, compute_nelec_fcn,
             tolerance=mu_tol, mu0=0.0 # always start from mu=0 s.t. mu_imp falls back to 0 at convergence
         )
         # update h0 = h0 - mu_imp
-        h0_mat_shifted = np.array([ h0_mat - np.eye(h0_mat.shape[0])*solver_results['mu_imp'] for h0_mat in h0_sab ])
+        h0_mat_shifted = np.array([ h0_mat - np.eye(h0_mat.shape[0])*mu_imp for h0_mat in h0_sab ])
         h0 = coqui_dmft.h0_operator(h0_mat_shifted, gf_struct, force_real=True)
+    else:
+        mu_imp = 0.0
 
-    solver_results.update(coqui_dmft.ctseg.solve_dynamic_imp(delta_iw, h0, u_weiss_iw, h_int, **solver_params))
+    solver_results = coqui_dmft.ctseg.solve_dynamic_imp(delta_iw, h0, u_weiss_iw, h_int, **solver_params)
+    solver_results['mu_imp'] = mu_imp
     # impurity total density
     imp_density = 0.0
     for blk_name, occ in solver_results['orbital_occupations'].items():
@@ -557,3 +565,90 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
     if coqui_mpi.root():
         print(f"Total impurity densities = {imp_density}")
         print(f"Convergence of impurity density: {imp_density - target_density}\n")
+
+    return solver_results
+
+
+def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, **params):
+
+    imp_params = params.pop('impurity')
+    solver_params_list = imp_params['solver']
+    for solver_params in solver_params_list:
+        solver_params['n_cycles'] = int(solver_params['n_cycles']/coqui_mpi.comm_size())
+
+    ir_kernel = IAFT.from_coqui_chkpt(imp_params['chkpt_h5'], verbose=coqui_mpi.root())
+    wmax_imp, prec_imp = imp_params.pop('dlr_wmax', ir_kernel.wmax), imp_params.pop('dlr_eps', ir_kernel.prec)
+
+    solver_inputs = coqui_dmft.read_impurity_chkpt(
+        imp_params['chkpt_h5'], dmft_iteration, read="inputs", impurity_indices=imp_indices
+    )
+    solver_results = []
+    for imp_index, inputs in enumerate(solver_inputs):
+        coqui_dmft.print_title_box(f"IMPURITY {imp_index}")
+        solver_params = solver_params_list[imp_index]
+        Input = solver_inputs[imp_index]
+
+        Ub, Ubp, Jb_spin, Jb_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc'])
+        U, Up, J_spin, J_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc']+Input['u_weiss_iw'][0])
+        dm = -ir_kernel.tau_interpolate(
+            coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
+            [ir_kernel.beta], 'f')[0]
+        Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
+        if coqui_mpi.root():
+            print("Hubbard-Kanamori interaction at bare and zero frequency")
+            print("--------------------------------------------------------")
+            print(f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
+            print(f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
+            print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
+            print(f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
+
+            print("Local densities ")
+            print("-------------------")
+            print(f"Total: {Input['density']:.4f}")
+            print(f"Spin up: {np.diag(dm[0]).real}")
+            print(f"Spin down: {np.diag(dm[1]).real}\n")
+
+        if coqui_mpi.root():
+            ir_kernel.check_leakage(Input['delta_iw'], 'f', 'delta', w_input=True)
+            ir_kernel.check_leakage_phsym(Input['u_weiss_iw'], 'b', 'u_weiss', w_input=True)
+
+        # Convert CoQuí outputs to TRIQS containers
+        h0, delta_iw, h_int, u_weiss_iw = coqui_dmft.to_triqs_containers(
+            Input['h0'], Input['delta_iw'], Input['Vloc'], Input['u_weiss_iw'],
+            ir_kernel, gf_struct = Input['gf_struct'],
+            triqs_iw_mesh = {"dlr_wmax": wmax_imp, "dlr_eps": prec_imp},
+            density_hamiltonian = True, real_hamiltonian = True
+        )
+
+        # Analyze block symmetry
+        if solver_params.get('degenerate_blk'):
+            solver_params['degenerate_blk'] = [np.array(x) for x in solver_params["degenerate_blk"]]
+        elif solver_params.get('degenerate_blk_thresh'):
+            if coqui_mpi.root():
+                print("Analyzing block symmetries via the hybridization function...\n")
+            solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
+                delta_iw, threshold=solver_params['degenerate_blk_thresh']
+            )
+        if solver_params.get('degenerate_blk'):
+            coqui_dmft.print_degenerate_blks(solver_params['degenerate_blk'], Input['gf_struct'])
+            delta_iw   = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
+            h0         = coqui_dmft.symmetrize_h0_op(h0, solver_params['degenerate_blk'], Input['gf_struct'])
+            u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, solver_params['degenerate_blk'], Input['gf_struct'])
+
+        # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
+        Res = _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Input['density'], **solver_params)
+
+        # convert from triqs Gf to numpy arrays and ir mesh
+        Res.update(coqui_dmft.imp_results_to_raw_data(
+            Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], ir_kernel)
+        )
+
+        # Causal projection
+        Res.update(coqui_dmft.causal_projection_boson(
+            Res['Pi_iw_data'], Res['W_iw_data'],
+            ir_kernel, solver_params.get("causal_projection"))
+        )
+
+        solver_results.append(Res)
+
+    return solver_results

@@ -201,6 +201,7 @@ class DMFTState(object):
     def save_impurity_inputs(self, solver_chkpt, impurity_index):
         if mpi.is_master_node():
             with HDFArchive(solver_chkpt, 'a') as ar:
+                self.ir_kernel.save(ar)
                 if "dmft" not in ar.keys():
                     ar.create_group("dmft")
                 dmft_io.save_impurities(
