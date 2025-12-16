@@ -65,6 +65,46 @@ def _mix_into(curr, prev, mixing_factor=0.7):
     return
 
 
+def save_impurity_results(solver_results, solver_chkpt, iteration=-1, impurity_index=-1):
+    if mpi.is_master_node():
+        with HDFArchive(solver_chkpt, 'a') as ar:
+            if "dmft" not in ar.keys():
+                ar.create_group("dmft")
+            dmft_io.save_impurities(
+                ar["dmft"], solver_results = solver_results,
+                impurity_index = impurity_index, iteration = iteration
+            )
+    mpi.barrier()
+
+
+def save_impurity_inputs(solver_inputs, solver_chkpt, iteration=-1, impurity_index=-1, *, ir_kernel=None):
+    if mpi.is_master_node():
+        with HDFArchive(solver_chkpt, 'a') as ar:
+            if ir_kernel:
+                ir_kernel.save(ar)
+            if "dmft" not in ar.keys():
+                ar.create_group("dmft")
+            dmft_io.save_impurities(
+                ar["dmft"], solver_inputs = solver_inputs,
+                impurity_index = impurity_index, iteration = iteration
+            )
+    mpi.barrier()
+
+
+def save(solver_results, solver_inputs, solver_chkpt, iteration=-1, *, ir_kernel=None):
+    if mpi.is_master_node():
+        with HDFArchive(solver_chkpt, 'a') as ar:
+            if ir_kernel:
+                ir_kernel.save(ar)
+            if "dmft" not in ar.keys():
+                ar.create_group("dmft")
+            dmft_io.save_impurities(
+                ar["dmft"], solver_results = solver_results,
+                solver_inputs = solver_inputs, iteration = iteration
+            )
+    mpi.barrier()
+
+
 class DMFTState(object):
     """
     """
@@ -199,39 +239,18 @@ class DMFTState(object):
 
 
     def save_impurity_inputs(self, solver_chkpt, impurity_index):
-        if mpi.is_master_node():
-            with HDFArchive(solver_chkpt, 'a') as ar:
-                self.ir_kernel.save(ar)
-                if "dmft" not in ar.keys():
-                    ar.create_group("dmft")
-                dmft_io.save_impurities(
-                    ar["dmft"], solver_inputs = self.solver_inputs,
-                    impurity_index = impurity_index, iteration = self.iteration
-                )
-        mpi.barrier()
-
+        save_impurity_inputs(
+            self.solver_inputs, solver_chkpt, self.iteration, impurity_index, ir_kernel=self.ir_kernel
+        )
 
     def save_impurity_results(self, solver_chkpt, impurity_index):
-        if mpi.is_master_node():
-            with HDFArchive(solver_chkpt, 'a') as ar:
-                if "dmft" not in ar.keys():
-                    ar.create_group("dmft")
-                dmft_io.save_impurities(
-                    ar["dmft"], solver_results = self.solver_results,
-                    impurity_index = impurity_index, iteration = self.iteration
-                )
-        mpi.barrier()
+        save_impurity_results(
+            self.solver_results, solver_chkpt, self.iteration, impurity_index
+        )
 
     def save(self, solver_chkpt):
-        if mpi.is_master_node():
-            with HDFArchive(solver_chkpt, 'a') as ar:
-                if "dmft" not in ar.keys():
-                    ar.create_group("dmft")
-                dmft_io.save_impurities(
-                    ar["dmft"], solver_results = self.solver_results,
-                    solver_inputs = self.solver_inputs, iteration = self.iteration
-                )
-        mpi.barrier()
+        save(self.solver_results, self.solver_inputs,
+             solver_chkpt, self.iteration, ir_kernel=self.ir_kernel)
 
 
     def embed_impurity_results(self):
