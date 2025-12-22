@@ -15,24 +15,21 @@ coqui.set_verbosity(coqui_mpi, output_level=2)
 
 outer_niter, inner_niter = 10, 1
 
-# Embedding class from ModEST
+# obe from ModEST
+obe = modest.make_one_body_elements_gw(wan_h5)
 mpi.report("-"*20+"One-Particle Embedding"+"-"*20)
-P, E1 = modest.make_embedding_from_h5(wan_h5)
-E1 = E1.split_block(0, 0, [1, 1, 1])
-mpi.report(E1)
 
+# Embedding class from ModEST
+E1 = modest.make_embedding(obe.C_space)
+mpi.report(E1.description(True))
 mpi.report("-"*20+"Two-Particle Embedding"+"-"*20)
-_, E2 = modest.make_embedding_from_h5(wan_h5)
-E2 = E2.make_spinless
-mpi.report(E2)
+E2 = modest.make_embedding(obe.C_space, use_atom_decomp=True)
+mpi.report(E2.description(True))
 
 # Update the rotation matrix
-proj_info = {}
-if mpi.is_master_node():
-    proj_info = coqui_dmft.read_proj_info(wan_h5)
-proj_info = mpi.bcast(proj_info)
+proj_info = coqui_dmft.get_proj_info(obe.P)
 
-# read input parameters 
+# read input parameters
 with open("gw_edmft_params.toml", "rb") as f:
     coqui_params = tomllib.load(f)
 

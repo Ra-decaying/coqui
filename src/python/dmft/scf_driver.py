@@ -161,11 +161,13 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             Gloc_t = [Gloc_t[0], Gloc_t[0].copy()]
 
         # Extract local Green's function and screened interactions for each impurity
-        Gimp_C    = dmft_state.embedding['1e'].extract_wij(Gloc_t)   # block matrix
-        Vimp_C    = dmft_state.embedding['2e'].extract_ijkl(Vloc)    # (norb, norb, norb, norb)
-        Wimp_C    = dmft_state.embedding['2e'].extract_wijkl(Wloc_t) # (nts, norb, norb, norb, norb)
+        Gimp_C    = dmft_state.embedding['1e'].extract(Gloc_t)   # block matrix
+        Vloc_C    = dmft_state.embedding['2e'].extract([Vloc])
+        Wloc_C    = dmft_state.embedding['2e'].extract([Wloc_t])
+        Vloc_C    = [ V[0] for V in Vloc_C ]      # spinless
+        Wloc_C    = [ W_t[0] for W_t in Wloc_C ]  # spinless
 
-        for imp_index, (G_t, W_t, V) in enumerate(zip(Gimp_C, Wimp_C, Vimp_C)):
+        for imp_index, (G_t, W_t, V) in enumerate(zip(Gimp_C, Wloc_C, Vloc_C)):
             coqui_dmft.print_title_box(f"IMPURITY {imp_index}")
 
             solver_params = solver_params_list[imp_index]
@@ -307,9 +309,11 @@ def _edmft_loop_alg2(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
         Gloc_t = [Gloc_t[0], Gloc_t[0].copy()]
 
     # Extract local Green's function and screened interactions for each impurity
-    Gloc_C    = dmft_state.embedding['1e'].extract_wij(Gloc_t)   # block matrix
-    Vloc_C    = dmft_state.embedding['2e'].extract_ijkl(Vloc)    # (norb, norb, norb, norb)
-    Wloc_C    = dmft_state.embedding['2e'].extract_wijkl(Wloc_t) # (nts, norb, norb, norb, norb)
+    Gloc_C    = dmft_state.embedding['1e'].extract(Gloc_t)   # block matrix
+    Vloc_C    = dmft_state.embedding['2e'].extract([Vloc])    # (norb, norb, norb, norb)
+    Wloc_C    = dmft_state.embedding['2e'].extract([Wloc_t]) # (nts, norb, norb, norb, norb)
+    Vloc_C    = [ V[0] for V in Vloc_C ]      # spinless
+    Wloc_C    = [ W_t[0] for W_t in Wloc_C ]  # spinless
 
     for iteration in range(num_iter):
         for imp_index, (G_t, W_t, V) in enumerate(zip(Gloc_C, Wloc_C, Vloc_C)):
