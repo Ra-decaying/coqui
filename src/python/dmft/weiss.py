@@ -163,6 +163,36 @@ def density_density_to_product_basis(A_ab):
     return A_abcd
 
 
+def dynamic_4idx_u_to_dd_basis(u_wabcd_pb, nspin=2, screen_j=False):
+    """
+    :param u_wabcd_pb: bosonic Weiss field in the product basis
+    :param nspin:
+    :param screen_j:
+    :return:
+    """
+    nw, nbnd = u_wabcd_pb.shape[:2]
+    U  = np.zeros((nw,nbnd,nbnd), dtype=u_wabcd_pb.dtype)      # matrix for same spin
+    Uprime = np.zeros((nw,nbnd,nbnd), dtype=u_wabcd_pb.dtype)  # matrix for opposite spin
+    for m in range(nbnd):
+        for mp in range(nbnd):
+            U[:,m,mp]  = u_wabcd_pb[:,m,m,mp,mp] - u_wabcd_pb[:,m,mp,mp,m]
+            Uprime[:,m,mp] = u_wabcd_pb[:,m,m,mp,mp]
+
+    if not screen_j:
+        # set same-spin U = opposite-spin U
+        U[:] = Uprime[:]
+    else:
+        # fill diagonals of same-spin U
+        for m in range(nbnd):
+            U[:,m,m] = Uprime[:,m,m]
+
+    U_s1s2 = np.empty((nw, nspin, nspin, nbnd, nbnd), dtype=u_wabcd_pb.dtype)
+    U_s1s2[:,0,0], U_s1s2[:,1,1] = U, U
+    U_s1s2[:,0,1], U_s1s2[:,1,0] = Uprime, Uprime
+
+    return U_s1s2
+
+
 def estimate_zero_moment(Aw, iw_mesh):
     """
     Estimate the zeroth moment (high-frequency constant term) of A(iω). 

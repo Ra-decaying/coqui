@@ -122,6 +122,8 @@ def get_spin_and_orbital_index(block_name, gf_struct_list, imp_index):
 
 
 def v_pb_to_triqs_notation(v_pb_ijkl):
+    # v_pb_ijkl <-> c^dag_j c^dag_k c_l c_i
+    # v_triqs_jkil  <-> c^dag_j c^dag_k c_l c_i
     v_triqs_jkil = v_pb_ijkl.transpose(1, 2, 0, 3).copy()
     return v_triqs_jkil
 
@@ -191,12 +193,16 @@ def to_block_gf(giw_ir, ir_kernel, gf_struct, mesh_iw):
 def to_block2_gf(Diw_ir, ir_kernel, gf_struct, mesh_iw):
 
     assert mesh_iw.statistic == 'Boson', "Only mesh_iw.statistic == Boson is supported."
-    assert len(Diw_ir.shape) == 3, "Diw_ir needs to have dimensions (nw, nbnd, nbnd)"
-    assert Diw_ir.shape[1] == Diw_ir.shape[2], "Diw_ir needs to have dimensions (nw, nbnd, nbnd)"
+    assert len(Diw_ir.shape) == 5, \
+        "Diw_ir needs to have dimensions (nw, nspin, nspin, nbnd, nbnd)"
+    assert Diw_ir.shape[1] == Diw_ir.shape[2], \
+        "Diw_ir needs to have dimensions (nw, nspin, nspin, nbnd, nbnd)"
+    assert Diw_ir.shape[-1] == Diw_ir.shape[-2], \
+        "Diw_ir needs to have dimensions (nw, nspin, nspin, nbnd, nbnd)"
     nw_half = ir_kernel.nw_b//2 if ir_kernel.nw_b%2==0 else ir_kernel.nw_b//2 + 1
     assert Diw_ir.shape[0] == nw_half, "Diw_ir.shape[0] != nw_b_half"
-    
-    # Diw_ir = (nw, nbnd, nbnd)
+
+    # Diw_ir = (nw, nspin, nspin, nbnd, nbnd)
     nbnd = Diw_ir.shape[-1]
 
     mesh_iw_idx = np.array([iwn.index for iwn in mesh_iw])
@@ -213,7 +219,7 @@ def to_block2_gf(Diw_ir, ir_kernel, gf_struct, mesh_iw):
             s2 = 0 if name2[:2] == "up" else 1
 
             gf = Gf(mesh = mesh_iw, target_shape = (dim1, dim2))
-            gf.data[:] = Diw_data[:, o1[s1]:o1[s1]+dim1, o2[s2]:o2[s2]+dim2]
+            gf.data[:] = Diw_data[:, s1, s2, o1[s1]:o1[s1]+dim1, o2[s2]:o2[s2]+dim2]
 
             o2[s2] += dim2
             assert o2[s2] <= nbnd, f"Spin {s2} block exceeds band range"
@@ -231,7 +237,8 @@ def to_block2_gf(Diw_ir, ir_kernel, gf_struct, mesh_iw):
 
 def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel, 
                         gf_struct, triqs_iw_mesh, 
-                        density_hamiltonian, real_hamiltonian=True):
+                        density_hamiltonian, real_hamiltonian=True,
+                        screen_j_in_u_dd=False):
     """
     Convert raw CoQui outputs (NumPy arrays) into TRIQS containers 
     (e.g. `triqs.operators.many_body_operator`, `BlockGf`, and `Block2Gf`).
@@ -268,6 +275,8 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
     real_hamiltonian : bool, optional
         If `True`, enforce the bare Hamiltonian (h0, Vimp) to be real-valued. 
         Default is `True`.
+    screen_j_in_u_dd : bool, optional
+        If `True`, modify the same spin density-density dynamic screening with screening J.
 
     Returns
     -------
@@ -286,7 +295,7 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
       interactions; a full four-index mapping is not yet implemented.
     """
 
-    assert density_hamiltonian==True, (
+    assert density_hamiltonian, (
         "Convertion to non-density-density Hamiltonian is not implemented yet."
     )
 
@@ -315,19 +324,15 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, ir_kernel,
         delta_iw_gf = to_block_gf(delta_iw, ir_kernel,
                                   gf_struct, triqs_iw_mesh["fermion"])
 
-    if real_hamiltonian:
-        u_weiss_tau = ir_kernel.w_to_tau_phsym(u_weiss_iw, 'b')
-        u_weiss_tau.imag = 0.0
-        u_weiss_iw_real = ir_kernel.tau_to_w_phsym(u_weiss_tau, 'b')
-        u_weiss_iw_gf = to_block2_gf(
-            coqui_dmft.product_basis_to_density_density(u_weiss_iw_real),
-            ir_kernel, gf_struct, triqs_iw_mesh["boson"]
-        )
-    else:
-        u_weiss_iw_gf = to_block2_gf(
-            coqui_dmft.product_basis_to_density_density(u_weiss_iw),
-            ir_kernel, gf_struct, triqs_iw_mesh["boson"]
-        )
+    # u_iw_s1s2 has dimension of (niw, nspin, nspin, nbnd, nbnd)
+    u_iw_s1s2 = coqui_dmft.dynamic_4idx_u_to_dd_basis(
+        u_weiss_iw, nspin=2, screen_j=screen_j_in_u_dd
+    )
+
+    u_weiss_iw_gf = to_block2_gf(
+        u_iw_s1s2.real if real_hamiltonian else u_iw_s1s2,
+        ir_kernel, gf_struct, triqs_iw_mesh["boson"]
+    )
 
     return h0, delta_iw_gf, h_int, u_weiss_iw_gf
 
@@ -756,28 +761,62 @@ def symmetrize_h0_op(h0_op, deg_blk, gf_struct):
 
 def symmetrize_blk2_gf(u_iw_blk_gf2, deg_blk, gf_struct):
     u_iw_sym = u_iw_blk_gf2.copy()
+    # 'up_0', 'up_1', 'dn_0', 'dn_1'
     for i, blks in enumerate(deg_blk):
-        # Same-orbital blocks
-        u_diag_buffer = u_iw_blk_gf2[gf_struct[0][0], gf_struct[0][0]].copy()
+
+        # same-spin, same-orbital blocks
+        u_diag_buffer = u_iw_blk_gf2[gf_struct[blks[0]][0], gf_struct[blks[0]][0]].copy()
         u_diag_buffer << 0.0
+        # opposite-spin, same-orbital blocks
+        up_diag_buffer = u_diag_buffer.copy()
+        # same-spin, off-diagonal orbital blocks
         u_offdiag_buffer = u_diag_buffer.copy()
+        # opposite-spin, off-diagonal orbital blocks
+        up_offdiag_buffer = u_diag_buffer.copy()
         diag_count, offdiag_count = 0, 0
+        diag_count_prime, offdiag_count_prime = 0, 0
+
+        # different treatment for same-spin and opposite-spin in case they are different
         for b1, b2 in product(blks, repeat=2):
             blk_name1, blk_name2 = gf_struct[b1][0], gf_struct[b2][0]
-            if blk_name1.split('_')[1] == blk_name2.split('_')[1]:
-                u_diag_buffer += u_iw_blk_gf2[blk_name1, blk_name2]
-                diag_count += 1
+            spin1, orb_blk1 = blk_name1.split('_')
+            spin2, orb_blk2 = blk_name2.split('_')
+
+            # same spin
+            if spin1 == spin2:
+                if orb_blk1 == orb_blk2:
+                    u_diag_buffer += u_iw_blk_gf2[blk_name1, blk_name2]
+                    diag_count += 1
+                else:
+                    u_offdiag_buffer += u_iw_blk_gf2[blk_name1, blk_name2]
+                    offdiag_count += 1
             else:
-                u_offdiag_buffer += u_iw_blk_gf2[blk_name1, blk_name2]
-                offdiag_count += 1
+                if orb_blk1 == orb_blk2:
+                    up_diag_buffer += u_iw_blk_gf2[blk_name1, blk_name2]
+                    diag_count_prime += 1
+                else:
+                    up_offdiag_buffer += u_iw_blk_gf2[blk_name1, blk_name2]
+                    offdiag_count_prime += 1
+
         u_diag_buffer /= diag_count
+        up_diag_buffer /= diag_count_prime
         u_offdiag_buffer /= offdiag_count
+        up_offdiag_buffer /= offdiag_count_prime
 
         for b1, b2 in product(blks, repeat=2):
             blk_name1, blk_name2 = gf_struct[b1][0], gf_struct[b2][0]
-            if blk_name1.split('_')[1] == blk_name2.split('_')[1]:
-                u_iw_sym[blk_name1, blk_name2] << u_diag_buffer
+            spin1, orb_blk1 = blk_name1.split('_')
+            spin2, orb_blk2 = blk_name2.split('_')
+
+            if spin1 == spin2:
+                if orb_blk1 == orb_blk2:
+                    u_iw_sym[blk_name1, blk_name2] << u_diag_buffer
+                else:
+                    u_iw_sym[blk_name1, blk_name2] << u_offdiag_buffer
             else:
-                u_iw_sym[blk_name1, blk_name2] << u_offdiag_buffer
+                if orb_blk1 == orb_blk2:
+                    u_iw_sym[blk_name1, blk_name2] << up_diag_buffer
+                else:
+                    u_iw_sym[blk_name1, blk_name2] << up_offdiag_buffer
 
     return u_iw_sym

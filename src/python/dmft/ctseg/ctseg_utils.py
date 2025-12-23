@@ -87,22 +87,16 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
                 nn_iw_dlr[c2,c1] << nn_iw_dlr[c1,c2]
 
     nn_iw = make_gf_imfreq(make_gf_dlr(nn_iw_dlr), n_iw = solver.n_iw)
-    U_iw = nn_iw.copy()
-    U_iw << 0.0
-    u_known_moments = make_zero_tail(U_iw, n_moments=2)
-    U_iw.set_from_fourier(D0_tau, u_known_moments)
-    #assert is_gf_hermitian(nn_iw)
-    #nn_iw << make_hermitian(nn_iw)
 
-    # convert to density-density basis 
+    D0_iw = nn_iw.copy()
+    D0_iw << 0.0
+    u_known_moments = make_zero_tail(D0_iw, n_moments=2)
+    D0_iw.set_from_fourier(D0_tau, u_known_moments)
+
+    # convert to density-density basis
     nn_iw_dd = Gf(mesh=nn_iw.mesh, target_shape=[n_orb, n_orb])
-    U_iw_dd = nn_iw_dd.copy()
     for c1, c2 in product(range(n_color), repeat=2):
         nn_iw_dd[color_to_orbital[c1], color_to_orbital[c2]].data[:] += nn_iw[c1, c2].data[:]
-        # FIXME Why do we need U_iw_dd?
-        # multiply by 0.25 to take average over (up, up), (up, dn), (dn, up) and (dn, dn) 
-        # (assuming all sub blocks are the same)
-        U_iw_dd[color_to_orbital[c1], color_to_orbital[c2]].data[:] += U_iw[c1, c2].data[:] * 0.25
     if degenerate_blk is not None:
         nn_iw_dd << modest.symmetrize(nn_iw_dd, degenerate_blk)
         
@@ -116,26 +110,35 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
                 nn_iw_pb[j*n_orb+j, i*n_orb+i] << nn_iw_pb[i*n_orb+i, j*n_orb+j]
 
 
-    # Vijkl is the full 4-index tensor without the block structure 
+    # bosonic Weiss field in the product basis
     U_iw_pb = Gf(mesh=nn_iw_pb.mesh, target_shape=nn_iw_pb.target_shape)
-    # Vijkl is in TRIQS's notation
+
+    # U(iw) in density-density basis
+    D0_iijj = D0_iw[:n_orb, n_orb:2*n_orb]
+    # screening J if non-zero
+    D0_ijij = D0_iijj - D0_iw[:n_orb, 0:n_orb]
+
+    # Vijkl is the full 4-index tensor without the block structure in TRIQS's notation
     Vijkl = extract_Uijkl_from_h_int(h_int=solver.h_int, gf_struct=solver.gf_struct)
+
     for i, j in product(range(n_orb), repeat=2):
         if i == j:
             # intra-orbital density-density term
-            U_iw_pb[i*n_orb+i, i*n_orb+i] << U_iw_dd[i, i].real
+            U_iw_pb[i*n_orb+i, i*n_orb+i] << D0_iijj[i, i].real
             U_iw_pb[i*n_orb+i, i*n_orb+i].data[:] += Vijkl[i, i, i, i]
         if i > j:
             # inter-orbital density-density term
-            U_iw_pb[i*n_orb+i, j*n_orb+j] << U_iw_dd[i, j]
+            U_iw_pb[i*n_orb+i, j*n_orb+j] << D0_iijj[i, j].real
             U_iw_pb[i*n_orb+i, j*n_orb+j].data[:] += Vijkl[i, j, i, j]
             U_iw_pb[j*n_orb+j, i*n_orb+i] << U_iw_pb[i*n_orb+i, j*n_orb+j]
             # Hund's J: Spin-flip (i, j, j, i)
-            U_iw_pb[j*n_orb+i, j*n_orb+i].data[:] += Vijkl[i, j, j, i]
-            U_iw_pb[i*n_orb+j, i*n_orb+j] << U_iw_pb[j*n_orb+i, j*n_orb+i]
+            U_iw_pb[i*n_orb+j, i*n_orb+j] << D0_ijij[i, j].real
+            U_iw_pb[i*n_orb+j, i*n_orb+j].data[:] += Vijkl[i, j, j, i]
+            U_iw_pb[j*n_orb+i, j*n_orb+i] << U_iw_pb[i*n_orb+j, i*n_orb+j]
             # Hund's J: Pair hopping (i, j, i, j)
-            U_iw_pb[j*n_orb+i, i*n_orb+j].data[:] += Vijkl[i, i, j, j]
-            U_iw_pb[i*n_orb+j, j*n_orb+i] << U_iw_pb[j*n_orb+i, i*n_orb+j]
+            U_iw_pb[i*n_orb+j, j*n_orb+i] << D0_ijij[i, j].real
+            U_iw_pb[i*n_orb+j, j*n_orb+i].data[:] += Vijkl[i, i, j, j]
+            U_iw_pb[j*n_orb+i, i*n_orb+j] << U_iw_pb[i*n_orb+j, j*n_orb+i]
     
 
     # Dyson equation: Pi(w) = Chi(w) * [U(w)*Chi(w) - I]^-1
@@ -197,7 +200,7 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
 
 def post_process_sigma(solver, **post_proc_params):
     
-    # initializaiton 
+    # initialization
     mesh = MeshImFreq(beta = solver.beta, S="Fermion", n_max = solver.n_iw)
     solver.Sigma_iw = BlockGf(mesh = mesh, gf_struct = solver.gf_struct)
     solver.Sigma_iw.zero()
@@ -344,10 +347,9 @@ def extract_Uijkl_from_h_int(h_int, gf_struct):
     # a) For static impurity problem, Us are the static screened interactions
     # b) For dynamic impurity problem, Us are the bare interactions
     Uijij = U_dd[:n_orb, n_orb:2*n_orb]
-    Uijji = Uijij - U_dd[:n_orb, 0:n_orb]
+    Uijji = Uijij - U_dd[:n_orb, :n_orb]
     
     # construct full Uijkl tensor for static interaction
-    orb_range = range(0, n_orb)
     Uijkl = np.zeros((n_orb, n_orb, n_orb, n_orb), dtype=complex)
 
     # assuming Uijji = Uiijj
@@ -364,7 +366,7 @@ def extract_Uijkl_from_h_int(h_int, gf_struct):
     return Uijkl
 
 
-def extract_screen_matrix_from_D0_tau(blk2_D0_tau, gf_struct):
+def extract_screen_matrix_from_D0_tau(blk2_D0_tau, gf_struct, return_4idx=False):
     n_color = 0
     for _, blk_dim in gf_struct:
         n_color += blk_dim
@@ -379,24 +381,48 @@ def extract_screen_matrix_from_D0_tau(blk2_D0_tau, gf_struct):
     D0_tau = Gf(mesh=mesh, target_shape=(n_color, n_color))
     for c1 in range(n_color):
         for c2 in range(n_color):
-            D0_tau.data[:, c1, c2] = blk2_D0_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
+            D0_tau.data[:, c1, c2] = (
+                blk2_D0_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
+            )
 
     w0_mesh = MeshImFreq(beta = D0_tau.mesh.beta, S="Boson", n_max = 1)
     D0_iw = Gf(mesh=w0_mesh, target_shape=D0_tau.target_shape)
     D0_iw.set_from_fourier(D0_tau, make_zero_tail(D0_iw, n_moments=2))
-    D0_w0 = D0_iw.data[0].real
+    Dw0_dd = D0_iw.data[0].real
 
-    n_orb = D0_w0.shape[0]//2
-    return D0_w0[:n_orb,:n_orb]
+    if not return_4idx:
+        return Dw0_dd
+
+    n_orb = Dw0_dd.shape[0]//2
+    Dw0_iijj = Dw0_dd[:n_orb, n_orb:2*n_orb]
+    Dw0_ijij = Dw0_iijj - Dw0_dd[:n_orb, :n_orb]
+
+    # construct full Uijkl tensor for static interaction
+    Dw0_ijkl = np.zeros((n_orb, n_orb, n_orb, n_orb), dtype=complex)
+
+    for i, j, k, l in product(range(n_orb), repeat=4):
+        if i == j == k == l:  # iiii
+            Dw0_ijkl[i, i, i, i] = Dw0_iijj[i, j]
+        elif i == k and j == l:  # ijij
+            Dw0_ijkl[i, j, i, j] = Dw0_iijj[i, j]
+        elif i == l and j == k:  # ijji
+            Dw0_ijkl[i, j, j, i] = Dw0_ijij[i, j]
+        elif i == j and k == l:  # iijj
+            Dw0_ijkl[i, i, k, k] = Dw0_ijij[i, k]
+
+    return Dw0_ijkl
 
 
 def compute_sigma_infty(solver, degenerate_blk=None):
     mpi.report('\nEvaluating static impurity self-energy analytically using CT-SEG interacting density:')
     Sigma_infty = {}
 
-    # Uijkl is the full 4-index tensor without the block structure
+    # Full 4-index tensors without the block structure in TRIQS notation
+    # bare Coulomb
     Vijkl = extract_Uijkl_from_h_int(h_int=solver.h_int, gf_struct=solver.gf_struct)
-    Uw0_ijkl = Vijkl + extract_screen_matrix_from_D0_tau(blk2_D0_tau=solver.D0_tau, gf_struct=solver.gf_struct)
+    # screened Coulomb at w=0
+    Uw0_ijkl = Vijkl + extract_screen_matrix_from_D0_tau(
+        blk2_D0_tau=solver.D0_tau, gf_struct=solver.gf_struct, return_4idx=True)
     norb = Vijkl.shape[0]
 
     # compute density matrix without the block structure
