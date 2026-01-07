@@ -119,7 +119,7 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
     D0_ijij = D0_iijj - D0_iw[:n_orb, 0:n_orb]
 
     # Vijkl is the full 4-index tensor without the block structure in TRIQS's notation
-    Vijkl = extract_Uijkl_from_h_int(h_int=solver.h_int, gf_struct=solver.gf_struct)
+    Vijkl = extract_u_tensor_from_h_int(h_int=solver.h_int, gf_struct=solver.gf_struct, return_4idx=True)
 
     for i, j in product(range(n_orb), repeat=2):
         if i == j:
@@ -201,7 +201,7 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
 def post_process_sigma(solver, **post_proc_params):
     
     # initialization
-    mesh = MeshImFreq(beta = solver.beta, S="Fermion", n_max = solver.n_iw)
+    mesh = MeshImFreq(beta = solver.beta, S="Fermion", n_iw = solver.n_iw)
     solver.Sigma_iw = BlockGf(mesh = mesh, gf_struct = solver.gf_struct)
     solver.Sigma_iw.zero()
     solver.Sigma_moments = None
@@ -334,13 +334,16 @@ def tail_fit(Sigma_iw,
     return Sigma_iw
 
 
-def extract_Uijkl_from_h_int(h_int, gf_struct):
+def extract_u_tensor_from_h_int(h_int, gf_struct, return_4idx=False):
     """
     Return Uijkl tensor in TRIQS's notation from a Coulomb many-body operator h_int
     """
     from triqs.operators.util.extractors import extract_U_dict2, dict_to_matrix
 
     U_dd = dict_to_matrix(extract_U_dict2(h_int), gf_struct=gf_struct)
+    if not return_4idx:
+        return U_dd
+
     n_orb = U_dd.shape[0]//2
 
     # extract Uijij (inter- and intra-orbital Coulomb) and Uijji (Hund's coupling) terms
@@ -385,7 +388,7 @@ def extract_screen_matrix_from_D0_tau(blk2_D0_tau, gf_struct, return_4idx=False)
                 blk2_D0_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
             )
 
-    w0_mesh = MeshImFreq(beta = D0_tau.mesh.beta, S="Boson", n_max = 1)
+    w0_mesh = MeshImFreq(beta = D0_tau.mesh.beta, S="Boson", n_iw = 1)
     D0_iw = Gf(mesh=w0_mesh, target_shape=D0_tau.target_shape)
     D0_iw.set_from_fourier(D0_tau, make_zero_tail(D0_iw, n_moments=2))
     Dw0_dd = D0_iw.data[0].real
@@ -414,12 +417,55 @@ def extract_screen_matrix_from_D0_tau(blk2_D0_tau, gf_struct, return_4idx=False)
 
 
 def compute_sigma_infty(solver, degenerate_blk=None):
-    mpi.report('\nEvaluating static impurity self-energy analytically using CT-SEG interacting density:')
+    mpi.report('\nEvaluating static impurity self-energy analytically in density-density basis:')
+    Sigma_infty = {}
+
+    # initialization
+    n_color = 0
+    for _, blk_dim in solver.gf_struct:
+        n_color += blk_dim
+
+    block_name       = []
+    index_in_block   = []
+    for color in range(n_color):
+        block_name.append(find_block_name(color, solver.gf_struct))
+        index_in_block.append(find_index_in_block(color, solver.gf_struct))
+
+    # Bare Coulomb in density-density basis
+    V = extract_u_tensor_from_h_int(h_int=solver.h_int, gf_struct=solver.gf_struct)
+    # Add screening function at iw=0 in density-density basis
+    U_w0 = V + extract_screen_matrix_from_D0_tau(blk2_D0_tau=solver.D0_tau, gf_struct=solver.gf_struct)
+
+    # impurity density
+    densities = np.zeros(n_color, dtype=float)
+    for c1 in range(n_color):
+        densities[c1] = solver.results.densities[block_name[c1]][index_in_block[c1]]
+
+    # sigma_infty
+    c1 = 0
+    for blk_name, blk_dim in solver.gf_struct:
+        Sigma_infty[blk_name] = np.zeros((blk_dim, blk_dim), dtype=float)
+
+        for iorb in range(blk_dim):
+            for c2 in range(n_color):
+                Sigma_infty[blk_name][iorb, iorb] += densities[c2] * U_w0[c1, c2].real
+            c1 += 1
+
+    if degenerate_blk:
+        Sigma_infty_list = modest.symmetrize(list(Sigma_infty.values()), degenerate_blk)
+        for i, blk_name in enumerate(Sigma_infty.keys()):
+            Sigma_infty[blk_name] = Sigma_infty_list[i]
+
+    return Sigma_infty
+
+
+def compute_sigma_infty_in_4idx(solver, degenerate_blk=None):
+    mpi.report('\nEvaluating static impurity self-energy analytically using 4-index Coulomb tensors:')
     Sigma_infty = {}
 
     # Full 4-index tensors without the block structure in TRIQS notation
     # bare Coulomb
-    Vijkl = extract_Uijkl_from_h_int(h_int=solver.h_int, gf_struct=solver.gf_struct)
+    Vijkl = extract_u_tensor_from_h_int(h_int=solver.h_int, gf_struct=solver.gf_struct, return_4idx=True)
     # screened Coulomb at w=0
     Uw0_ijkl = Vijkl + extract_screen_matrix_from_D0_tau(
         blk2_D0_tau=solver.D0_tau, gf_struct=solver.gf_struct, return_4idx=True)
