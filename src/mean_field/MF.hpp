@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,8 +19,8 @@
  */
 
 
-#ifndef MEANFIELD_MF_HPP 
-#define MEANFIELD_MF_HPP 
+#ifndef MEANFIELD_MF_HPP
+#define MEANFIELD_MF_HPP
 
 #include "IO/AppAbort.hpp"
 #include "utilities/check.hpp"
@@ -40,8 +40,8 @@
 
 #include "hamiltonian/pseudo/pseudopot.h"
 
-namespace mf 
-{ 
+namespace mf
+{
 
 /*
  * Class to hold a generic (runtime) read-only mean field object.
@@ -80,7 +80,7 @@ class MF
     explicit MF(model::model_readonly && arg) : var(std::move(arg) ) {}
 
     MF& operator=(model::model_readonly const& arg) { var = arg; return *this; }
-    MF& operator=(model::model_readonly && arg) { var = std::move(arg); return *this; }    
+    MF& operator=(model::model_readonly && arg) { var = std::move(arg); return *this; }
 
     ~MF() = default;
     MF(MF const&) = default;
@@ -100,7 +100,7 @@ class MF
     { std::visit( [&](auto&& v) { v.get_sys().save(g); }, var); }
 
     /* return type of MF object */
-    mf_source_e mf_type() const 
+    mf_source_e mf_type() const
     { return std::visit( [&](auto&& v) { return v.get_mf_source(); }, var); }
 
     auto outdir() const
@@ -114,19 +114,19 @@ class MF
     { return std::visit( [&](auto&& v) { return v.get_sys().filename; }, var); }
 
     /* has orbital set */
-    bool has_orbital_set() const 
+    bool has_orbital_set() const
     { return std::visit( [&](auto&& v) { return v.has_orbital_set(); }, var); }
 
     /* general */
-    auto nspin() const 
+    auto nspin() const
     { return std::visit( [&](auto&& v) { return v.get_sys().nspin; }, var); }
-    auto npol() const 
+    auto npol() const
     { return std::visit( [&](auto&& v) { return v.get_sys().npol; }, var); }
-    auto nelec() const 
+    auto nelec() const
     { return std::visit( [&](auto&& v) { return v.get_sys().nelec; }, var); }
-    auto noncolin() const 
+    auto noncolin() const
     //{ return std::visit( [&](auto&& v) { return v.get_sys().noncolin; }, var); }
-    { return npol() > 1; } 
+    { return npol() > 1; }
     auto spinorbit() const
     { return std::visit( [&](auto&& v) { return v.get_sys().spinorbit; }, var); }
     // nuclear energy, e.g. ion-ion + frozen core + ...
@@ -138,39 +138,52 @@ class MF
 
     /* atomic positions */
     auto number_of_atoms() const
-    { return std::visit( [&](auto&& v) { return v.get_sys().natoms; }, var); }    
+    { return std::visit( [&](auto&& v) { return v.get_sys().natoms; }, var); }
     auto number_of_species() const
-    { return std::visit( [&](auto&& v) { return v.get_sys().nspecies; }, var); }    
+    { return std::visit( [&](auto&& v) { return v.get_sys().nspecies; }, var); }
     decltype(auto) atomic_id() const
     { return std::visit( [&](auto&& v) { return v.get_sys().at_ids(); }, var ); }
     int atomic_id(int i) const
-    { return atomic_id()(i); } 
+    { return atomic_id()(i); }
     decltype(auto) atomic_positions() const
-    { return std::visit( [&](auto&& v) { return v.get_sys().at_pos(); }, var ); }    
+    { return std::visit( [&](auto&& v) { return v.get_sys().at_pos(); }, var ); }
     decltype(auto) atomic_positions(int i) const
     { return atomic_positions()(i,nda::range::all); }
     decltype(auto) species() const  // this will generate a copy, fix!!!
-    { return std::visit( [&](auto&& v) { return v.get_sys().species; }, var ); }    
+    { return std::visit( [&](auto&& v) { return v.get_sys().species; }, var ); }
+    decltype(auto) nuclear_gradient() const
+    {
+      auto tmp = nda::array<std::complex<double>, 2>(number_of_atoms(), 3);
+      std::visit ( [& tmp](auto&& v) {
+        if constexpr (requires { v.get_sys().grad_nuc(); } ) {
+          tmp = v.get_sys().grad_nuc();
+        }
+        else {
+          APP_ABORT("MF object does not have grad_nuc");
+        }
+      } , var);
+      return tmp;
+    }
 
     /* FFT grid */
-    auto has_wfc_grid() const 
+    auto has_wfc_grid() const
     { return std::visit( [&](auto&& v) { return v.has_wfc_grid(); }, var); }
     auto orb_on_fft_grid() const
     { return std::visit( [&](auto&& v) { return v.get_sys().orb_on_fft_grid; }, var); }
-    auto ecutrho() const 
+    auto ecutrho() const
     { return std::visit( [&](auto&& v) { return v.get_sys().ecutrho; }, var); }
-    auto fft_grid_size() const 
+    auto fft_grid_size() const
     { return std::visit( [&](auto&& v) { return v.fft_grid_size(); }, var); }
-    decltype(auto) fft_grid_dim() const 
+    decltype(auto) fft_grid_dim() const
     { return std::visit( [&](auto&& v) { return v.fft_grid_dim(); }, var ); }
     auto fft_grid_dim(int i) const { return fft_grid_dim()(i); }
-    auto nnr() const { return fft_grid_size(); } 
+    auto nnr() const { return fft_grid_size(); }
     decltype(auto) wfc_truncated_grid() const
-    { return std::visit( [&](auto&& v) { return v.wfc_truncated_grid(); }, var ); }  
+    { return std::visit( [&](auto&& v) { return v.wfc_truncated_grid(); }, var ); }
 
     /* cell */
     // translational vectors
-    decltype(auto) lattv() const 
+    decltype(auto) lattv() const
     { return std::visit( [&](auto&& v) { return v.get_sys().latt(); }, var ); }
     auto lattv(int i, int j) const { return lattv()(i,j); }
     // unit cell volume
@@ -178,19 +191,19 @@ class MF
       decltype(auto) v = this->lattv();
       return std::abs(v(0,0) * ( v(1,1)*v(2,2) - v(1,2)*v(2,1) ) -
                       v(0,1) * ( v(1,0)*v(2,2) - v(1,2)*v(2,0) ) +
-                      v(0,2) * ( v(1,0)*v(2,1) - v(1,1)*v(2,0) )); 
+                      v(0,2) * ( v(1,0)*v(2,1) - v(1,1)*v(2,0) ));
     }
     // reciprocal vectors
-    decltype(auto) recv() const 
+    decltype(auto) recv() const
     { return std::visit( [&](auto&& v) { return v.get_sys().recv(); }, var ); }
     auto recv(int i, int j) const { return recv()(i,j); }
-    auto madelung() const 
+    auto madelung() const
     { return std::visit( [&](auto&& v) { return v.get_sys().madelung; }, var ); }
 
     /* kpoint info */
     auto nkpts() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().nkpts; }, var ); }
-    decltype(auto) kpts() const 
+    decltype(auto) kpts() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().kpts(); }, var ); }
     decltype(auto) kpts(int i) const { return kpts()(i, nda::range::all); }
     auto kpts(int i, int j) const {  return kpts()(i, j); }
@@ -198,18 +211,18 @@ class MF
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().kpts_crys(); }, var ); }
     decltype(auto) kpts_crystal(int i) const { return kpts_crystal()(i, nda::range::all); }
     auto kpts_crystal(int i, int j) const {  return kpts_crystal()(i, j); }
-    auto nkpts_ibz() const 
+    auto nkpts_ibz() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().nkpts_ibz; }, var ); }
     decltype(auto) kpts_ibz() const
     { return kpts()(nda::range(nkpts_ibz()), nda::range::all); }
     decltype(auto) kpts_ibz(int i) const { return kpts_ibz()(i, nda::range::all); }
     auto kpts_ibz(int i, int j) const {  return kpts_ibz()(i, j); }
-    decltype(auto) k_weight() const 
+    decltype(auto) k_weight() const
     { return std::visit( [&](auto&& v) { return v.get_sys().k_weight(); }, var ); }
     decltype(auto) k_weight(int i) const { return k_weight()(i); }
     auto nqpts() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().nqpts; }, var ); }
-    decltype(auto) Qpts() const 
+    decltype(auto) Qpts() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().Qpts(); }, var ); }
     decltype(auto) Qpts(int i) const { return Qpts()(i,nda::range::all); }
     auto Qpts(int i, int j) const { return Qpts()(i,j); }
@@ -219,61 +232,61 @@ class MF
     { return Qpts()(nda::range(nqpts_ibz()), nda::range::all); }
     decltype(auto) Qpts_ibz(int i) const { return Qpts_ibz()(i,nda::range::all); }
     auto Qpts_ibz(int i, int j) const { return Qpts_ibz()(i,j); }
-    decltype(auto) qk_to_k2() const 
+    decltype(auto) qk_to_k2() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().qk_to_k2(); }, var ); }
     auto qk_to_k2(int i, int j) const { return qk_to_k2()(i,j); }
     decltype(auto) qminus() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().qminus(); }, var ); }
-    decltype(auto) twist() const 
+    decltype(auto) twist() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().twist(); }, var ); }
-    decltype(auto) kp_grid() const 
+    decltype(auto) kp_grid() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().kp_grid(); }, var ); }
 
     /* symmetry */
     // symm_list should return a copy, not a reference, for safety!
-    auto symm_list() const 
+    auto symm_list() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().symm_list; }, var ); }
     auto symm_list(int i) const
-    { return symm_list()[i]; } 
-    decltype(auto) kp_symm() const 
+    { return symm_list()[i]; }
+    decltype(auto) kp_symm() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().kp_symm(); }, var ); }
     auto kp_symm(int i) const
-    { return kp_symm()(i); } 
+    { return kp_symm()(i); }
     auto nkpts_trev_pairs() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().nkpts_trev_pairs; }, var ); }
-    decltype(auto) kp_trev() const 
+    decltype(auto) kp_trev() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().kp_trev(); }, var ); }
     auto kp_trev(int i) const
-    { return kp_trev()(i); } 
-    decltype(auto) kp_trev_pair() const 
+    { return kp_trev()(i); }
+    decltype(auto) kp_trev_pair() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().kp_trev_pair(); }, var ); }
     auto kp_trev_pair(int i) const
-    { return kp_trev_pair()(i); } 
-    decltype(auto) qp_symm() const  
+    { return kp_trev_pair()(i); }
+    decltype(auto) qp_symm() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().qp_symm(); }, var ); }
     auto qp_symm(int i) const
     { return qp_symm()(i); }
-    decltype(auto) qp_trev() const 
+    decltype(auto) qp_trev() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().qp_trev(); }, var ); }
     auto qp_trev(int i) const
-    { return qp_trev()(i); } 
-    decltype(auto) kp_to_ibz() const 
+    { return qp_trev()(i); }
+    decltype(auto) kp_to_ibz() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().kp_to_ibz(); }, var ); }
     auto kp_to_ibz(int i) const
-    { return kp_to_ibz()(i); } 
-    decltype(auto) qp_to_ibz() const 
+    { return kp_to_ibz()(i); }
+    decltype(auto) qp_to_ibz() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().qp_to_ibz(); }, var ); }
     auto qp_to_ibz(int i) const
-    { return qp_to_ibz()(i); } 
-    decltype(auto) ks_to_k() const 
+    { return qp_to_ibz()(i); }
+    decltype(auto) ks_to_k() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().ks_to_k(); }, var ); }
-    decltype(auto) ks_to_k(int is) const 
+    decltype(auto) ks_to_k(int is) const
     { return ks_to_k()(is,nda::range::all); }
-    auto ks_to_k(int is, int ik) const 
+    auto ks_to_k(int is, int ik) const
     { return ks_to_k()(is,ik); }
-    decltype(auto) qsymms() const 
+    decltype(auto) qsymms() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().qsymms(); }, var ); }
-    decltype(auto) nq_per_s() const 
+    decltype(auto) nq_per_s() const
     { return std::visit( [&](auto&& v) { return v.get_sys().bz().nq_per_s(); }, var ); }
     auto nq_per_s(int i) const
     { return nq_per_s()(i); }
@@ -289,42 +302,107 @@ class MF
     { return qs_to_q()(is,nda::range::all); }
     auto qs_to_q(int is, int iq) const
     { return qs_to_q()(is,iq); }
- 
+
 
     /* bands */
-    auto nbnd() const 
+    auto nbnd() const
     { return std::visit( [&](auto&& v) { return v.nbnd(); }, var ); }
-    auto nbnd_aux() const 
+    auto nbnd_aux() const
     { return std::visit( [&](auto&& v) { return v.nbnd_aux(); }, var ); }
-    auto nspin_in_basis() const 
+    auto nspin_in_basis() const
     { return std::visit( [&](auto&& v) { return v.get_sys().nspin_in_basis; }, var ); }
-    auto npol_in_basis() const 
+    auto npol_in_basis() const
     { return std::visit( [&](auto&& v) { return v.get_sys().npol_in_basis; }, var ); }
-    decltype(auto) occ() const 
-    { 
-      auto a = std::visit( [&](auto&& v) { return v.get_sys().occ(); }, var ); 
+    decltype(auto) occ() const
+    {
+      auto a = std::visit( [&](auto&& v) { return v.get_sys().occ(); }, var );
       return a(nda::range::all,nda::range::all,nda::range(nbnd()));
     }
-    decltype(auto) eigval() const 
-    { 
-      auto a = std::visit( [&](auto&& v) { return v.get_sys().eigval(); }, var ); 
+    decltype(auto) eigval() const
+    {
+      auto a = std::visit( [&](auto&& v) { return v.get_sys().eigval(); }, var );
       return a(nda::range::all,nda::range::all,nda::range(nbnd()));
+    }
+    decltype(auto) bnd_slice() const // return by value?
+    {
+      auto tmp = nda::array<int, 2>(number_of_atoms(), 2);
+      std::visit ( [& tmp](auto&& v) {
+        if constexpr (requires { v.get_sys().bnd_slice(); } ) {
+          tmp = v.get_sys().bnd_slice();
+        }
+        else {
+          APP_ABORT("MF object does not have bnd_slice");
+        }
+      } , var);
+      return tmp;
+    }
+    decltype(auto) bnd_slice_aux() const // return by value?
+    {
+      auto tmp = nda::array<int, 2>(number_of_atoms(), 2);
+      std::visit ( [& tmp](auto&& v) {
+        if constexpr (requires { v.get_sys().bnd_slice_aux(); } ) {
+          tmp = v.get_sys().bnd_slice_aux();
+        }
+        else {
+          APP_ABORT("MF object does not have bnd_slice_aux");
+        }
+      } , var);
+      return tmp;
+    }
+    decltype(auto) mo_coeff() const // return by value?
+    {
+      auto tmp = nda::array<std::complex<double>, 4>(nspin(), nkpts(), nbnd(), nbnd());
+      std::visit ( [& tmp](auto&& v) {
+        if constexpr (requires { v.get_sys().mo_coeff(); } ) {
+          tmp = v.get_sys().mo_coeff();
+        }
+        else {
+          APP_ABORT("MF object does not have mo_coeff");
+        }
+      } , var);
+      return tmp;
+    }
+    decltype(auto) H0_grad() const // return by value?
+    {
+      auto tmp = nda::array<std::complex<double>, 6>(number_of_atoms(), 3, nspin(), nkpts(), nbnd(), nbnd());
+      std::visit ( [& tmp](auto&& v) {
+        if constexpr (requires { v.get_sys().H0_grad(); } ) {
+          tmp = v.get_sys().H0_grad();
+        }
+        else {
+          APP_ABORT("MF object does not have H0_grad");
+        }
+      } , var);
+      return tmp;
+    }
+    decltype(auto) S_grad() const // return by value?
+    {
+      auto tmp = nda::array<std::complex<double>, 6>(number_of_atoms(), 3, nspin(), nkpts(), nbnd(), nbnd());
+      std::visit ( [& tmp](auto&& v) {
+        if constexpr (requires { v.get_sys().S_grad(); } ) {
+          tmp = v.get_sys().S_grad();
+        }
+        else {
+          APP_ABORT("MF object does not have S_grad");
+        }
+      } , var);
+      return tmp;
     }
     auto occ(int is, int ik, int n) const { return occ()(is,ik,n); }
     auto eigval(int is, int ik, int n) const { return eigval()(is,ik,n); }
-    decltype(auto) eigval_aux() const 
-    { 
-      auto a = std::visit( [&](auto&& v) { return v.get_sys().eigval_aux(); }, var ); 
+    decltype(auto) eigval_aux() const
+    {
+      auto a = std::visit( [&](auto&& v) { return v.get_sys().eigval_aux(); }, var );
       return a(nda::range::all,nda::range::all,nda::range(nbnd_aux()));
     }
     auto eigval_aux(int is, int ik, int n) const { return eigval_aux()(is,ik,n); }
-    decltype(auto) aux_weight() const 
-    { 
-      auto a = std::visit( [&](auto&& v) { return v.get_sys().aux_weight(); }, var ); 
+    decltype(auto) aux_weight() const
+    {
+      auto a = std::visit( [&](auto&& v) { return v.get_sys().aux_weight(); }, var );
       return a(nda::range::all,nda::range::all,nda::range(nbnd_aux()));
     }
     auto aux_weight(int is, int ik, int n) const { return aux_weight()(is,ik,n); }
-    auto efermi() const 
+    auto efermi() const
     { return std::visit( [&](auto&& v) { return v.get_sys().efermi; }, var ); }
 
     decltype(auto) symmetry_rotation(long s, long k) const
@@ -352,23 +430,23 @@ class MF
     { std::visit( [&](auto&& v) { v.get_orbital_set(OT,ispin,k_rng,b_rng,p_rng,std::forward<A4D>(Orb),r); }, var ); }
 
     /* accessor functions for pseudopot shared pointer */
-    void set_pseudopot(std::shared_ptr<hamilt::pseudopot> const& psp) 
+    void set_pseudopot(std::shared_ptr<hamilt::pseudopot> const& psp)
     { return std::visit( [&](auto&& v) { v.set_pseudopot(psp); }, var ); }
-    std::shared_ptr<hamilt::pseudopot> get_pseudopot() 
+    std::shared_ptr<hamilt::pseudopot> get_pseudopot()
     { return std::visit( [&](auto&& v) { return v.get_pseudopot(); }, var ); }
 
     /* closes record */
     template<class... Args>
-    void close() 
+    void close()
     { return std::visit( [&](auto&& v) { v.close(); }, var ); }
-    
+
   private:
 
     std::variant<bdft::bdft_readonly,
                  qe::qe_readonly,
                  pyscf::pyscf_readonly,
                  model::model_readonly> var;
- 
+
 };
 
 } // mf

@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,8 +19,8 @@
  */
 
 
-#ifndef MEANFIELD_MF_UTILS_HPP 
-#define MEANFIELD_MF_UTILS_HPP 
+#ifndef MEANFIELD_MF_UTILS_HPP
+#define MEANFIELD_MF_UTILS_HPP
 
 #include <map>
 
@@ -34,10 +34,11 @@
 #include "mean_field/qe/qe_readonly.hpp"
 #include "mean_field/pyscf/pyscf_readonly.hpp"
 #include "mean_field/model_hamiltonian/model_readonly.hpp"
+#include "mean_field/mf_gradient_t.h"
 #include "mean_field/mf_source.hpp"
 
-namespace mf 
-{ 
+namespace mf
+{
 
 // MAM: leave xml_input_type as default, since it is only meaningful for qe right now, change
 //      to h5_input_type when QE coqui converter is more standard
@@ -63,14 +64,14 @@ inline decltype(auto) make_MF(
 
 /*
  * Creates a MF object from a provided property tree.
- * Required arguments: 
+ * Required arguments:
  *  - type: Type of MF object, allowed options: qe, bdft, pyscf.
  *  - prefix: prefix to file names (e.g. prefix.h5 for BDFT, prefix.xml/.save for qe, etc)
  * Optional arguments:
  *  - outdir: location of directory with files
- *  - ecut: plane wave cutoff of charge density grid, in Ha. 
- *  - nbnd: number of bands (only meaningful in QE and BDFT backends). Default: all bands. 
- *  - filetype: Default: "xml". Type of input file. Options: "xml" or "h5". Only meaningful for type="qe".  
+ *  - ecut: plane wave cutoff of charge density grid, in Ha.
+ *  - nbnd: number of bands (only meaningful in QE and BDFT backends). Default: all bands.
+ *  - filetype: Default: "xml". Type of input file. Options: "xml" or "h5". Only meaningful for type="qe".
  * Example:
  *   "mean_field":{
  *     "type": "qe",
@@ -108,8 +109,8 @@ inline decltype(auto) make_MF(const std::shared_ptr<utils::mpi_context_t<comm_t>
 /*
  * Adds a MF object to the map from the provided property tree (whose key was "mean_field").
  * If the ptree is not named (does not contain a "name" node), it generates a random name.
- * The name is returned, which can then be used to retrieve the object from the map. 
- */ 
+ * The name is returned, which can then be used to retrieve the object from the map.
+ */
 template<utils::Communicator comm_t>
 inline std::string add_mf(const std::shared_ptr<utils::mpi_context_t<comm_t>> &mpi_context,
                           ptree const& pt, std::string mf_type,
@@ -132,7 +133,7 @@ inline std::string add_mf(const std::shared_ptr<utils::mpi_context_t<comm_t>> &m
 /*
  * Manages a list of MF objects.
  * This routine takes a property tree and searches for a node named "mean_field".
- * Only one such node can and must exist. 
+ * Only one such node can and must exist.
  *  1. If the node has a value, it is interpreted as the name of a previously declared
  *     MF object in the list and checks that the associated object is on the list.
  *  2. If the node does not have a value, it is interpreted as the definition of a MF object.
@@ -140,7 +141,7 @@ inline std::string add_mf(const std::shared_ptr<utils::mpi_context_t<comm_t>> &m
  *  In both cases, the name of the associated MF object is returned, which is then guaranteed to
  *  exist in the list. If the ptree definition is provided and it does not contain a name,
  *  a unique name is generated. Such objects can not be reused by other input blocks since the names
- *  are assumed random. 
+ *  are assumed random.
  */
 template<utils::Communicator comm_t>
 inline std::string get_mf(const std::shared_ptr<utils::mpi_context_t<comm_t>> &mpi_context,
@@ -160,7 +161,7 @@ inline std::string get_mf(const std::shared_ptr<utils::mpi_context_t<comm_t>> &m
       if(v.has_value() and *v != "") {
         // reference to input block, check it exists in list and return
         name = *v;
-        utils::check(mf_list.contains(name), 
+        utils::check(mf_list.contains(name),
                      "mean_field: Reference to undefined input block: {}",name);
       } else {
         // input block, add to list and return name
