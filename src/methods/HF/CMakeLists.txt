@@ -3,8 +3,11 @@
 
 SET(SRCS
   hf_t.cpp
-  thc_hf.cpp 
-  cholesky_hf.cpp 
+  hf_gradient_t.cpp
+  hf_grand_potential.cpp
+  thc_hf.cpp
+  cholesky_hf.cpp
+  cholesky_hf_grad.cpp
   )
 
 if(USE_DEVICE_COMPILER)
