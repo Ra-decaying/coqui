@@ -362,6 +362,8 @@ namespace methods
       return Np;
     }
 
+    auto& mpi() const { return _mpi; }
+    auto& MF() const { return _MF; }
     int nspin() const { return _ns; }
     int nkpts() const { return _nkpts; }
     int Np() const { return _Np; }

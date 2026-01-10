@@ -19,19 +19,33 @@
  */
 
 
-#ifndef COQUI_HF_GRAND_POTENTIAL_H
-#define COQUI_HF_GRAND_POTENTIAL_H
+#ifndef METHODS_MBPT_GRADIENT_DRIVERS_H
+#define METHODS_MBPT_GRADIENT_DRIVERS_H
+
+#include "mpi3/environment.hpp"
+#include "mpi3/communicator.hpp"
+
+#include "IO/ptree/ptree_utilities.hpp"
 
 #include "mean_field/MF.hpp"
-#include "nda/nda.hpp"
 
-namespace methods {
+namespace mpi3 = boost::mpi3;
+namespace methods
+{
 
-  double eval_hf_grand_potential(const nda::MemoryArrayOfRank<4> auto &D_skij,
-                                 const nda::MemoryArrayOfRank<4> auto &S_skij,
-                                 std::shared_ptr<mf::MF> mf,
-                                 double e_hf, double beta, double mu);
+template<typename eri_grad_t>
+void mbpt_gradient(std::string solver_type, eri_grad_t &eri_grad, const ptree &pt);
 
-}
+template<typename data_type>
+void print_mbpt_gradient(const nda::array<data_type, 2> &gradient,
+                         std::shared_ptr<mf::MF> mf,
+                         std::string str, bool bohr = true);
+
+template<typename data_type>
+void write_mbpt_gradient(const nda::array<data_type, 2> &gradient,
+                         std::shared_ptr<mf::MF> mf,
+                         std::string output, bool bohr = true);
+
+} // namespace methods
 
 #endif

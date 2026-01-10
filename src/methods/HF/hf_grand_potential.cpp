@@ -25,14 +25,15 @@ namespace methods {
 
   double eval_hf_grand_potential(const nda::MemoryArrayOfRank<4> auto &D_skij,
                                  const nda::MemoryArrayOfRank<4> auto &S_skij,
-                                 const mf::MF &MF, double e_hf, double beta, double mu)
+                                 std::shared_ptr<const mf::MF> MF,
+                                 double e_hf, double beta, double mu)
   {
     decltype(nda::range::all) all;
 
-    int nbnd = MF.nbnd();
-    int nkpts = MF.nkpts();
-    int npol = MF.npol();
-    int nspin = MF.nspin();
+    int nbnd = MF->nbnd();
+    int nkpts = MF->nkpts();
+    int npol = MF->npol();
+    int nspin = MF->nspin();
 
     double entropy = 0.0;
     double nelec = 0.0;
@@ -75,7 +76,7 @@ namespace methods {
 
     using Arr4D = nda::array<ComplexType, 4>;
     using Arrv4D = nda::array_view<ComplexType, 4>;
-    template double eval_hf_grand_potential(const Arr4D&, const Arr4D&,  const mf::MF&, double, double, double);
-    template double eval_hf_grand_potential(const Arrv4D&, const Arrv4D&,  const mf::MF&, double, double, double);
+    template double eval_hf_grand_potential(const Arr4D&, const Arr4D&, std::shared_ptr<const mf::MF>, double, double, double);
+    template double eval_hf_grand_potential(const Arrv4D&, const Arrv4D&, std::shared_ptr<const mf::MF>, double, double, double);
 
 }
