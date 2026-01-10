@@ -26,10 +26,12 @@ def post_process(solver, **post_proc_params):
                 deg_blk_2e.append(np.array(blks[:n_half]))
         else:
             deg_blk_2e = None
-        post_process_pi(solver, deg_blk_2e)
+        post_process_pi(solver, deg_blk_2e,
+                        truncate_uchi=post_proc_params['truncate_uchi'])
 
 
-def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
+def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
+                    truncate_uchi=False):
     mpi.report("Charge susceptibility is measured for a impurity with dynamic interactions")
     mpi.report('--> Post-processing the density-density susceptibility to obtain the impurity polarizability.\n')
 
@@ -145,7 +147,9 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False):
     Pi_iw_pb = Gf(mesh=nn_iw_pb.mesh, target_shape=nn_iw_pb.target_shape)
     ones = np.eye(n_orb*n_orb, dtype=complex)
     for iwn in nn_iw_pb.mesh:
-        denom = U_iw_pb[iwn] @ nn_iw_pb[iwn] - ones
+        UX = U_iw_pb[iwn] @ nn_iw_pb[iwn]
+        UX = check_spectrum(UX, truncation=truncate_uchi)
+        denom = UX - ones
         cond = np.linalg.cond(denom)
         if cond > 20: 
             mpi.report(f"WARNING: Large condition number for [U(w) * Chi(w) - I] = {cond} at n = {iwn.index}.")        
@@ -597,3 +601,55 @@ def fill_dlr_imfreq_gf(g_iw, wmax, eps):
     else:
         raise NotImplemented
 
+
+def check_spectrum(A, radius=1.0, tol=0.0, truncation=False):
+    """
+    1) Compute eigenvalues of A
+    2) Remove eigenvalues with |lambda| > radius (+ tol)
+    3) Reconstruct A from the remaining eigenpairs using a pseudoinverse
+
+    Parameters
+    ----------
+    A : (n, n) array_like
+        Square matrix.
+    radius : float
+        Eigenvalue cutoff.
+    tol : float
+        Extra tolerance.
+    truncation : bool
+        If True, truncate unqualified eigenvalues and reconstruct A.
+
+    Returns
+    -------
+    A_trunc : (n,n) ndarray if truncation is True else A
+    """
+    A = np.asarray(A)
+    if A.ndim != 2 or A.shape[0] != A.shape[1]:
+        raise ValueError("A must be square.")
+
+    w, V = np.linalg.eig(A)
+
+    # Qualification mask
+    keep = np.abs(w) < (radius + tol)
+    drop = ~keep
+
+    w_keep = w[keep]
+    w_drop = w[drop]
+    V_keep = V[:, keep]
+
+    if w_drop.size > 0:
+        mpi.report("Unqualified eigenvalues (|λ| > {}):".format(radius))
+        for lam in w_drop:
+            mpi.report(f"  {lam}")
+        mpi.report("")
+
+    if not truncation or w_keep.size == w.size:
+        return A
+    else:
+        n = A.shape[0]
+        if w_keep.size == 0:
+            return np.zeros((n, n), dtype=np.result_type(A, 1j))
+
+        # least-squares reconstruction
+        A_trunc = V_keep @ np.diag(w_keep) @ np.linalg.pinv(V_keep)
+        return A_trunc

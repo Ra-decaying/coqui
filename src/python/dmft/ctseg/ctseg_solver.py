@@ -163,6 +163,7 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
     post_proc_params['fit_max_n']        = solver_interface_params.pop('fit_max_n', None)
     post_proc_params['analytic_hf']      = solver_interface_params.pop('analytic_hf', False)
     post_proc_params['degenerate_blk']   = solver_interface_params.pop('degenerate_blk', None)
+    post_proc_params['truncate_uchi']    = solver_interface_params.pop('truncate_uchi', False)
     S.n_iw, S.beta, S.gf_struct = n_iw, beta, gf_struct     # useful and necessary for post-processing
     S.h_int = h_int
     S.h_loc0_mat = block_matrix_from_op(h_loc0, gf_struct)
@@ -240,6 +241,7 @@ def solve_density_dynamic_u_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_in
     solver_interface_params.pop('fit_max_n', None)
     solver_interface_params.pop('analytic_hf', False)
     solver_interface_params.pop('degenerate_blk', None)
+    solver_interface_params.pop("truncate_uchi", None)
 
     # call solver
     solver_interface_params['measure_densities'] = True
