@@ -18,19 +18,30 @@
  * ==========================================================================
  */
 
-
-#ifndef METHODS_MBPT_GRADIENT_DRIVERS_H
-#define METHODS_MBPT_GRADIENT_DRIVERS_H
+#ifndef METHODS_GRADIENT_GRADIENT_COMMON_H
+#define METHODS_GRADIENT_GRADIENT_COMMON_H
 
 #include <string>
-#include <boost/property_tree/ptree.hpp>
 
-namespace methods
+#include "nda/nda.hpp"
+
+namespace mf
 {
+class MF;
+} // namespace mf
 
-template<typename eri_grad_t>
-void mbpt_gradient(const std::string &solver_type, eri_grad_t &eri_grad,
-                   const boost::property_tree::ptree &pt);
+
+namespace methods {
+
+template<typename data_type>
+void print_mbpt_gradient(const nda::array<data_type, 2> &gradient,
+                         std::shared_ptr<mf::MF> mf,
+                         const std::string& str, bool bohr = true);
+
+template<typename data_type>
+void write_mbpt_gradient(const nda::array<data_type, 2> &gradient,
+                         std::shared_ptr<mf::MF> mf,
+                         const std::string &output, bool bohr = true);
 
 } // namespace methods
 

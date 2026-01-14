@@ -56,9 +56,9 @@ namespace methods {
                             Cholesky_ERI auto && chol);
     ComplexType evaluate_pulay(int iatom, int direction, const nda::MemoryArrayOfRank<4> auto& DE_skij);
 
-    const nda::array<ComplexType, 2> & electronic_gradient() const;
-    const nda::array<ComplexType, 2> & nuclear_gradient() const;
-    const nda::array<ComplexType, 2> & total_gradient() const;
+    const nda::array<ComplexType, 2> & gradient_elec() const;
+    const nda::array<ComplexType, 2> & gradient_nuc() const;
+    const nda::array<ComplexType, 2> & gradient_total() const;
 
     private:
 

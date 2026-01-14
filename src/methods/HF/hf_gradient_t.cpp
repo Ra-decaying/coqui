@@ -34,17 +34,17 @@ namespace methods {
     {
     }
 
-    const nda::array<ComplexType, 2> & hf_gradient_t::electronic_gradient() const
+    const nda::array<ComplexType, 2> & hf_gradient_t::gradient_elec() const
     {
       return _gradient_elec;
     }
 
-    const nda::array<ComplexType, 2> & hf_gradient_t::nuclear_gradient() const
+    const nda::array<ComplexType, 2> & hf_gradient_t::gradient_nuc() const
     {
       return _gradient_nuc;
     }
 
-    const nda::array<ComplexType, 2> & hf_gradient_t::total_gradient() const
+    const nda::array<ComplexType, 2> & hf_gradient_t::gradient_total() const
     {
       return _gradient_total;
     }

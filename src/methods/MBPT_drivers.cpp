@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -633,10 +633,10 @@ void downfolding_2e(eri_t &eri, ptree const& pt,
 
 /**
  * Generates a downfolded Hamiltonian at the Hartree-Fock (HF) level. Bare 2-electron integrals
- * are calculated in the local basis, as defined by the provided projection matrix. 
- * HF frozen core contributions are added to the bare 1-body Hamiltonian in the local basis. 
+ * are calculated in the local basis, as defined by the provided projection matrix.
+ * HF frozen core contributions are added to the bare 1-body Hamiltonian in the local basis.
  * The results are consistent with screen_type=bare and dc_type=hf in downfold_2e/downfold_1e routines.
- * Output is written in a format suitable to be read back by the mbpt modules, e.g. can be used in the 
+ * Output is written in a format suitable to be read back by the mbpt modules, e.g. can be used in the
  * mean_field and interaction sections.
  * Required arguments:
  *  - prefix: Prefix of the generated output mbpt and model files.
@@ -705,9 +705,9 @@ void hf_downfold(eri_t &eri, ptree const& pt) {
 
 /**
  * Generates a downfolded Hamiltonian at the GW level. cRPA Screened 2-electron integrals
- * are calculated in the local basis, as defined by the provided projection matrix. 
+ * are calculated in the local basis, as defined by the provided projection matrix.
  * A quasi-particle approximation to the GW self-energy is applied to generate a downfolded
- * 1-body Hamiltonian in the local basis. 
+ * 1-body Hamiltonian in the local basis.
  * The results are consistent with screen_type=crpa and dc_type=gw in downfold_2e/downfold_1e routines.
  * Output is written in a format suitable to be read back by the mbpt modules,
  * e.g. model Hamiltonian type mean-field chkpt file and ERI-compatible h5 chkpt file,
@@ -720,14 +720,14 @@ void hf_downfold(eri_t &eri, ptree const& pt) {
  *  - div_treatment: "gygi" Divergent treatment for Coulomb kernel. {choices: "ignore_g0", "gygi"}
  *  - hf_div_treatment: "gygi" Divergent treatment for the bare Coulomb kernel. {choices: "ignore_g0", "gygi"}
  *  - permut_symm: false. If true, applies 4-/8-fold permutation symmetry to 2-electron interaction. Only applies if factorization="none".
- *  - force_real: false. If true, forces the 2-electron interaction tensor to be real. 
+ *  - force_real: false. If true, forces the 2-electron interaction tensor to be real.
  *  - factorization_type: "cholesky", Type of factorization. {choices: "none", "cholesky", "cholesky_high_memory", "choleksy_from_4index", "thc"}
  *  - thresh: 1e-6. Threshold used if factorization is requested.
  *  Parameters used by quasiparticle algorithm:
  *  - ac_alg: Algorithm for analytic continuation, default:pade {choices: pade}
  *  - eta: Smearing parameter: default:1e-6
  *  - Nfit: Number of terms in AC fit, default: 30
- *  - off_diag_mode: Off diagonal treatment, default: qp_energy. {choices: fermi, qp_energy} 
+ *  - off_diag_mode: Off diagonal treatment, default: qp_energy. {choices: fermi, qp_energy}
  */
 template<typename eri_t>
 void gw_downfold(eri_t &eri, ptree &pt) {

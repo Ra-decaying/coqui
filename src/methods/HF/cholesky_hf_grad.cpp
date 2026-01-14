@@ -93,9 +93,9 @@ namespace methods {
       }
 
 
-      _gradient_total = nda::array<ComplexType, 2>::zeros({_nbnd, 3});
-      _gradient_elec = nda::array<ComplexType, 2>::zeros({_nbnd, 3});
-      _gradient_nuc = nda::array<ComplexType, 2>::zeros({_nbnd, 3});
+      _gradient_total = nda::array<ComplexType, 2>::zeros({_natoms, 3});
+      _gradient_elec = nda::array<ComplexType, 2>::zeros({_natoms, 3});
+      _gradient_nuc = nda::array<ComplexType, 2>::zeros({_natoms, 3});
 
       for (int iatom = 0; iatom < _natoms; ++iatom) {
         for (int direction = 0; direction < 3; ++direction) {

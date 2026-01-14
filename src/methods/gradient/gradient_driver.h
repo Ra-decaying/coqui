@@ -19,18 +19,26 @@
  */
 
 
-#ifndef METHODS_MBPT_GRADIENT_DRIVERS_H
-#define METHODS_MBPT_GRADIENT_DRIVERS_H
+#ifndef METHODS_GRADIENT_GRADIENT_DRIVER_H
+#define METHODS_GRADIENT_GRADIENT_DRIVER_H
 
 #include <string>
-#include <boost/property_tree/ptree.hpp>
+
+namespace imag_axes_ft
+{
+class IAFT;
+} // namespace imag_axes_ft
 
 namespace methods
 {
 
-template<typename eri_grad_t>
-void mbpt_gradient(const std::string &solver_type, eri_grad_t &eri_grad,
-                   const boost::property_tree::ptree &pt);
+struct MBState;
+
+template<typename dyson_type, typename eri_grad_t>
+void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad_t, const imag_axes_ft::IAFT& FT,
+                   const std::string &solver_type,
+                   const std::string &input, const std::string &input_grp, int input_iter,
+                   const std::string &output, bool auxbasis_response);
 
 } // namespace methods
 
