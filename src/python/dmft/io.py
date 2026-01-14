@@ -61,7 +61,14 @@ def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impuri
         raise ValueError("Either solver_results or solver_inputs must be provided.")
 
     if iteration == -1:
-        iteration = 1 if "final_iteration" not in dmft_grp.keys() else dmft_grp["final_iteration"] + 1
+        if "final_iter" in dmft_grp.keys():
+            iteration = dmft_grp["final_iter"] + 1
+        elif "final_iteration" in dmft_grp.keys():
+            # backward compatibility
+            # TODO remove it
+            iteration = dmft_grp["final_iteration"]
+        else:
+            iteration = 1
 
     if solver_results and solver_inputs:
         assert len(solver_results) == len(solver_inputs), "solver_results and solver_inputs must have the same length."
@@ -90,7 +97,7 @@ def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impuri
         if solver_inputs is not None:
             _write_impurity_inputs(imp_grp, solver_inputs[imp_i])
 
-    dmft_grp["final_iteration"] = iteration
+    dmft_grp["final_iter"] = iteration
 
 
 def _write_impurity_results(h5_grp, impurity_results):
@@ -166,7 +173,12 @@ def read_impurity_chkpt(h5_filename, iteration=-1, *, read="both", impurity_indi
     if mpi.is_master_node():
         with HDFArchive(h5_filename, 'r') as ar:
             if iteration == -1:
-                iteration = ar["dmft/final_iteration"]
+                if "final_iter" in ar["dmft"].keys():
+                    iteration = ar["dmft"]["final_iter"]
+                else:
+                    # backward compatibility
+                    # TODO remove it
+                    iteration = ar["dmft"]["final_iteration"]
 
             iter_grp = ar[f"dmft/iter{iteration}"]
             num_impurities = len([k for k in iter_grp.keys() if k.startswith("impurity_")])
@@ -223,7 +235,11 @@ def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1
     if mpi.is_master_node():
         with HDFArchive(h5_filename, 'r') as ar:
             if iteration == -1:
-                iteration = ar['dmft/final_iteration']
+                if "final_iter" in ar["dmft"].keys():
+                    iteration = ar["dmft"]["final_iter"]
+                else:
+                    # backward compatibility
+                    iteration = ar["dmft"]["final_iteration"]
             try:
                 _ = ar[f'dmft/iter{iteration}/impurity_0/results']
             except KeyError:
