@@ -112,7 +112,7 @@ namespace wannier {
    * Input options:
    * Required:
    *  - prefix                     [string] Wannier90 file name prefix. prefix.win must exist.
-   * Optional Parameters for calculation of initial projections.
+   * Optional Parameters for appending *.win file
    *  - atoms = "true"               [bool] If true, will add atom positions to win file. 
    *  - kpts = "true"                [bool] If true, will add kpoints to win file. 
    *  - cell = "true"                [bool] If true, will add cell_cart to win file. 
