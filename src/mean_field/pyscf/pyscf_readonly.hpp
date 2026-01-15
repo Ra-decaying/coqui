@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -201,7 +201,7 @@ namespace mf {
        * @param OT    - [INPUT] orbital type
        * @param ispin - [INPUT] spin index
        * @param k     - [INPUT] k index
-       * @param b_rng - [INPUT] nda range of orbitals 
+       * @param b_rng - [INPUT] nda range of orbitals
        * @param Orb   - [OUTPUT] orbital values (nk, nb, grid_dim)
        * @param r_rng - [INPUT] nda range of fft grid index, default is entire grid
        */
@@ -222,8 +222,8 @@ namespace mf {
        * Read multiple orbital values on a grid
        * @param OT    - [INPUT] orbital type
        * @param ispin - [INPUT] spin index
-       * @param k_rng - [INPUT] nda range of kpoints 
-       * @param b_rng - [INPUT] nda range of orbitals 
+       * @param k_rng - [INPUT] nda range of kpoints
+       * @param b_rng - [INPUT] nda range of orbitals
        * @param Orb   - [OUTPUT] orbital values (nk, nb, grid_dim)
        * @param r_rng - [INPUT] nda range of fft grid index, default is entire grid including polarization
        */
@@ -247,8 +247,8 @@ namespace mf {
        * Read multiple orbital values on a grid
        * @param OT    - [INPUT] orbital type
        * @param ispin - [INPUT] spin index
-       * @param k_rng - [INPUT] nda range of kpoints 
-       * @param b_rng - [INPUT] nda range of orbitals 
+       * @param k_rng - [INPUT] nda range of kpoints
+       * @param b_rng - [INPUT] nda range of orbitals
        * @param p_rng - [INPUT] nda range of polarizations
        * @param Orb   - [OUTPUT] orbital values (nk, nb, np, grid_dim)
        * @param r_rng - [INPUT] nda range of fft grid index, default is entire grid
@@ -400,7 +400,7 @@ namespace mf {
       }
 
       decltype(auto) symmetry_rotation(long s, long k) const
-      { 
+      {
         utils::check( false, "Symmetry operations are not allowed in pyscf backend.");
         long ns = sys.bz().qsymms.extent(0);
         long nk = sys.bz().nkpts;
@@ -428,7 +428,7 @@ namespace mf {
       std::vector< math::sparse::csr_matrix<ComplexType,HOST_MEMORY,int,int> > dmat;
 
       // shared ptr to pseudopot object. Not constructed here.
-      // can be set from the outside to avoid recomputing. 
+      // can be set from the outside to avoid recomputing.
       std::shared_ptr<hamilt::pseudopot> psp;
 
     };
