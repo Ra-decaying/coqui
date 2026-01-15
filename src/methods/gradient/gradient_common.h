@@ -25,11 +25,7 @@
 
 #include "nda/nda.hpp"
 
-namespace mf
-{
-class MF;
-} // namespace mf
-
+#include "mean_field/MF.hpp"
 
 namespace methods {
 

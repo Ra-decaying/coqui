@@ -286,17 +286,18 @@ namespace methods
   chol_grad_reader_t(std::shared_ptr<mf::MF> MF, ptree const& pt):
     _MF(std::move(MF)),
     _mpi(_MF->mpi()),
-    _ns(_MF->nspin()),
-    _ns_in_basis(_MF->nspin_in_basis()),
-    _nkpts(_MF->nkpts()),
-    _nbnd(_MF->nbnd()),
-    _naux(_MF->nbnd_aux()),
     _eri_grad_dir(io::get_value_with_default<std::string>(pt, "path","./")),
     _eri_grad_filename(io::get_value_with_default<std::string>(pt, "output", "chol_grad_info.h5")),
     _storage((_eri_grad_dir == "") ? incore : outcore),
-    _tol(io::get_value_with_default<double>(pt, "tol", 0.0001)),
     _read_type(io::tolower_copy(io::get_value_with_default<std::string>(pt,"read_type","all")) == "all" ? each_q : single_kpair),
     _write_type(io::tolower_copy(io::get_value_with_default<std::string>(pt,"write_type","multi")) == "multi" ? multi_file : single_file),
+    _ns(_MF->nspin()),
+    _ns_in_basis(_MF->nspin_in_basis()),
+    _nkpts(_MF->nkpts()),
+    _Np(0),
+    _nbnd(_MF->nbnd()),
+    _naux(_MF->nbnd_aux()),
+    _tol(io::get_value_with_default<double>(pt, "tol", 0.0001)),
     _Timer()
   {
     utils::check(_storage != incore, "chol_grad_rader_t: incore version is not implemented yet!");
@@ -314,17 +315,18 @@ namespace methods
                        chol_writing_type_e write_type = multi_file):
       _MF(std::move(MF)),
       _mpi(_MF->mpi()),
-      _ns(_MF->nspin()),
-      _ns_in_basis(_MF->nspin_in_basis()),
-      _nkpts(_MF->nkpts()),
-      _nbnd(_MF->nbnd()),
-      _naux(_MF->nbnd_aux()),
       _eri_grad_dir(eri_grad_dir),
       _eri_grad_filename(eri_grad_filename),
       _storage((eri_grad_dir == "")? incore : outcore),
-      _tol(-1.0),
       _read_type(read_type),
       _write_type(write_type),
+      _ns(_MF->nspin()),
+      _ns_in_basis(_MF->nspin_in_basis()),
+      _nkpts(_MF->nkpts()),
+      _Np(0),
+      _nbnd(_MF->nbnd()),
+      _naux(_MF->nbnd_aux()),
+      _tol(-1.0),
       _Timer() {
 
       utils::check(_storage != incore, "chol_grad_reader_t: incore version is not implemented yet!");

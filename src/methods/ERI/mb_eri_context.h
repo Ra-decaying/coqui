@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,8 +22,9 @@
 #ifndef COQUI_MBPT_CONTEXT_H
 #define COQUI_MBPT_CONTEXT_H
 
-#include "thc_reader_t.hpp"
+#include "chol_grad_reader_t.hpp"
 #include "chol_reader_t.hpp"
+#include "thc_reader_t.hpp"
 
 namespace methods {
 
@@ -41,26 +42,26 @@ struct mb_eri_t {
 
   // one eri for all
   mb_eri_t(corr_eri_t& corr):
-  hf_eri(std::nullopt), 
-  hartree_eri(std::nullopt), 
-  exchange_eri(std::nullopt), 
+  hf_eri(std::nullopt),
+  hartree_eri(std::nullopt),
+  exchange_eri(std::nullopt),
   corr_eri(std::ref(corr))
   {}
 
   // separate eri for hf and post-hf
   mb_eri_t(hf_eri_t& hf, corr_eri_t& corr):
-  hf_eri(std::ref(hf)), 
-  hartree_eri(std::nullopt), 
-  exchange_eri(std::nullopt), 
+  hf_eri(std::ref(hf)),
+  hartree_eri(std::nullopt),
+  exchange_eri(std::nullopt),
   corr_eri(std::ref(corr))
   {}
 
   // separate eri for J, K and post-hf
   mb_eri_t(hartree_eri_t& hartree, exchange_eri_t& ex, corr_eri_t& corr):
-  hf_eri(std::nullopt), 
+  hf_eri(std::nullopt),
   hartree_eri(std::ref(hartree)),
-  exchange_eri(std::ref(ex)), 
-  corr_eri(std::ref(corr)) 
+  exchange_eri(std::ref(ex)),
+  corr_eri(std::ref(corr))
   {}
 
 };

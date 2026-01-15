@@ -32,7 +32,7 @@ namespace methods
 {
 
 template<typename eri_grad_t>
-void mbpt_gradient(std::string solver_type, eri_grad_t &eri_grad, const ptree &pt)
+void mbpt_gradient(const std::string &solver_type, eri_grad_t &eri_grad, const ptree &pt)
 {
 
   auto mf = eri_grad.corr_eri->get().MF();
@@ -60,8 +60,12 @@ void mbpt_gradient(std::string solver_type, eri_grad_t &eri_grad, const ptree &p
 
 }
 
-template void mbpt_gradient(const std::string,
+template void mbpt_gradient(const std::string&,
                             mb_eri_t<chol_grad_reader_t, chol_grad_reader_t, chol_grad_reader_t, chol_grad_reader_t>&,
+                            ptree const&);
+
+template void mbpt_gradient(const std::string&,
+                            mb_eri_t<chol_grad_reader_t, thc_reader_t, thc_reader_t, chol_grad_reader_t>&,
                             ptree const&);
 
 } // namespace methods

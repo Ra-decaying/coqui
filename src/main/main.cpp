@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -40,6 +40,7 @@
 #include "methods/pproc/pproc_drivers.hpp"
 #include "methods/pproc/hamiltonians.h"
 #include "methods/MBPT_drivers.h"
+#include "methods/MBPT_gradient_drivers.h"
 #include "methods/pproc/wavefunction_utils.h"
 #include "wannier/wan90.h"
 
@@ -57,11 +58,11 @@ int main(int argc, char** argv)
   bool root(world.root());
 
   // compute backend
-  std::string compute = "default"; 
+  std::string compute = "default";
 
   // parse command line inputs
   std::vector<std::string> inputs;
-  int output_level, debug_level; 
+  int output_level, debug_level;
   //if (world.root()) // everyone parse input file (e.g. hdf can be read in parallel)
   { // parse command line inputs
     cxxopts::Options options(argv[0], "FlatIron Quantum Many-body Acceleration Framework");
@@ -87,23 +88,23 @@ int main(int argc, char** argv)
       exit(0);
     }
 
-    // compute 
+    // compute
     compute = args["compute"].as<std::string>();
     io::tolower(compute);
 
-    // output level 
+    // output level
     output_level = args["verbosity"].as<int>();
     // check program options
-    if (output_level < 0) 
+    if (output_level < 0)
     {
       std::cerr << "verbosity < 0: " << output_level << std::endl;
       mpi3::environment::finalize();
       exit(1);
     }
- 
+
     // debug level
     debug_level = args["debug"].as<int>();
-    if (debug_level < 0) 
+    if (debug_level < 0)
     {
       std::cerr << "debug < 0: " << debug_level << std::endl;
       mpi3::environment::finalize();
@@ -149,20 +150,20 @@ int main(int argc, char** argv)
   } catch (std::exception const& e) {
     app_error("Error parsing input file. Check format.");
     mpi3::environment::finalize();
-    exit(1);	
+    exit(1);
   }
 
-  // dispatch based on compute 
+  // dispatch based on compute
   if(compute == "default") {
     run<DEFAULT_MEMORY_SPACE>(world,parser);
-  } else if(compute == "cpu") { 
+  } else if(compute == "cpu") {
     run<HOST_MEMORY>(world,parser);
 #if defined(ENABLE_DEVICE)
-  } else if(compute == "gpu") { 
+  } else if(compute == "gpu") {
     run<DEVICE_MEMORY>(world,parser);
 #endif
 #if defined(ENABLE_UNIFIED_MEMORY)
-  } else if(compute == "unified") { 
+  } else if(compute == "unified") {
     run<UNIFIED_MEMORY>(world,parser);
 #endif
   } else {
@@ -181,15 +182,17 @@ void run(mpi3::communicator &comm, InputParser &parser)
 {
   using methods::thc_reader_t;
   using methods::chol_reader_t;
-  // container of MF and eri objects. Enables reuse in multiple input blocks! 
+  using methods::chol_grad_reader_t;
+  // container of MF and eri objects. Enables reuse in multiple input blocks!
   std::map<std::string, std::shared_ptr<mf::MF>> mf_list;
   std::map<std::string, std::tuple<std::string,std::unique_ptr<thc_reader_t>>> thc_list;
   std::map<std::string, std::tuple<std::string,std::unique_ptr<chol_reader_t>>> chol_list;
+  std::map<std::string, std::tuple<std::string,std::unique_ptr<chol_grad_reader_t>>> chol_grad_list;
 
   auto mpi_context = std::make_shared<utils::mpi_context_t<>>(utils::make_mpi_context(comm));
 
   for (auto const& it : parser.get_root())
-  { // go through all executable blocks 
+  { // go through all executable blocks
     std::string cname = it.first;
     if (cname == "mean_field") {
 
@@ -201,6 +204,41 @@ void run(mpi3::communicator &comm, InputParser &parser)
         ptree mf_pt = mf_it.second;
         utils::check(!mf_pt.empty(), "Every entry of \'mean_field\' should be a node.");
         auto name = mf::add_mf(mpi_context, mf_pt, mf_type, mf_list, true);
+      }
+
+    } else if (cname == "mean_field_gradient") {
+
+      ptree pt = it.second;
+      auto [eri_name, eri_type] = methods::get_eri_block(mpi_context, pt, mf_list,
+                                                         thc_list, chol_list, "interaction");
+      utils::check(eri_name != "" and eri_type != "",
+                   "Error: Failed to find interaction block needed by {}", cname);
+      auto [hf_eri_name, hf_eri_type] = methods::get_eri_block(mpi_context, pt, mf_list,
+                                                               thc_list, chol_list, "interaction_hf");
+      if (hf_eri_name == "" or hf_eri_type == "") {
+        hf_eri_name = eri_name;
+        hf_eri_type = eri_type;
+      }
+      auto [eri_grad_name, eri_grad_type] = methods::get_eri_grad_block(mpi_context, pt, mf_list,
+                                                                        chol_grad_list, "interaction_gradient");
+      utils::check(eri_grad_name != "" and eri_grad_type != "",
+                   "Error: Failed to find interaction gradient block needed by {}", cname);
+
+      auto [hf_eri_grad_name, hf_eri_grad_type] = methods::get_eri_grad_block(mpi_context, pt, mf_list,
+                                                                              chol_grad_list, "interaction_gradient_hf");
+      if (hf_eri_grad_name == "" or hf_eri_grad_type == "") {
+        hf_eri_grad_name = eri_grad_name;
+        hf_eri_grad_type = eri_grad_type;
+      }
+      if (hf_eri_type == "cholesky" and hf_eri_grad_type == "cholesky" and
+          eri_type == "cholesky" and eri_grad_type == "cholesky") {
+        auto mf_name = std::get<0>(chol_list[eri_name]);
+        utils::check(mf_name == std::get<0>(chol_list[hf_eri_name]), "{}: mfs of eri and hf_eri are inconsistent!");
+        mf::mf_gradient_t mf_gradient(mf_list[mf_name].get(), pt);
+        mf_gradient.evaluate(*std::get<1>(chol_list[hf_eri_name]), *std::get<1>(chol_grad_list[hf_eri_name]));
+      } else {
+        APP_ABORT("Error: only cholesky version is supported. hf_eri_type = {}, hf_eri_grad_type = {}, eri_type = {}, eri_grad_type = {}",
+                  hf_eri_type, hf_eri_grad_type, eri_type, eri_grad_type);
       }
 
     } else if (cname == "interaction") {
@@ -216,8 +254,9 @@ void run(mpi3::communicator &comm, InputParser &parser)
           auto name = methods::add_thc(mpi_context, int_pt, mf_list, thc_list);
         } else if (int_type == "cholesky") {
           auto name = methods::add_cholesky(mpi_context, int_pt, mf_list, chol_list);
-        } else
-          APP_ABORT("Error: Invalid interaction type: {}",int_type);
+        } else {
+          APP_ABORT("Error: Invalid interaction type: {}", int_type);
+        }
       }
 
     } else if (cname == "isdf") {
@@ -226,25 +265,41 @@ void run(mpi3::communicator &comm, InputParser &parser)
       auto mf_name = mf::get_mf(mpi_context, pt, mf_list);
       methods::make_isdf(mf_list[mf_name], pt);
 
+    } else if (cname == "interaction_gradient") {
+
+      ptree pt = it.second;
+      if (auto v = pt.get_value_optional<std::string>())
+        utils::check(*v == "", "interaction_gradient reference not allowed at top level.");
+      for (auto const& int_it : pt) {
+        std::string int_type = int_it.first;
+        ptree int_pt = int_it.second;
+        utils::check(!int_pt.empty(), "Every entry of \'interaction_gradient\' should be a node.");
+        if (int_type == "cholesky") {
+            auto name = methods::add_cholesky_gradient(mpi_context, int_pt, mf_list, chol_grad_list);
+        } else {
+          APP_ABORT("Error: Invalid interaction_gradient type: {}", int_type);
+        }
+      }
+
     } else if (cname == "orbitals") {
 
-      ptree pt = it.second; 
+      ptree pt = it.second;
       auto mf_name = mf::get_mf(mpi_context, pt, mf_list);
       orbitals::orbital_factory(*mf_list[mf_name],pt);
 
     } else if (cname == "mp2") {
 
-      ptree pt = it.second; 
+      ptree pt = it.second;
       app_error("calculation type: {} not implemented yet \n",cname.c_str());
 
     } else if (cname == "hf" or cname == "qphf" or cname == "rpa" or cname == "gw" or cname == "qpgw" or cname == "gw_dca"
                or cname == "evgw0" or cname == "gf2") {
 
-      // all based on mbpt, lump together
+     // all based on mbpt, lump together
       ptree pt = it.second;
       auto [eri_name, eri_type] = methods::get_eri_block(mpi_context, pt, mf_list,
                                                          thc_list, chol_list, "interaction");
-      utils::check(eri_name != "" and eri_type != "", 
+      utils::check(eri_name != "" and eri_type != "",
                    "Error: Failed to find interaction block needed by {}",cname);
       auto [hf_eri_name, hf_eri_type] = methods::get_eri_block(mpi_context, pt, mf_list,
                                                                thc_list, chol_list, "interaction_hf");
@@ -320,6 +375,40 @@ void run(mpi3::communicator &comm, InputParser &parser)
                   hf_eri_type, hartree_eri_type, exchange_eri_type, eri_type);
       }
 
+    } else if (cname == "hf_gradient") {
+
+      ptree pt = it.second;
+      auto [eri_name, eri_type] = methods::get_eri_block(mpi_context, pt, mf_list,
+                                                         thc_list, chol_list, "interaction");
+      utils::check(eri_name != "" and eri_type != "",
+                   "Error: Failed to find interaction block needed by {}", cname);
+      auto [hf_eri_name, hf_eri_type] = methods::get_eri_block(mpi_context, pt, mf_list,
+                                                               thc_list, chol_list, "interaction_hf");
+      if (hf_eri_name == "" or hf_eri_type == "") {
+        hf_eri_name = eri_name;
+        hf_eri_type = eri_type;
+      }
+      auto [eri_grad_name, eri_grad_type] = methods::get_eri_grad_block(mpi_context, pt, mf_list,
+                                                                        chol_grad_list, "interaction_gradient");
+      utils::check(eri_grad_name != "" and eri_grad_type != "",
+                   "Error: Failed to find interaction gradient block needed by {}", cname);
+      auto [hf_eri_grad_name, hf_eri_grad_type] = methods::get_eri_grad_block(mpi_context, pt, mf_list,
+                                                                              chol_grad_list, "interaction_hf_gradient");
+      if (hf_eri_grad_name == "" or hf_eri_grad_type == "") {
+        hf_eri_grad_name = eri_grad_name;
+        hf_eri_grad_type = eri_grad_type;
+      }
+      if (hf_eri_type == "cholesky" and eri_type == "cholesky" and
+          hf_eri_type  == "cholesky" and eri_grad_type == "cholesky") {
+        auto mf_name = std::get<0>(chol_list[eri_name]);
+        utils::check(mf_name == std::get<0>(chol_list[hf_eri_name]), "{}: mfs of eri and hf_eri are inconsistent!");
+        auto mb_eri_grad = methods::mb_eri_t(*std::get<1>(chol_grad_list[hf_eri_grad_name]), *std::get<1>(chol_grad_list[eri_grad_name]));
+        methods::mbpt_gradient(cname, mb_eri_grad, pt);
+      } else {
+        APP_ABORT("Error: only cholesky version is supported. hf_eri_type = {}, eri_type = {}, eri_grad_type = {}",
+                  hf_eri_type, eri_type, eri_grad_type);
+      }
+
     } else if (cname == "downfold_1e") {
 
       ptree pt = it.second;
@@ -383,25 +472,25 @@ void run(mpi3::communicator &comm, InputParser &parser)
                                                          thc_list, chol_list, "interaction");
       if(eri_type == "thc") {
         auto mf_name = std::get<0>(thc_list[eri_name]);
-        // adds H0 if requested 
+        // adds H0 if requested
         methods::add_core_hamiltonian(*mf_list[mf_name],pt);
-        // factorizes Vuv and adds it to the file. 
-        // If requested, calculates and writes half-transformed integrals in THC format. 
+        // factorizes Vuv and adds it to the file.
+        // If requested, calculates and writes half-transformed integrals in THC format.
         methods::add_thc_hamiltonian_components(*mf_list[mf_name],*std::get<1>(thc_list[eri_name]),pt);
       } else if(eri_type == "cholesky") {
         auto mf_name = std::get<0>(chol_list[eri_name]);
-        // adds H0 if requested 
+        // adds H0 if requested
         methods::add_core_hamiltonian(*mf_list[mf_name],pt);
         // nothing to do, AFQMC code can read /Interaction directly
       } else {
         // right now this will abort if no mf is found. Find fix!
         auto mf_name = mf::get_mf(mpi_context, pt, mf_list);
-        // adds H0 if requested 
+        // adds H0 if requested
         methods::add_core_hamiltonian(*mf_list[mf_name],pt);
       }
 
-      // add interation term if requested (possible to add outside this block, 
-      // only necessary to do here if changing storage formats 
+      // add interation term if requested (possible to add outside this block,
+      // only necessary to do here if changing storage formats
 
       // add interacting wfn if requested (from MBPT calculation)
 
@@ -412,9 +501,9 @@ void run(mpi3::communicator &comm, InputParser &parser)
         utils::check(*v == "", "wavefunction reference not allowed at top level.");
       for (auto const& wfn_it : pt) {
         std::string wfn_type = wfn_it.first;
-        ptree wfn_pt = wfn_it.second; 
+        ptree wfn_pt = wfn_it.second;
         utils::check(!wfn_pt.empty(), "Every entry of \'wavefunction\' should be a node.");
-        if (wfn_type == "mf") {
+          if (wfn_type == "mf") {
           auto mf_name = mf::get_mf(mpi_context,wfn_pt, mf_list);
           if(mpi_context->comm.root()) {
             auto output = io::get_value_with_default<std::string>(wfn_pt,"output","wfn.h5");
@@ -433,7 +522,7 @@ void run(mpi3::communicator &comm, InputParser &parser)
       }
 
     } else if (cname == "wannier90") {
-  
+
       ptree pt = it.second;
       if (auto v = pt.get_value_optional<std::string>())
         utils::check(*v == "", "wannier90 reference not allowed at top level.");
@@ -443,13 +532,13 @@ void run(mpi3::communicator &comm, InputParser &parser)
         utils::check(!wann_pt.empty(), "Every entry of \'wannier90\' should be a node.");
         if (wann_type == "append_win") {
           auto mf_name = mf::get_mf(mpi_context, wann_pt, mf_list);
-          wannier::append_wannier90_win(*mf_list[mf_name], wann_pt); 
+          wannier::append_wannier90_win(*mf_list[mf_name], wann_pt);
         } else if (wann_type == "converter") {
           auto mf_name = mf::get_mf(mpi_context, wann_pt, mf_list);
           wannier::to_wannier90(*mf_list[mf_name],wann_pt);
         } else if (wann_type == "library_mode") {
 #if defined(ENABLE_WANNIER90)
-          // only assumes *.win file with options 
+          // only assumes *.win file with options
           auto mf_name = mf::get_mf(mpi_context, wann_pt, mf_list);
           wannier::wannier90_library_mode(*mf_list[mf_name],wann_pt);
 #else
@@ -460,7 +549,7 @@ void run(mpi3::communicator &comm, InputParser &parser)
           auto mf_name = mf::get_mf(mpi_context, wann_pt, mf_list);
           wannier::wannier90_library_mode_from_nnkp(*mf_list[mf_name],wann_pt);
 #else
-          APP_ABORT("Error: wannier90.library_mode without wannier90 support. Recompile with ENABLE_WANNIER90=ON."); 
+          APP_ABORT("Error: wannier90.library_mode without wannier90 support. Recompile with ENABLE_WANNIER90=ON.");
 #endif
         } else if (wann_type == "mlwf_h5") {
           auto mf_name = mf::get_mf(mpi_context, wann_pt, mf_list);
@@ -474,9 +563,9 @@ void run(mpi3::communicator &comm, InputParser &parser)
 
       app_error("unknown calculation type: {} \n",cname.c_str());
       mpi3::environment::finalize();
-      exit(1);	
+      exit(1);
 
     }
-  } 
+  }
 }
 

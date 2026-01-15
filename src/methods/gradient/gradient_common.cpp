@@ -24,8 +24,8 @@
 
 #include "gradient_common.h"
 
-#include "mean_field/MF.hpp"
 #include "IO/app_loggers.h"
+#include "methods/HF/hf_grand_potential.h"
 
 namespace methods {
 

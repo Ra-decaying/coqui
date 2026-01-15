@@ -24,15 +24,11 @@
 
 #include <string>
 
-namespace imag_axes_ft
-{
-class IAFT;
-} // namespace imag_axes_ft
+#include "methods/mb_state/mb_state.hpp"
+#include "numerics/imag_axes_ft/iaft_utils.hpp"
 
 namespace methods
 {
-
-struct MBState;
 
 template<typename dyson_type, typename eri_grad_t>
 void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad_t, const imag_axes_ft::IAFT& FT,

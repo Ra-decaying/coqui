@@ -29,6 +29,7 @@
 #include "methods/ERI/chol_reader_t.hpp"
 #include "methods/ERI/detail/concepts.hpp"
 #include "nda/nda.hpp"
+#include "utilities/mpi_context.h"
 #include "utilities/Timer.hpp"
 
 namespace mf {
@@ -37,9 +38,14 @@ namespace mf {
    * The zero-temperature Hartree gradient calculator.
    * This is not optimal and it is for testing.
    */
-  class mf_gradient_t {
+
+   // TODO Pass mf::MF and mpi_context_t via ERI
+
+   class mf_gradient_t {
 
     public:
+
+      using mpi_context_t = utils::mpi_context_t<mpi3::communicator>;
 
       template<nda::MemoryArray local_Array_t>
       using dArray_t = math::nda::distributed_array<local_Array_t, mpi3::communicator>;
@@ -50,7 +56,7 @@ namespace mf {
       template<int N>
       using shape_t = std::array<long, N>;
 
-      mf_gradient_t(boost::mpi3::communicator gcomm, const mf::MF *MF, const ptree &pt);
+      mf_gradient_t(const mf::MF *MF, const ptree &pt);
       ~mf_gradient_t() = default;
 
       // assume that all elements are real
@@ -67,9 +73,7 @@ namespace mf {
 
     private:
 
-    mpi3::communicator _gcomm;
-    mpi3::shared_communicator _node_comm;
-    mpi3::communicator _internode_comm;
+    std::shared_ptr<mpi_context_t> _context;
 
     const mf::MF *_MF = nullptr;
 

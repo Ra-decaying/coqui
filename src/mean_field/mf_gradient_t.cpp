@@ -23,19 +23,13 @@
 
 namespace mf {
 
-  mf_gradient_t::mf_gradient_t(mpi3::communicator gcomm, const mf::MF *MF, const ptree &pt):
-    _gcomm(gcomm),
-    _node_comm(_gcomm.split_shared()),
+  mf_gradient_t::mf_gradient_t(const mf::MF *MF, const ptree &pt):
+    _context(MF->mpi()),
     _MF(MF),
     _Timer() {
-    if (_gcomm.size()%_node_comm.size()!=0) {
+    if (_context->comm.size() % _context->node_comm.size() !=0) {
       APP_ABORT("Zero temperature MF gradient: number of processors on each node should be the same.");
     }
-    // Setup internode communicator
-    int node_size = _node_comm.size();
-    int color =_gcomm.rank() % node_size;
-    int key = _gcomm.rank() / node_size;
-    _internode_comm = _gcomm.split(color, key);
 
     bool auxbasis_response = io::get_value_with_default<bool>(pt, "auxbasis_response", true);
     _auxbasis_response = auxbasis_response;
