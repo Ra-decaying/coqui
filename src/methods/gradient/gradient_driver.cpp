@@ -92,6 +92,9 @@ void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad
     hf_gradient.evaluate(sDm_skij.local(), sF_skij.local(), dyson.sS_skij().local(), dyson.sH0_skij().local(),
                          mb_eri_grad_t.hf_eri->get(), false);
     eval_hf_grand_potential(sDm_skij.local(), dyson.sS_skij().local(), mf, 0.0, FT.beta(), mu);
+    gradient_elec = hf_gradient.gradient_elec();
+    gradient_nuc = hf_gradient.gradient_nuc();
+    gradient_total = hf_gradient.gradient_total();
   }
 
   print_mbpt_gradient(gradient_elec, mf, "GRAD_ELEC");
