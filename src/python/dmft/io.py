@@ -57,6 +57,37 @@ def print_degenerate_blks(deg_blks, gf_struct):
 
 
 def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impurity_index=-1, iteration=-1):
+    """
+    Save impurity solver results and/or inputs to an HDF5 group.
+
+    Parameters
+    ----------
+    dmft_grp : h5py.Group
+        The HDF5 group where the DMFT data will be stored.
+    solver_results : list, optional
+        A list of dictionaries containing solver results for each impurity.
+    solver_inputs : list, optional
+        A list of dictionaries containing solver inputs for each impurity.
+    impurity_index : int, optional
+        The index of the impurity to save. If -1, save all impurities. Default is -1.
+    iteration : int, optional
+        The DMFT iteration number. If -1, determine the iteration automatically. Default is -1.
+
+    Raises
+    ------
+    ValueError
+        If neither `solver_results` nor `solver_inputs` is provided.
+        If `solver_results` and `solver_inputs` are provided but have different lengths.
+        If `impurity_index` is out of range.
+
+    Notes
+    -----
+    - If `iteration` is -1, the function attempts to determine the iteration number
+      from the `dmft_grp` keys. If no iteration information is found, it defaults to 1.
+    - The function creates a new group for the specified iteration and stores the
+      impurity data under subgroups named `impurity_<index>`.
+    - Backward compatibility is maintained for older keys like "final_iteration".
+    """
     if solver_results is None and solver_inputs is None:
         raise ValueError("Either solver_results or solver_inputs must be provided.")
 
@@ -70,10 +101,11 @@ def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impuri
         else:
             iteration = 1
 
-    if solver_results and solver_inputs:
-        assert len(solver_results) == len(solver_inputs), "solver_results and solver_inputs must have the same length."
+    if solver_results is not None and solver_inputs is not None:
+        if len(solver_results) != len(solver_inputs):
+            raise ValueError("solver_results and solver_inputs must have the same length.")
         num_impurities = len(solver_results)
-    elif solver_results:
+    elif solver_results is not None:
         num_impurities = len(solver_results)
     else:
         num_impurities = len(solver_inputs)
@@ -81,7 +113,8 @@ def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impuri
     if impurity_index == -1:
         impurity_list = np.arange(num_impurities)
     else:
-        assert impurity_index < num_impurities, f"impurity_index {impurity_index} is out of range [0, {num_impurities})."
+        if impurity_index < 0 or impurity_index >= num_impurities:
+            raise ValueError(f"impurity_index {impurity_index} is out of range [-1, {num_impurities}).")
         impurity_list = [impurity_index]
 
     if f"iter{iteration}" not in dmft_grp.keys():
@@ -101,6 +134,23 @@ def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impuri
 
 
 def _write_impurity_results(h5_grp, impurity_results):
+    """
+    Write impurity solver results to an HDF5 group.
+
+    Parameters
+    ----------
+    h5_grp : h5py.Group
+        The HDF5 group where the impurity results will be stored.
+    impurity_results : dict
+        A dictionary containing the impurity solver results. It should include
+        both optional and mandatory keys.
+
+    Notes
+    -----
+    - The function creates a subgroup named "results" within `h5_grp` if it does not exist.
+    - Optional keys (e.g., raw numpy arrays on IR mesh) are stored if present in `impurity_results`.
+    - Mandatory keys (e.g., TRIQS objects) are always expected to be present in `impurity_results`.
+    """
     if "results" not in h5_grp.keys():
         h5_grp.create_group("results")
     res_grp = h5_grp["results"]
@@ -231,6 +281,36 @@ def read_impurity_chkpt(h5_filename, iteration=-1, *, read="both", impurity_indi
 
 
 def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1):
+    """
+    Update impurity solver results from a checkpoint file.
+
+    Parameters
+    ----------
+    solver_results : list of dict
+        A list of dictionaries containing the current solver results for each impurity.
+        This will be updated with the data read from the checkpoint file.
+    h5_filename : str
+        Path to the HDF5 checkpoint file.
+    iteration : int, optional
+        The DMFT iteration to read from the checkpoint file. If -1, the function
+        attempts to determine the most recent iteration automatically. Default is -1.
+
+    Returns
+    -------
+    int
+        The iteration number from which the results were updated.
+
+    Raises
+    ------
+    RuntimeError
+        If no valid DMFT iteration is found in the checkpoint file.
+
+    Notes
+    -----
+    - If the specified iteration does not exist, the function automatically falls back
+      to the previous iteration.
+    - The function ensures that the checkpoint file is complete and not corrupted.
+    """
     res_tmp = {}
     if mpi.is_master_node():
         with HDFArchive(h5_filename, 'r') as ar:

@@ -259,7 +259,7 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
 
             # mixing impurity and dc solutions to facilitate convergence
             dmft_state.damp_impurity_results(
-                solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7), impurity_indices=[imp_index]
+                solver_chkpt_h5, mixing=iterative_params.get('mixing', 0.7), impurity_indices=[imp_index]
             )
 
             # save solver results for current impurity
