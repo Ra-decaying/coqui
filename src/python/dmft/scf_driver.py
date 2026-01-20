@@ -177,10 +177,16 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             Input['Wloc_t'] = coqui_dmft.chemistry_to_product_basis(W_t)
             Input['Vloc'] = coqui_dmft.chemistry_to_product_basis(V)
 
+            coqui_dmft.fit_local_results_boson(
+                Input, dmft_state.ir_kernel, solver_params.get("causal_projection"))
+
             # Fermionic and bosonic Weiss fields
             Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(
                 coqui_mpi, Res, Input, solver_params, dmft_state.ir_kernel
             )
+            Input['u_weiss_iw'] = coqui_dmft.fit_u_weiss(
+                Input['u_weiss_iw'], dmft_state.ir_kernel, solver_params.get("causal_projection"))
+
             # h0: (nspin, norb, norb), delta_iw: (niw, nspin, norb, norb)
             Input['h0'], Input['delta_iw'] = coqui_dmft.extract_h0_and_delta(
                 Input['g_weiss_iw'], dmft_state.ir_kernel
@@ -241,10 +247,8 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                 Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], dmft_state.ir_kernel)
             )
             # Causal projection
-            Res.update(coqui_dmft.causal_projection_boson(
-                Res['Pi_iw_data'], Res['W_iw_data'],
-                dmft_state.ir_kernel, solver_params.get("causal_projection"))
-            )
+            coqui_dmft.fit_impurity_results_boson(
+                Res, dmft_state.ir_kernel, solver_params.get("causal_projection"))
 
             # TODO Option to use Gimp and Wimp
             # GW double counting contributions
@@ -327,6 +331,9 @@ def _edmft_loop_alg2(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             Input['Wloc_t'] = coqui_dmft.chemistry_to_product_basis(W_t)
             Input['Vloc'] = coqui_dmft.chemistry_to_product_basis(V)
 
+            coqui_dmft.fit_local_results_boson(
+                Input, dmft_state.ir_kernel, solver_params.get("causal_projection"))
+
             # Fermionic and bosonic Weiss fields
             Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(
                 coqui_mpi, Res, Input, solver_params, dmft_state.ir_kernel
@@ -390,10 +397,8 @@ def _edmft_loop_alg2(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
                 Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], dmft_state.ir_kernel)
             )
             # Causal projection
-            Res.update(coqui_dmft.causal_projection_boson(
-                Res['Pi_iw_data'], Res['W_iw_data'],
-                dmft_state.ir_kernel, solver_params.get("causal_projection"))
-            )
+            coqui_dmft.fit_impurity_results_boson(
+                Res, dmft_state.ir_kernel, solver_params.get("causal_projection"))
 
             # GW double counting contributions
             Res.update(
@@ -653,10 +658,8 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
         )
 
         # Causal projection
-        Res.update(coqui_dmft.causal_projection_boson(
-            Res['Pi_iw_data'], Res['W_iw_data'],
-            ir_kernel, solver_params.get("causal_projection"))
-        )
+        coqui_dmft.fit_impurity_results_boson(
+            Res, ir_kernel, solver_params.get("causal_projection"))
 
         solver_results.append(Res)
 
