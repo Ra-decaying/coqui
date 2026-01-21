@@ -73,6 +73,8 @@ def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
     if gw_params:
         assert gw_params['screen_type'] == wloc_params['screen_type']
 
+    wloc_params['output_in_tau'] = True
+
     coqui_chkpt_h5 = embed_params['outdir']+"/"+embed_params['prefix']+".mbpt.h5"
     solver_chkpt_h5 = impurity_params.pop('chkpt_h5', coqui_chkpt_h5)
 
@@ -90,14 +92,14 @@ def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
 
     for iteration in range(outer_num_iter):
         with HDFArchive(coqui_chkpt_h5, 'r') as ar:
-            input_type = "embed" if "embed" in ar.keys() else "scf"
-            input_iter = ar[f"{input_type}/final_iter"]
+            greens_func_source = "embed" if "embed" in ar.keys() else "scf"
+            greens_func_iteration = ar[f"{greens_func_source}/final_iter"]
         coqui_mpi.barrier()
 
         # GW if gw_params presents
         if gw_params is not None:
-            gw_params["input_type"] = input_type
-            gw_params["input_iter"] = input_iter
+            gw_params["greens_func_source"] = greens_func_source
+            gw_params["greens_func_iteration"] = greens_func_iteration
             coqui.run_gw(
                 gw_params, h_int = thc, projector_info = proj_info,
                 local_polarizabilities = dmft_state.local_pi_w
@@ -107,14 +109,18 @@ def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
         # Set the Green's function for the non-local RPA polarizability
         with HDFArchive(coqui_chkpt_h5, 'r') as ar:
             mbpt_final_iter = ar["scf/final_iter"]
-            pi_rpa_input = ar[f"scf/iter{mbpt_final_iter}/input_grp"]
-            pi_rpa_input_iter = ar[f"scf/iter{mbpt_final_iter}/input_iter"]
-        wloc_params["input_type"] = pi_rpa_input
-        wloc_params["input_iter"] = pi_rpa_input_iter
+            try:
+                pi_rpa_gf_source = ar[f"scf/iter{mbpt_final_iter}/greens_func_source"]
+                pi_rpa_gf_iteration = ar[f"scf/iter{mbpt_final_iter}/greens_func_iteration"]
+            except KeyError:
+                pi_rpa_gf_source = ar[f"scf/iter{mbpt_final_iter}/input_grp"]
+                pi_rpa_gf_iteration = ar[f"scf/iter{mbpt_final_iter}/input_iter"]
+        wloc_params["greens_func_source"] = pi_rpa_gf_source
+        wloc_params["greens_func_iteration"] = pi_rpa_gf_iteration
         coqui_mpi.barrier()
 
         # inner EDMFT loop
-        edmft_alg = {1: _edmft_loop, 2: _edmft_loop_alg2}
+        edmft_alg = {1: _edmft_loop, 2: _edmft_loop_fixed_gloc_and_wloc}
         try:
             edmft_impl = edmft_alg[inner_loop_alg]
         except KeyError:
@@ -135,20 +141,20 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
 
     for iteration in range(num_iter):
         with HDFArchive(coqui_chkpt_h5, 'r') as ar:
-            input_type = "embed" if "embed" in ar.keys() else "scf"
-            input_iter = ar[f"{input_type}/final_iter"]
+            greens_func_source = "embed" if "embed" in ar.keys() else "scf"
+            greens_func_iteration = ar[f"{greens_func_source}/final_iter"]
 
         # downfold for W_loc
-        # input_type and input_iter should be fixed during the inner loop
-        Vloc, Wloc_t = coqui.downfold_local_coulomb(
+        # greens_func_source and greens_func_iteration should be fixed during the inner loop
+        Vloc, Wloc_t = coqui.downfold_coulomb(
             thc, wloc_params,
             projector_info=proj_info,
             local_polarizabilities=dmft_state.local_pi_w
         )
 
         # downfold for G_loc
-        gloc_params["input_type"] = input_type
-        gloc_params["input_iter"] = input_iter
+        gloc_params["greens_func_source"] = greens_func_source
+        gloc_params["greens_func_iteration"] = greens_func_iteration
         Gloc_t = coqui.downfold_local_gf(mf, gloc_params, projector_info=proj_info)
 
         if coqui_mpi.root():
@@ -283,26 +289,27 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
         coqui_mpi.barrier()
 
 
-def _edmft_loop_alg2(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
-                     gloc_params, wloc_params, solver_params_list, embed_params,
-                     iterative_params, num_iter):
+def _edmft_loop_fixed_gloc_and_wloc(
+        mf, thc, proj_info, dmft_state, solver_chkpt_h5,
+        gloc_params, wloc_params, solver_params_list, embed_params,
+        iterative_params, num_iter):
     coqui_mpi = mf.mpi()
     coqui_chkpt_h5 = gloc_params['outdir']+"/"+gloc_params['prefix']+".mbpt.h5"
     with HDFArchive(coqui_chkpt_h5, 'r') as ar:
-        input_type = "embed" if "embed" in ar.keys() else "scf"
-        input_iter = ar[f"{input_type}/final_iter"]
+        greens_func_source = "embed" if "embed" in ar.keys() else "scf"
+        greens_func_iteration = ar[f"{greens_func_source}/final_iter"]
 
     # downfold for W_loc
-    # input_type and input_iter should be fixed during the inner loop
-    Vloc, Wloc_t = coqui.downfold_local_coulomb(
+    # greens_func_source and greens_func_iteration should be fixed during the inner loop
+    Vloc, Wloc_t = coqui.downfold_coulomb(
         thc, wloc_params,
         projector_info=proj_info,
         local_polarizabilities=dmft_state.local_pi_w
     )
 
     # downfold for G_loc
-    gloc_params["input_type"] = input_type
-    gloc_params["input_iter"] = input_iter
+    gloc_params["greens_func_source"] = greens_func_source
+    gloc_params["greens_func_iteration"] = greens_func_iteration
     Gloc_t = coqui.downfold_local_gf(mf, gloc_params, projector_info=proj_info)
 
     if coqui_mpi.root():

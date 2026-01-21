@@ -62,7 +62,7 @@ public:
   MBState(std::shared_ptr<mpi_context_t> mpi_in, imag_axes_ft::IAFT &ft_in,
           std::string prefix, bool restart_from_checkpoint=false);
 
-  // mbpt embedding constructors
+  // embedding constructors with MLWFs projector provided either directly or via hdf5 file
   MBState(imag_axes_ft::IAFT &ft_in, std::string prefix,
           std::shared_ptr<mf::MF> &mf, std::string C_file, bool translate_home_cell=false,
           bool restart_from_checkpoint=false);

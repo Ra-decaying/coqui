@@ -80,7 +80,7 @@ namespace bdft_tests {
       ptree pt;
       pt.put("permut_symm", true);
       pt.put("force_real", true);
-      pt.put("input_type", "");
+      pt.put("greens_func_source", "mf");
       embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
       embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa");
 
@@ -181,7 +181,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       ptree pt;
       pt.put("permut_symm", true);
       pt.put("force_real", true);
-      pt.put("input_type", "");
+      pt.put("greens_func_source", "mf");
       embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
       embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa");
 
@@ -371,33 +371,39 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
 
   }
 
-  TEST_CASE("downfold_wloc", "[methods][embed][df_2e]") {
+  TEST_CASE("downfold_coulomb", "[methods][embed][df_2e]") {
     auto& mpi = utils::make_unit_test_mpi_context();
 
-    double beta = 1000.0;
-    double wmax = 3.0;
-
-    std::string coqui_prefix = "downfold_wloc";
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source);
+    std::string coqui_prefix = "downfold_coulomb";
 
     auto downfold = [&](
     std::shared_ptr<mf::MF> &mf, std::string wannier_file,
     std::array<double, 6> &refs, double eps) {
-      auto psp = hamilt::make_pseudopot(*mf);
-      write_mf_data(*mf, ft, *psp, coqui_prefix);
-      mpi->comm.barrier();
 
-      thc_reader_t thc(mf, make_thc_reader_ptree(
-          mf->nbnd()*15, "", "incore", "", "bdft",
-          1e-10, mf->ecutrho(), 1, 1024));
+      int nIpts = mf->nbnd() * 15;
+      std::string cd_dir = "";
+      std::string storage = "incore";
+      std::string save = "";
+      std::string format = "bdft";
+      double thresh = 1e-10;
+      double ecut = mf->ecutrho();
+      int chol_block_size = 1;
+      int matrix_block_size = 1024;
+      thc_reader_t thc(
+        mf,
+        make_thc_reader_ptree(
+          nIpts, cd_dir, storage, save, format, thresh, ecut,
+          chol_block_size, matrix_block_size)
+      );
 
       ptree pt;
       pt.put("prefix", coqui_prefix);
       pt.put("wannier_file", wannier_file);
-      pt.put("input_type", "mf");
+      pt.put("greens_func_source", "mf");
       pt.put("screen_type", "crpa");
-      pt.put("output_in_tau", false);
-      auto [Vloc, Wloc_w] = downfold_wloc(thc, pt);
+      pt.put("beta", 1000.0);
+      pt.put("wmax", 3.0);
+      auto [Vloc, Wloc_w] = downfold_coulomb_with_projector_from_h5(thc, pt);
 
       // alpha = 10
       // Vloc: 0.602394239233, 0.552158246110, 0.552161743535
@@ -409,19 +415,19 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       // Vloc: 0.602097182891, 0.552027879790, 0.552026756400
       //Wloc_w0: -0.420151990687, -0.411333804347, -0.411330635493
       app_log(2, "Vloc: {0:.12f}, {1:.12f}, {2:.12f}",
-          Vloc(0,0,0,0).real(),
-          Vloc(0,0,1,1).real(),
-          Vloc(0,0,2,2).real());
-      VALUE_EQUAL(Vloc(0,0,0,0), refs[0], eps);
-      VALUE_EQUAL(Vloc(0,0,1,1), refs[1], eps);
-      VALUE_EQUAL(Vloc(0,0,2,2), refs[2], eps);
-      app_log(2, "Wloc_w0: {0:.12f}, {1:.12f}, {2:.12f}",
-              Wloc_w(0,0,0,0,0).real(),
-              Wloc_w(0,0,0,1,1).real(),
-              Wloc_w(0,0,0,2,2).real());
-      VALUE_EQUAL(Wloc_w(0,0,0,0,0), refs[3], eps);
-      VALUE_EQUAL(Wloc_w(0,0,0,1,1), refs[4], eps);
-      VALUE_EQUAL(Wloc_w(0,0,0,2,2), refs[5], eps);
+              Vloc(0, 0, 0, 0).real(), Vloc(0, 0, 1, 1).real(), Vloc(0, 0, 2, 2).real());
+
+      VALUE_EQUAL(Vloc(0, 0, 0, 0), refs[0], eps);
+      VALUE_EQUAL(Vloc(0, 0, 1, 1), refs[1], eps);
+      VALUE_EQUAL(Vloc(0, 0, 2, 2), refs[2], eps);
+
+      app_log(2, "Wloc_w0: {0:.12f}, {1:.12f}, {2:.12f}", 
+              Wloc_w(0, 0, 0, 0, 0).real(), Wloc_w(0, 0, 0, 1, 1).real(), Wloc_w(0, 0, 0, 2, 2).real());
+
+      VALUE_EQUAL(Wloc_w(0, 0, 0, 0, 0), refs[3], eps);
+      VALUE_EQUAL(Wloc_w(0, 0, 0, 1, 1), refs[4], eps);
+      VALUE_EQUAL(Wloc_w(0, 0, 0, 2, 2), refs[5], eps);
+
       mpi->comm.barrier();
 
       if (mpi->comm.root()) {
@@ -463,7 +469,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       ptree pt;
       pt.put("permut_symm", true);
       pt.put("force_real", true);
-      pt.put("input_type", "");
+      pt.put("greens_func_source", "");
       embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
       embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa");
       mpi->comm.barrier();
@@ -474,15 +480,11 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       h5::h5_read(df_grp, "final_iter", iter);
       auto iter_grp = df_grp.open_group("iter"+std::to_string(iter));
       nda::h5_read(iter_grp, "Vloc_abcd", Vloc);
-      nda::h5_read(iter_grp, "Wloc_wabcd", Wloc);
       nda::h5_read(iter_grp, "Uloc_wabcd", Uloc);
 
       app_log(2, "Vloc: {0:.12f}, {1:.12f}, {2:.12f}, {3:.12f}",
               Vloc(0,0,0,0).real(), Vloc(0,1,0,1).real(),
               Vloc(1,1,1,1).real(), Vloc(0,0,1,1).real());
-      app_log(2, "Wloc: {0:.12f}, {1:.12f}, {2:.12f}, {3:.12f}",
-              Wloc(0,0,0,0,0).real(), Wloc(0,0,1,0,1).real(),
-              Wloc(0,1,1,1,1).real(), Wloc(0,0,0,1,1).real());
       app_log(2, "Uloc: {0:.12f}, {1:.12f}, {2:.12f}, {3:.12f}",
               Uloc(0,0,0,0,0).real(), Uloc(0,0,1,0,1).real(),
               Uloc(0,1,1,1,1).real(), Uloc(0,0,0,1,1).real());
@@ -490,11 +492,6 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       VALUE_EQUAL(Vloc(0,1,0,1), 0.000042865260, 1e-5);
       VALUE_EQUAL(Vloc(1,1,1,1), 0.555000665573, 1e-5);
       VALUE_EQUAL(Vloc(0,0,1,1), 0.254836731135, 1e-5);
-
-      VALUE_EQUAL(Wloc(0,0,0,0,0), -0.350315268764, 1e-5);
-      VALUE_EQUAL(Wloc(0,0,1,0,1), -0.000005850911, 1e-5);
-      VALUE_EQUAL(Wloc(0,1,1,1,1), -0.220910992415, 1e-5);
-      VALUE_EQUAL(Wloc(0,0,0,1,1), -0.115140041097, 1e-5);
 
       VALUE_EQUAL(Uloc(0,0,0,0,0), -0.350315268764, 1e-5);
       VALUE_EQUAL(Uloc(0,0,1,0,1), -0.000005850911, 1e-5);
@@ -524,6 +521,121 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
     }
   }
 
+  TEST_CASE("compute_downfolded_coulomb_tensors", "[methods][embed][df_2e]") {
+    auto& mpi = utils::make_unit_test_mpi_context();
+
+    auto test_compute = [&](std::shared_ptr<mf::MF> &mf, std::string wannier_file) {
+      int nIpts = mf->nbnd() * 20;
+      std::string cd_dir = "";
+      std::string storage = "incore";
+      std::string save = "";
+      std::string format = "bdft";
+      double thresh = 1e-10;
+      double ecut = mf->ecutrho();
+      int chol_block_size = 1;
+      int matrix_block_size = 1024;
+      thc_reader_t thc(
+        mf,
+        make_thc_reader_ptree(
+          nIpts, cd_dir, storage, save, format, thresh, ecut,
+          chol_block_size, matrix_block_size)
+      );
+
+      std::string prefix = "coqui";
+      double beta = 1000.0;
+      double wmax = 1.2;
+      std::string precision = "high";
+      bool verbose = true;
+      imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, precision, verbose);
+      simple_dyson dyson(mf.get(), &ft);
+      write_mf_data(*mf, ft, dyson, prefix);
+      mpi->comm.barrier();
+
+      bool translate_home_cell = true;
+      MBState mb_state(ft, prefix, mf, wannier_file, translate_home_cell);
+      bool force_permut_symm = true;
+      bool force_real = true;
+      bool write_to_hdf5 = false;
+      bool q_dependent_output = false;
+      std::string greens_func_source = "scf";
+      long greens_func_iteration = 0;
+
+      embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
+
+      // --- RPA ---
+      std::string screen_type_rpa = "rpa";
+      auto [Vloc_rpa, Wloc_rpa] = embed_2e.compute_downfolded_coulomb_tensors(
+        thc, mb_state, screen_type_rpa, force_permut_symm, force_real, &ft,
+        greens_func_source, greens_func_iteration, write_to_hdf5, q_dependent_output);
+
+      app_log(2, "[RPA] Vloc: {0:.12f}, {1:.12f}, {2:.12f}, {3:.12f}",
+              Vloc_rpa(0,0,0,0).real(), Vloc_rpa(0,1,0,1).real(),
+              Vloc_rpa(1,1,1,1).real(), Vloc_rpa(0,0,1,1).real());
+      app_log(2, "[RPA] Wloc: {0:.12f}, {1:.12f}, {2:.12f}, {3:.12f}",
+              Wloc_rpa(0,0,0,0,0).real(), Wloc_rpa(0,0,1,0,1).real(),
+              Wloc_rpa(0,1,1,1,1).real(), Wloc_rpa(0,0,0,1,1).real());
+
+      // Compare Vloc_rpa to Vloc from downfold_2e_crpa
+      VALUE_EQUAL(Vloc_rpa(0,0,0,0), 1.416143628383, 1e-5);
+      VALUE_EQUAL(Vloc_rpa(0,1,0,1), 0.000042865260, 1e-5);
+      VALUE_EQUAL(Vloc_rpa(1,1,1,1), 0.555000665573, 1e-5);
+      VALUE_EQUAL(Vloc_rpa(0,0,1,1), 0.254836731135, 1e-5);
+              
+      // Compare Wloc_rpa to Wloc from downfold_2e_crpa
+      VALUE_EQUAL(Wloc_rpa(0,0,0,0,0), -0.350315268764, 1e-5);
+      VALUE_EQUAL(Wloc_rpa(0,0,1,0,1), -0.000005850911, 1e-5);
+      VALUE_EQUAL(Wloc_rpa(0,1,1,1,1), -0.220910992415, 1e-5);
+      VALUE_EQUAL(Wloc_rpa(0,0,0,1,1), -0.115140041097, 1e-5);
+
+      // --- cRPA ---
+      std::string screen_type_crpa = "crpa";
+      auto [Vloc_crpa, Wloc_crpa] = embed_2e.compute_downfolded_coulomb_tensors(
+        thc, mb_state, screen_type_crpa, force_permut_symm, force_real, &ft,
+        greens_func_source, greens_func_iteration, write_to_hdf5, q_dependent_output);
+
+      app_log(2, "[cRPA] Vloc: {0:.12f}, {1:.12f}, {2:.12f}, {3:.12f}",
+              Vloc_crpa(0,0,0,0).real(), Vloc_crpa(0,1,0,1).real(),
+              Vloc_crpa(1,1,1,1).real(), Vloc_crpa(0,0,1,1).real());
+      app_log(2, "[cRPA] Wloc: {0:.12f}, {1:.12f}, {2:.12f}, {3:.12f}",
+              Wloc_crpa(0,0,0,0,0).real(), Wloc_crpa(0,0,1,0,1).real(),
+              Wloc_crpa(0,1,1,1,1).real(), Wloc_crpa(0,0,0,1,1).real());
+
+      // Compare Vloc_rpa to Vloc from downfold_2e_crpa
+      VALUE_EQUAL(Vloc_crpa(0,0,0,0), 1.416143628383, 1e-5);
+      VALUE_EQUAL(Vloc_crpa(0,1,0,1), 0.000042865260, 1e-5);
+      VALUE_EQUAL(Vloc_crpa(1,1,1,1), 0.555000665573, 1e-5);
+      VALUE_EQUAL(Vloc_crpa(0,0,1,1), 0.254836731135, 1e-5);
+
+      // Compare Wloc_crpa to Uloc from downfold_2e_crpa
+      VALUE_EQUAL(Wloc_crpa(0,0,0,0,0), -0.350315268764, 1e-5);
+      VALUE_EQUAL(Wloc_crpa(0,0,1,0,1), -0.000005850911, 1e-5);
+      VALUE_EQUAL(Wloc_crpa(0,1,1,1,1), -0.220910992415, 1e-5);
+      VALUE_EQUAL(Wloc_crpa(0,0,0,1,1), -0.115140041097, 1e-5);
+
+      mpi->comm.barrier();
+
+      if (mpi->comm.root()) {
+        std::string filename = prefix + ".mbpt.h5";
+        remove(filename.c_str());
+      }
+      mpi->comm.barrier();
+    };
+
+    SECTION("nosym_qe") {
+      auto [outdir, prefix] = utils::utest_filename("qe_lih222");
+      auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi, "qe_lih222"));
+      std::string wannier_file = outdir + "/lih_wan.h5";
+      test_compute(mf, wannier_file);
+    }
+
+    SECTION("sym_qe") {
+      auto [outdir, prefix] = utils::utest_filename("qe_lih222_sym");
+      auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi, "qe_lih222_sym"));
+      std::string wannier_file = outdir + "/lih_wan.h5";
+      test_compute(mf, wannier_file);
+    }
+  }
+
   TEST_CASE("downfold_2e_edmft", "[methods][embed][df_2e]") {
     auto& mpi = utils::make_unit_test_mpi_context();
 
@@ -543,7 +655,8 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       ptree pt;
       pt.put("permut_symm", true);
       pt.put("force_real", true);
-      pt.put("pi_rpa_input", "mf");
+      // FIXME ?
+      pt.put("greens_func_source", "mf");
       embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
       embed_2e.downfolding_edmft(thc, mb_state, pt, "gw_edmft");
       mpi->comm.barrier();
@@ -631,7 +744,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         ptree pt;
         pt.put("permut_symm", true);
         pt.put("force_real", false);
-        pt.put("input_type", "");
+        pt.put("greens_func_source", "");
         embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"), string_to_div_enum("gygi"));
         embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa", "none", 1e-8);
         mpi->comm.barrier();
@@ -660,7 +773,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         ptree pt;
         pt.put("permut_symm", true);
         pt.put("force_real", false);
-        pt.put("input_type", "");
+        pt.put("greens_func_source", "");
         embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"),
                              string_to_div_enum("gygi"), "model_static");
         embed_2e.downfolding_crpa(thc, mb_state, pt, "bare", "none", 1e-8);
@@ -680,7 +793,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         ptree pt;
         pt.put("permut_symm", true);
         pt.put("force_real", false);
-        pt.put("input_type", "");
+        pt.put("greens_func_source", "");
         embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"),
                              string_to_div_enum("gygi"), "model_static");
         embed_2e.downfolding_crpa(thc, mb_state, pt, "bare", "cholesky", 1e-8);
@@ -700,7 +813,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         ptree pt;
         pt.put("permut_symm", true);
         pt.put("force_real", false);
-        pt.put("input_type", "");
+        pt.put("greens_func_source", "");
         embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"),
                              string_to_div_enum("gygi"), "model_static");
         embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa", "cholesky", 1e-8);

@@ -358,7 +358,7 @@ void run(mpi3::communicator &comm, InputParser &parser)
 
       ptree pt = it.second;
       auto mf_name = mf::get_mf(mpi_context, pt, mf_list);
-      methods::dmft_embed(mf_list[mf_name], pt);
+      methods::dmft_embed_with_projector_from_h5(mf_list[mf_name], pt);
 
     } else if (cname == "ac" or cname == "unfold_bz"
                or cname == "band_interpolation" or cname == "spectral_interpolation" or cname == "local_dos"

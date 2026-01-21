@@ -99,9 +99,13 @@ namespace methods {
 
   auto embed_eri_t::downfold_2e_logic(long gw_iter, [[maybe_unused]] long weiss_f_iter, long weiss_b_iter, long embed_iter)
     -> std::tuple<std::string, long> {
-    app_log(2, "Checking the dataset in the coqui checkpoint file...\n");
-    long g_iter = (embed_iter!=-1)? embed_iter : gw_iter;
-    std::string g_grp = (embed_iter!=-1)? "embed" : "scf";
+    
+    app_log(2, "Use default logic to determine the input Green's function for downfolding.\n");
+    
+    long greens_func_iteration = (embed_iter!=-1)? embed_iter : gw_iter;
+    std::string greens_func_source = (embed_iter!=-1)? "embed" : "scf";
+
+    // Explain the default logic to the users 
     if (embed_iter==-1) {
       app_log(1, "  The dataset \"embed\" does not exist in the checkpoint file, \n"
                  "  indicating that this is the initial DMFT iteration based on \n"
@@ -109,7 +113,7 @@ namespace methods {
                  "    a) The downfolded Coulomb interactions will be calculated using the Green's function from"
                  " \"{}/iter{}\". \n\n"
                  "    b) All the results will be written to \"downfold_2e/iter{}\".\n",
-              gw_iter, g_grp, g_iter, g_iter+1);
+              gw_iter, greens_func_source, greens_func_iteration, greens_func_iteration+1);
       if (weiss_b_iter!=-1) {
         app_log(1, "");
         app_log(1, "╔═══════════════════════════════════════════════════════╗");
@@ -124,61 +128,74 @@ namespace methods {
                 "    a) The downfolded Coulomb interactions will be calculated using the Green's function from"
                 " \"{}/iter{}\". \n\n"
                 "    b) All the results will be written to \"downfold_2e/iter{}\".\n",
-             embed_iter+1, g_grp, g_iter, embed_iter+1);
+             embed_iter+1, greens_func_source, greens_func_iteration, embed_iter+1);
     }
-    return std::make_tuple(g_grp, g_iter);
+
+    return std::make_tuple(greens_func_source, greens_func_iteration);
   }
 
-  void embed_eri_t::downfold_2e_logic(std::string g_grp, long g_iter, long gw_iter, long embed_iter) {
+  void embed_eri_t::check_downfold_2e_logic(std::string greens_func_source, long greens_func_iteration, long gw_iter, long embed_iter) {
     app_log(2, "Checking the dataset in the CoQuí checkpoint file...\n");
-    if (g_grp == "scf")
-      utils::check(g_iter <= gw_iter and g_iter >= 0,
-                   "downfold_2e logic fail: the input dataset {}/iter{} does not exist!",
-                   g_grp, g_iter);
-    else if (g_grp == "embed")
-      utils::check(g_iter <= embed_iter and g_iter > 0,
-                   "downfold_2e logic fail: the input dataset {}/iter{} does not exist!",
-                   g_grp, g_iter);
-    else
-      utils::check(false, "downfold_2e logic fail: the input dataset {} does not exist!", g_grp);
+      if (greens_func_source == "scf")
+        utils::check(greens_func_iteration <= gw_iter and greens_func_iteration >= 0,
+                     "downfold_2e logic fail: the input dataset {}/iter{} does not exist!",
+                     greens_func_source, greens_func_iteration);
+      else if (greens_func_source == "embed")
+        utils::check(greens_func_iteration <= embed_iter and greens_func_iteration > 0,
+                     "downfold_2e logic fail: the input dataset {}/iter{} does not exist!",
+                     greens_func_source, greens_func_iteration);
+      else
+        utils::check(false, "downfold_2e logic fail: the input dataset {} does not exist!", greens_func_source);
   }
 
   template<bool return_wt, THC_ERI thc_t>
-  auto embed_eri_t::downfold_wloc(thc_t &eri, MBState &mb_state, std::string screen_type,
-                                  bool force_permut_symm, bool force_real,
-                                  imag_axes_ft::IAFT *ft,
-                                  std::string g_grp, long g_iter)
+  auto embed_eri_t::compute_downfolded_coulomb_tensors(
+    thc_t &eri, MBState &mb_state, std::string screen_type,
+    bool force_permut_symm, bool force_real, imag_axes_ft::IAFT *ft,
+    std::string greens_func_source, long greens_func_iteration, 
+    bool write_to_hdf5, bool q_dependent_output)
   -> std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> > {
 
-    // sanity checks
-    std::unordered_set<std::string> valid_screen_types = {
-        "gw_edmft", "gw_edmft_rpa", "gw_edmft_rpa_density", "gw_edmft_density",
-        "rpa", "crpa", "crpa_ks", "crpa_vasp", "crpa_edmft", "crpa_edmft_density"};
-    utils::check(valid_screen_types.count(screen_type),
-                 "embed_2e_t::downfolding: invalid screen_type: {}. "
-                 "Acceptable options are \"gw_edmft\", \"gw_edmft_rpa\", \"gw_edmft_density\", "
-                 "\"rpa\", \"crpa\", \"crpa_ks\", \"crpa_vasp\", \"crpa_edmft\", \"crpa_edmft_density\".",
-                 screen_type);
-    utils::check(_context == eri.mpi() and _context == mb_state.mpi,
-                 "embed_2e_t::downfolding_edmft: eri.mpi() and mb_state.mpi() must be the same as _context.");
-    utils::check(mb_state.proj_boson.has_value(),
-                 "embed_2e_t::downfolding_edmft: "
-                 "mb_state.proj_boson must be set before calling downfolding_edmft.");
+    // Valid screen types (static to avoid repeated construction)
+    static const std::unordered_set<std::string> valid_screen_types = {
+      "gw_edmft", "gw_edmft_rpa", "gw_edmft_rpa_density", "gw_edmft_density",
+      "rpa", "crpa", "crpa_ks", "crpa_vasp", "crpa_edmft", "crpa_edmft_density"
+    };
 
-    for( auto& v: {"DF_TOTAL", "DF_READ", "DF_DOWNFOLD", "DF_SYMM", "DF_WRITE"} ) {
+    // Sanity checks
+    utils::check(valid_screen_types.count(screen_type),
+      "embed_eri_t::downfolding_wloc: invalid screen_type: {}. "
+      "Acceptable options are \"gw_edmft\", \"gw_edmft_rpa\", \"gw_edmft_density\", "
+      "\"rpa\", \"crpa\", \"crpa_ks\", \"crpa_vasp\", \"crpa_edmft\", \"crpa_edmft_density\".",
+      screen_type);
+
+    utils::check(_context == eri.mpi() && _context == mb_state.mpi,
+      "embed_eri_t::downfolding_wloc: eri.mpi() and mb_state.mpi() must be the same as _context.");
+
+    utils::check(mb_state.proj_boson.has_value(),
+      "embed_eri_t::downfolding_wloc: mb_state.proj_boson must be set before calling downfolding_wloc.");
+
+    // Add timers
+    for (const auto &v : {"DF_TOTAL", "DF_READ", "DF_DOWNFOLD", "DF_SYMM", "DF_WRITE"}) {
       _Timer.add(v);
     }
 
+    // Determine permutation symmetry
     auto permut_symm = determine_permut_symm(force_permut_symm, force_real);
 
-    return downfold_wloc_impl<return_wt>(eri, mb_state, screen_type, permut_symm, *ft, g_grp, g_iter);
+    // Delegate to implementation
+    return compute_downfolded_coulomb_tensors_impl<return_wt>(
+      eri, mb_state, screen_type, permut_symm, *ft, 
+      greens_func_source, greens_func_iteration, 
+      write_to_hdf5, q_dependent_output);
   }
 
   template<bool return_wt>
-  auto embed_eri_t::downfold_wloc_impl(
+  auto embed_eri_t::compute_downfolded_coulomb_tensors_impl(
     THC_ERI auto &eri, MBState &mb_state,
-    std::string screen_type, std::string permut_symm,
-    const imag_axes_ft::IAFT &ft, std::string g_grp, long g_iter)
+    std::string screen_type, std::string permut_symm, const imag_axes_ft::IAFT &ft, 
+    std::string greens_func_source, long greens_func_iteration, 
+    bool write_to_hdf5, bool q_dependent_output)
   -> std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> > {
 
     using math::shm::make_shared_array;
@@ -186,39 +203,44 @@ namespace methods {
     _Timer.start("DF_TOTAL");
 
     ft.metadata_log();
-    std::string filename = mb_state.coqui_prefix + ".mbpt.h5";
+    const std::string filename = mb_state.coqui_prefix + ".mbpt.h5";
     auto [gw_iter, weiss_f_iter, weiss_b_iter, embed_iter] = chkpt::read_input_iterations(filename);
 
-    app_log(2, "Checking the dataset in the CoQui checkpoint file...\n");
-    if (g_grp == "scf") {
-      g_iter = (g_iter == -1)? gw_iter : g_iter;
-      utils::check(g_iter <= gw_iter and g_iter >= 0,
-                   "downfold_2e logic fail: the input dataset {}/iter{} does not exist!",
-                   g_grp, g_iter);
-    } else if (g_grp == "embed") {
-      g_iter = (g_iter == -1)? embed_iter : g_iter;
-      utils::check(g_iter <= embed_iter and g_iter > 0,
-                   "downfold_2e logic fail: the input dataset {}/iter{} does not exist!",
-                   g_grp, g_iter);
-    } else
-      utils::check(false, "downfold_2e logic fail: the input dataset {} does not exist!", g_grp);
+    app_log(2, "Checking the dataset in the CoQuí checkpoint file {}...\n", filename);
+    // Validate input group and iteration
+    if (greens_func_source == "scf") {
+      greens_func_iteration = (greens_func_iteration == -1) ? gw_iter : greens_func_iteration;
+      utils::check(greens_func_iteration <= gw_iter && greens_func_iteration >= 0,
+        "embed_eri_t.cpp::compute_downfolded_coulomb_tensors_impl: downfold_2e logic fail: the input dataset {}/iter{} does not exist!", greens_func_source, greens_func_iteration);
+    } else if (greens_func_source == "embed") {
+      greens_func_iteration = (greens_func_iteration == -1) ? embed_iter : greens_func_iteration;
+      utils::check(greens_func_iteration <= embed_iter && greens_func_iteration > 0,
+        "embed_eri_t.cpp::compute_downfolded_coulomb_tensors_impl: downfold_2e logic fail: the input dataset {}/iter{} does not exist!", greens_func_source, greens_func_iteration);
+    } else {
+      utils::check(false, "embed_eri_t.cpp::compute_downfolded_coulomb_tensors_impl: downfold_2e logic fail: the input dataset {} does not exist!", greens_func_source);
+    }
+    app_log(2, "Dataset check complete: input dataset {}/iter{} exists and is valid.\n", greens_func_source, greens_func_iteration);
 
     auto mpi = eri.mpi();
-    auto& proj_boson = mb_state.proj_boson.value();
-    long nImpOrbs = proj_boson.nImpOrbs();
+    const auto &proj_boson = mb_state.proj_boson.value();
+    const long nImpOrbs = proj_boson.nImpOrbs();
 
-    // http://patorjk.com/software/taag/#p=display&f=Calvin%20S&t=COQUI%20two-e%20downfold
+    // Banner gerenated at: http://patorjk.com/software/taag/#p=display&f=Calvin%20S&t=COQUI%20two-e%20downfold
     app_log(1, "\n"
                "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌┬┐┬ ┬┌─┐   ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
                "║  ║ ║║═╬╗║ ║║   │ ││││ │───├┤    │││ │││││││├┤ │ ││   ││\n"
                "╚═╝╚═╝╚═╝╚╚═╝╩   ┴ └┴┘└─┘   └─┘  ─┴┘└─┘└┴┘┘└┘└  └─┘┴─┘─┴┘\n");
     app_log(1, "  - CoQui checkpoint file                     = {}", filename);
-    app_log(1, "  - Input Green's function ");
-    app_log(1, "      HDF5 group                              = {}", g_grp);
-    app_log(1, "      Iteration                               = {}", g_iter);
-    if (proj_boson.C_file() != "") {
-      app_log(1, "  - Transformation matrices                   = {}", proj_boson.C_file());
+    app_log(1, "    - Input Green's function ");
+    app_log(1, "      HDF5 group                              = {}", greens_func_source);
+    app_log(1, "      Iteration                               = {}", greens_func_iteration);
+    if (write_to_hdf5) {
+      app_log(1, "    - Output HDF5 group                       = {}/iter{}/downfolded_model", greens_func_source, greens_func_iteration);
+      if (q_dependent_output)
+        app_log(1, "      Stored Q-dependent result               = {}", q_dependent_output);
     }
+    if (!proj_boson.C_file().empty())
+      app_log(1, "  - Transformation matrices                   = {}", proj_boson.C_file());
     app_log(1, "  - Number of impurities                      = {}", proj_boson.nImps());
     app_log(1, "  - Number of local orbitals per impurity     = {}", proj_boson.nImpOrbs());
     app_log(1, "  - Range of primary orbitals for local basis = [{}, {})",
@@ -226,106 +248,149 @@ namespace methods {
     app_log(1, "  - Screening type                            = {}", screen_type);
     app_log(1, "  - Permutation symmetry                      = {}\n", permut_symm);
 
+    // Read Green's function if needed
     _Timer.start("DF_READ");
-    // Check status of MBState
     if (!mb_state.sG_tskij)
-      mb_state.sG_tskij.emplace(read_greens_function(*mpi, _MF, filename, g_iter, g_grp));
+      mb_state.sG_tskij.emplace(read_greens_function(*mpi, _MF, filename, greens_func_iteration, greens_func_source));
     _Timer.stop("DF_READ");
 
-    _Timer.start("DF_DONWFOLD");
-    // evaluate local screened interaction W(iw) with given screen_type
-    auto [V_abcd, W_wabcd, eps_inv_head_wq, eps_inv_head_w, pi_head_wq] =
-        local_eri_impl<true>(mb_state, eri, ft, screen_type);
-
+    // Compute local or q-dependent screened interaction with the choice of screening type
+    _Timer.start("DF_DOWNFOLD");
+    std::optional<nda::array<ComplexType, 5>> V_qabcd_opt;
+    std::optional<nda::array<ComplexType, 6>> U_qwabcd_opt;
+    nda::array<ComplexType, 4> V_abcd;
+    nda::array<ComplexType, 2> eps_inv_head_wq;
+    nda::array<ComplexType, 1> eps_inv_head_w;
+    nda::array<ComplexType, 2> pi_head_wq;
+    nda::array<ComplexType, 5> U_wabcd;
+    if (q_dependent_output == false) {
+      std::tie(V_abcd, U_wabcd, eps_inv_head_wq, eps_inv_head_w, pi_head_wq)
+          = local_eri_impl<true>(mb_state, eri, ft, screen_type);
+    } else {
+      std::tie(V_qabcd_opt, U_qwabcd_opt, V_abcd, U_wabcd, 
+        eps_inv_head_wq, eps_inv_head_w, pi_head_wq)
+        = rpa_q_eri_impl<true>(mb_state, eri, ft, screen_type);
+    }
     mpi->comm.barrier();
     _Timer.stop("DF_DOWNFOLD");
 
-    // enforce permutation symmetries
-    int nts_half = (ft.nt_b()%2==0)? ft.nt_b()/2 : ft.nt_b()/2+1;
-    nda::array<ComplexType, 5> W_tabcd(nts_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs);
-    if (permut_symm!="none") {
+    // Enforce permutation symmetries if needed
+    int nts_half = (ft.nt_b() % 2 == 0) ? ft.nt_b() / 2 : ft.nt_b() / 2 + 1;
+    nda::array<ComplexType, 5> U_tabcd(nts_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs);
+    if (permut_symm != "none") {
       _Timer.start("DF_SYMM");
       apply_permut_symm(V_abcd, permut_symm, "bare interactions");
-
-      ft.w_to_tau_PHsym(W_wabcd, W_tabcd);
-      apply_permut_symm(W_tabcd, permut_symm, "screened interactions");
-      ft.tau_to_w_PHsym(W_tabcd, W_wabcd);
+      ft.w_to_tau_PHsym(U_wabcd, U_tabcd);
+      apply_permut_symm(U_tabcd, permut_symm, "screened interactions");
+      ft.tau_to_w_PHsym(U_tabcd, U_wabcd);
       _Timer.stop("DF_SYMM");
     }
-    ft.w_to_tau_PHsym(W_wabcd, W_tabcd);
-    ft.check_leakage_PHsym(W_tabcd, imag_axes_ft::boson, std::addressof(mpi->comm), "Local screened interaction");
+    ft.w_to_tau_PHsym(U_wabcd, U_tabcd);
+    ft.check_leakage_PHsym(U_tabcd, imag_axes_ft::boson, std::addressof(mpi->comm), "Local screened interaction");
 
-    auto[V, Vp, J_pair_bare, J_spin_bare] = orbital_average_int(V_abcd);
-    auto[W, Wp, J_pair_scr, J_spin_scr] = orbital_average_int(W_wabcd(0,nda::ellipsis{}));
-
-    double hartree_to_eV = 27.211386245988;
-    app_log(1, "\ndownfold_2e summary");
-    app_log(1, "-------------------");
+    // Print summary
+    auto [V, Vp, J_pair_bare, J_spin_bare] = orbital_average_int(V_abcd);
+    auto [U, Up, J_pair_scr, J_spin_scr] = orbital_average_int(U_wabcd(0, nda::ellipsis{}));
+    constexpr double hartree_to_eV = 27.211386245988;
+    app_log(1, "\nDownfolded Coulomb Elements Summary");
+    app_log(1, "-------------------------------------");
     app_log(1, "bare interactions (orbital-average):");
-    app_log(1, "  - intra-orbital = {} eV", V*hartree_to_eV);
-    app_log(1, "  - inter-orbital = {} eV", Vp*hartree_to_eV);
-    app_log(1, "  - Hund's coupling (spin-flip) = {} eV", J_spin_bare*hartree_to_eV);
-    app_log(1, "  - Hund's coupling (pair-hopping) = {} eV", J_pair_bare*hartree_to_eV);
+    app_log(1, "  - intra-orbital = {} eV", V * hartree_to_eV);
+    app_log(1, "  - inter-orbital = {} eV", Vp * hartree_to_eV);
+    app_log(1, "  - Hund's coupling (spin-flip) = {} eV", J_spin_bare * hartree_to_eV);
+    app_log(1, "  - Hund's coupling (pair-hopping) = {} eV", J_pair_bare * hartree_to_eV);
     app_log(1, "static screened interactions (orbital-average):");
-    app_log(1, "  - intra-orbital = {} eV", (V+W)*hartree_to_eV);
-    app_log(1, "  - inter-orbital = {} eV", (Vp+Wp)*hartree_to_eV);
-    app_log(1, "  - Hund's coupling (spin-flip) = {} eV", (J_spin_bare+J_spin_scr)*hartree_to_eV);
-    app_log(1, "  - Hund's coupling (pair-hopping) = {} eV\n", (J_pair_bare+J_pair_scr)*hartree_to_eV);
+    app_log(1, "  - intra-orbital = {} eV", (V + U) * hartree_to_eV);
+    app_log(1, "  - inter-orbital = {} eV", (Vp + Up) * hartree_to_eV);
+    app_log(1, "  - Hund's coupling (spin-flip) = {} eV", (J_spin_bare + J_spin_scr) * hartree_to_eV);
+    app_log(1, "  - Hund's coupling (pair-hopping) = {} eV\n", (J_pair_bare + J_pair_scr) * hartree_to_eV);
 
     mpi->comm.barrier();
     _Timer.stop("DF_TOTAL");
     print_downfold_timers();
+
+
+    // Optionally write results to HDF5
+    if (write_to_hdf5) {
+      _Timer.start("DF_WRITE");
+      if (mpi->comm.root()) {
+        h5::file file(filename, 'a');
+        auto grp = h5::group(file);
+        // Find the input group (scf/iter{} or embed/iter{})
+        std::string iter_group_name = greens_func_source + "/iter" + std::to_string(greens_func_iteration);
+        if (!grp.has_subgroup(iter_group_name)) {
+          utils::check(false, "embed_eri_t.cpp::compute_downfolded_coulomb_tensors_impl: Expected iteration group '{}' to exist in HDF5 file, but it does not. This indicates a logic or I/O error!", iter_group_name);
+        }
+        auto iter_grp = grp.open_group(iter_group_name);
+        // Create or open the downfolded_model subgroup
+        auto downfolded_model_grp = (iter_grp.has_subgroup("downfolded_model")) ?
+          iter_grp.open_group("downfolded_model") : iter_grp.create_group("downfolded_model");
+        // Write all downfolded results into downfolded_model
+        nda::h5_write(downfolded_model_grp, "C_skIai", proj_boson.C_skIai(), false);
+        nda::h5_write(downfolded_model_grp, "Vloc_abcd", V_abcd, false);
+        nda::h5_write(downfolded_model_grp, "Uloc_wabcd", U_wabcd, false);
+        nda::h5_write(downfolded_model_grp, "eps_inv_head_wq", eps_inv_head_wq, false);
+        nda::h5_write(downfolded_model_grp, "eps_inv_head_w", eps_inv_head_w, false);
+        nda::h5_write(downfolded_model_grp, "pi_head_wq", pi_head_wq, false);
+        h5::h5_write(downfolded_model_grp, "permut_symm", permut_symm);
+        h5::h5_write(downfolded_model_grp, "screening_type", screen_type);
+        // Write q-dependent tensors if present
+        if (q_dependent_output && V_qabcd_opt.has_value() && U_qwabcd_opt.has_value()) {
+          nda::h5_write(downfolded_model_grp, "V_qabcd", V_qabcd_opt.value(), false);
+          nda::h5_write(downfolded_model_grp, "U_qwabcd", U_qwabcd_opt.value(), false);
+        }
+      }
+      mpi->comm.barrier();
+      _Timer.stop("DF_WRITE");
+    }
+
     if constexpr (return_wt)
-      return std::make_tuple(V_abcd, W_tabcd);
+      return std::make_tuple(V_abcd, U_tabcd);
     else
-      return std::make_tuple(V_abcd, W_wabcd);
+      return std::make_tuple(V_abcd, U_wabcd);
   }
 
   template<THC_ERI thc_t>
   void embed_eri_t::downfolding_edmft(
       thc_t &eri, MBState &mb_state, ptree const& pt, std::string screen_type) {
 
+    // Validate screening type
     std::unordered_set<std::string> valid_screen_types = {
-        "gw_edmft", "gw_edmft_density",
-        "gw_edmft_rpa", "gw_edmft_rpa_density",
+        "gw_edmft", "gw_edmft_density", "gw_edmft_rpa", "gw_edmft_rpa_density",
         "gw_edmft_zero_pi_imp", "gw_edmft_zero_pi_imp_density"
     };
     utils::check(valid_screen_types.count(screen_type),
-               "embed_2e_t::downfolding: invalid screen_type: {}. ",
-               screen_type);
+               "embed_eri_t::downfolding: invalid screen_type: {}. ", screen_type);
+    // Validate MPI context and projector
     utils::check(_context == eri.mpi() and _context == mb_state.mpi,
-                 "embed_2e_t::downfolding_edmft: eri.mpi() and mb_state.mpi() must be the same as _context.");
+                 "embed_eri_t::downfolding_edmft: eri.mpi() and mb_state.mpi() must be the same as _context.");
     utils::check(mb_state.proj_boson.has_value(),
-                 "embed_2e_t::downfolding_edmft: "
-                 "mb_state.proj_boson must be set before calling downfolding_edmft.");
-
+                 "embed_eri_t::downfolding_edmft: mb_state.proj_boson must be set before calling downfolding_edmft.");
 
     for( auto& v: {"DF_TOTAL", "DF_READ", "DF_DOWNFOLD", "DF_SYMM", "DF_WRITE"} ) {
       _Timer.add(v);
     }
 
     _Timer.start("DF_TOTAL");
-
     _Timer.start("DF_READ");
-    std::string err = std::string("downfolding_edmft - Incorrect input - ");
-    auto g_rpa_grp = io::get_value<std::string>(pt,"pi_rpa_input",
-        err+"The \"pi_rpa_input\" parameter . defines the source of input Green's function. "
-            "Valid options are \"mf\", \"scf\", and \"embed\". ");
-    io::tolower(g_rpa_grp);
-    if (g_rpa_grp=="mf") g_rpa_grp = "scf";
-    auto g_rpa_iter = io::get_value_with_default<long>(pt, "pi_rpa_input_iter", -1);
 
-    // Input G for the double counting polarizability
-    auto g_dc_grp = io::get_value_with_default<std::string>(pt,"pi_dc_input", "");
-    io::tolower(g_dc_grp);
-    auto g_dc_iter = io::get_value_with_default<long>(pt, "pi_dc_input_iter", -1);
-    if (g_dc_grp=="") {
-      g_dc_grp = g_rpa_grp;
-      g_dc_iter = g_rpa_iter;
+    std::string err_prefix = std::string("downfolding_edmft - Incorrect input - ");
+    auto greens_func_source = io::tolower_copy(io::get_value<std::string>(
+      pt,"greens_func_source", err_prefix+"\"greens_func_source\" defines the source of input Green's function. "
+                                          "Valid options are \"mf\", \"scf\", and \"embed\". "));
+    if (greens_func_source == "mf") greens_func_source = "scf";
+    auto greens_func_iteration = io::get_value_with_default<long>(pt, "greens_func_iteration", -1);
+
+    // Read doulbe-counting Green's function source and iteration
+    auto dc_greens_func_source = io::tolower_copy(io::get_value_with_default<std::string>(pt,"dc_greens_func_source", ""));
+    auto dc_greens_func_iteration = io::get_value_with_default<long>(pt, "dc_greens_func_iteration", -1);
+    if (dc_greens_func_source == "") {
+      dc_greens_func_source = greens_func_source;
+      dc_greens_func_iteration = greens_func_iteration;
     }
 
-    std::array<std::string, 2> g_grp{g_rpa_grp, g_dc_grp};
-    std::array<long, 2> g_iter{g_rpa_iter, g_dc_iter};
+    std::array<std::string, 2> g_grp{greens_func_source, dc_greens_func_source};
+    std::array<long, 2> g_iter{greens_func_iteration, dc_greens_func_iteration};
 
     auto permut_symm = determine_permut_symm(
         io::get_value_with_default<bool>(pt, "permut_symm", true),
@@ -333,10 +398,12 @@ namespace methods {
 
     std::array<double, 2> mixing{io::get_value_with_default<double>(pt,"dc_pi_mixing",1.0),
                                  io::get_value_with_default<double>(pt,"u_weiss_mixing",1.0)};
+
     _Timer.stop("DF_READ");
 
-    utils::check(_output_type == "default", "Error in eri::downfolding: "
-                                          "edmft_downfolding is only available with output_type=default.");
+    utils::check(_output_type == "default",
+                 "Error in eri::downfolding: edmft_downfolding is only available with output_type=default.");
+
     downfold_edmft_impl(eri, mb_state, screen_type, permut_symm, g_grp, g_iter, mixing);
   }
 
@@ -346,78 +413,42 @@ namespace methods {
       std::string screen_type,
       std::string factorization_type, double thresh) {
 
-    std::string err = std::string("downfolding_crpa - Incorrect input - ");
-
     std::unordered_set<std::string> valid_screen_types = {
-      "bare", "crpa", "crpa_ks", "crpa_vasp",
-      "crpa_edmft", "crpa_edmft_density"
+      "bare", "crpa", "crpa_ks", "crpa_vasp", "crpa_edmft", "crpa_edmft_density"
     };
     utils::check(valid_screen_types.count(screen_type),
-                 "embed_2e_t::downfolding: invalid screen_type: {}. "
+                 "embed_eri_t::downfolding_crpa: invalid screen_type: {}. "
                  "Acceptable options are \"bare\", \"crpa\", \"crpa_ks\", \"crpa_vasp\", "
-                 "\"crpa_edmft\", \"crpa_edmft_density\".",
-                 screen_type);
+                 "\"crpa_edmft\", \"crpa_edmft_density\".", screen_type);
     utils::check(_context == eri.mpi() and _context == mb_state.mpi,
-    "embed_2e_t::downfolding_crpa: eri.mpi() and mb_state.mpi() must be the same as _context.");
+                 "embed_eri_t::downfolding_crpa: eri.mpi() and mb_state.mpi() must be the same as _context.");
     utils::check(mb_state.proj_boson.has_value(),
-                 "embed_2e_t::downfolding_edmft: "
-                 "mb_state.proj_boson must be set before calling downfolding_edmft.");
+                 "embed_eri_t::downfolding_crpa: mb_state.proj_boson must be set before calling downfolding_crpa.");;
 
     for( auto& v: {"DF_TOTAL", "DF_READ", "DF_DOWNFOLD", "DF_SYMM", "DF_WRITE"} ) {
       _Timer.add(v);
     }
 
     _Timer.start("DF_TOTAL");
-    std::string filename = mb_state.coqui_prefix + ".mbpt.h5";
+    _Timer.start("DF_READ");
+
+    // Read input parameters
+    const std::string err_prefix = "downfolding_crpa - Incorrect input - ";
     auto& proj_boson = mb_state.proj_boson.value();
     long nImpOrbs = proj_boson.nImpOrbs();
 
-    _Timer.start("DF_READ");
-    auto g_grp = io::get_value<std::string>(
-        pt,"input_type", err+"input_type. This parameter defines the source of input Green's function. "
-                         "Valid types are \"\", \"mf\", \"scf\", and \"embed\". ");
-    io::tolower(g_grp);
-    if (g_grp=="mf") g_grp = "scf";
-    auto g_iter = io::get_value_with_default<long>(pt, "input_iter", -1);
-
-    auto q_dependent = io::get_value_with_default<bool>(pt,"q_dependent", false);
+    auto greens_func_source = io::tolower_copy(io::get_value<std::string>(
+        pt,"greens_func_source", err_prefix + " greens_func_source. This parameter defines the source of input Green's function. "
+                                              "Valid types are \"\", \"mf\", \"scf\", and \"embed\". "));
+    if (greens_func_source=="mf") greens_func_source = "scf";
+    auto greens_func_iteration = io::get_value_with_default<long>(pt, "greens_func_iteration", -1);
+    auto q_dependent_output = io::get_value_with_default<bool>(pt,"q_dependent_output", false);
 
     auto permut_symm = determine_permut_symm(
         io::get_value_with_default<bool>(pt, "permut_symm", true),
         io::get_value_with_default<bool>(pt, "force_real", true));
-    _Timer.stop("DF_READ");
 
-    // http://patorjk.com/software/taag/#p=display&f=Calvin%20S&t=COQUI%20two-e%20downfold
-    app_log(1, "\n"
-               "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌┬┐┬ ┬┌─┐   ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
-               "║  ║ ║║═╬╗║ ║║   │ ││││ │───├┤    │││ │││││││├┤ │ ││   ││\n"
-               "╚═╝╚═╝╚═╝╚╚═╝╩   ┴ └┴┘└─┘   └─┘  ─┴┘└─┘└┴┘┘└┘└  └─┘┴─┘─┴┘\n");
-    app_log(1, "  CoQuí checkpoint file:                    {}", filename);
-    if (screen_type != "bare") {
-      if (g_grp == "" or g_iter == -1)
-        app_log(1, "    - Use default logic to determine the input G^k_ij(tau) / output");
-      else {
-        app_log(1, "    - Input Green's function: ");
-        app_log(1, "      HDF5 group:                            {}", g_grp);
-        app_log(1, "      iteration:                             {}", g_iter);
-        if (_output_type.substr(0,5) != "model")
-          app_log(1, "    - Output HDF5 group:                     downfold_2e/iter{}", g_iter+1);
-      }
-    }
-    if(_output_type.substr(0,5) == "model")
-      app_log(1, "  Output file with model hamiltonian:        {}", mb_state.coqui_prefix+".model.h5");
-    app_log(1, "");
-    app_log(1, "  Transformation matrices:                   {}", proj_boson.C_file());
-    app_log(1, "  Number of impurities:                      {}", proj_boson.nImps());
-    app_log(1, "  Number of local orbitals per impurity:     {}", proj_boson.nImpOrbs());
-    app_log(1, "  Range of primary orbitals for local basis: [{}, {})",
-            proj_boson.W_rng()[0].first(), proj_boson.W_rng()[0].last());
-    app_log(1, "");
-    if (screen_type != "bare") {
-      app_log(1, "  Screening type:                            {}", screen_type);
-    }
-    app_log(1, "  factorization type:                        {}", factorization_type);
-    app_log(1, "  permutation symmetry:                      {}\n", permut_symm);
+    _Timer.stop("DF_READ");
 
     // switch to cholesky_from_4index in small problems. embed_cholesky requires nproc >= nImp*nImp
     if( (factorization_type == "cholesky" or factorization_type == "cholesky_high_memory" ) and
@@ -435,18 +466,18 @@ namespace methods {
 
     // dispatch based on screen_type and factorization_type
     if (screen_type == "bare") {
-      utils::check(not q_dependent, "Error: q_dependent = true not implemented with bare interaction.");
+      utils::check(not q_dependent_output, "Error: q_dependent_output = true not implemented with bare interaction.");
       downfold_bare_impl(mb_state.coqui_prefix, eri, mb_state.proj_boson.value(),
                          factorization_type, permut_symm, thresh);
     } else {
      if( _output_type == "default" ) {
        downfold_crpa_impl(eri, mb_state, screen_type, factorization_type, permut_symm,
-                          g_grp, g_iter, q_dependent, thresh);
+                          greens_func_source, greens_func_iteration, q_dependent_output, thresh);
       } else if( _output_type == "model_static" ) {
         utils::check(screen_type=="crpa", "Error in eri.downfolding: factorization_type=cholesky requires screen_type=bare or crpa. ");
-        utils::check(not q_dependent, "Error in eri.downfolding: q_dependent = true is not yet implemented with factorization_type=cholesky.. ");
+        utils::check(not q_dependent_output, "Error in eri.downfolding: q_dependent_output = true is not yet implemented with factorization_type=cholesky.. ");
         downfold_screen_model_impl(eri, mb_state, screen_type, factorization_type, permut_symm,
-                                   g_grp, g_iter, thresh);
+                                   greens_func_source, greens_func_iteration, thresh);
       } else {
         APP_ABORT("Error in eri::downfolding: Invalid output_type: {}",_output_type);
       }
@@ -462,8 +493,29 @@ namespace methods {
     decltype(nda::range::all) all;
     auto mpi = eri.mpi();
     auto nImpOrbs = proj_boson.nImpOrbs();
-    auto [gw_iter, weiss_f_iter, weiss_b_iter, embed_iter] = chkpt::read_input_iterations(output+".mbpt.h5");
+    auto [gw_iter, weiss_f_iter, weiss_b_iter, embed_iter] = chkpt::read_input_iterations(output + ".mbpt.h5");
     auto [g_grp, g_iter] = downfold_2e_logic(gw_iter, weiss_f_iter, weiss_b_iter, embed_iter);
+
+    // http://patorjk.com/software/taag/#p=display&f=Calvin%20S&t=COQUI%20two-e%20downfold
+    app_log(1, "\n"
+               "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌┬┐┬ ┬┌─┐   ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
+               "║  ║ ║║═╬╗║ ║║   │ ││││ │───├┤    │││ │││││││├┤ │ ││   ││\n"
+               "╚═╝╚═╝╚═╝╚╚═╝╩   ┴ └┴┘└─┘   └─┘  ─┴┘└─┘└┴┘┘└┘└  └─┘┴─┘─┴┘\n");
+    app_log(1, "  CoQuí checkpoint file:                    {}", output + ".mbpt.h5");
+    if (_output_type.substr(0,5) != "model")
+      app_log(1, "    - Output HDF5 group:                     downfold_2e/iter{}",(embed_iter==-1)? g_iter+1 : embed_iter+1);
+    else 
+      app_log(1, "  Output file with model hamiltonian:        {}", output+".model.h5");
+    app_log(1, "");
+    app_log(1, "  Transformation matrices:                   {}", proj_boson.C_file());
+    app_log(1, "  Number of impurities:                      {}", proj_boson.nImps());
+    app_log(1, "  Number of local orbitals per impurity:     {}", proj_boson.nImpOrbs());
+    app_log(1, "  Range of primary orbitals for local basis: [{}, {})",
+            proj_boson.W_rng()[0].first(), proj_boson.W_rng()[0].last());
+    app_log(1, "");
+    app_log(1, "  factorization type:                        {}", factorization_type);
+    app_log(1, "  permutation symmetry:                      {}\n", permut_symm);
+
 
     if(factorization_type == "none" or factorization_type == "cholesky_from_4index") {
 
@@ -650,12 +702,12 @@ namespace methods {
     auto [gw_iter, weiss_f_iter, weiss_b_iter, embed_iter] = chkpt::read_input_iterations(filename);
     // checking g_grp and g_iter exist in chkpt h5.
     if (g_iter[0]!=-1)
-      downfold_2e_logic(g_grp[0], g_iter[0], gw_iter, embed_iter);
+      check_downfold_2e_logic(g_grp[0], g_iter[0], gw_iter, embed_iter);
     else
       g_iter[0] = (g_grp[0]=="scf")? gw_iter : embed_iter;
 
     if (g_iter[1]!=-1)
-      downfold_2e_logic(g_grp[1], g_iter[1], gw_iter, embed_iter);
+      check_downfold_2e_logic(g_grp[1], g_iter[1], gw_iter, embed_iter);
     else
       g_iter[1] = (g_grp[1]=="scf")? gw_iter : embed_iter;
 
@@ -845,7 +897,7 @@ namespace methods {
 
       h5::h5_write(downfold_grp, "final_iter", (long)weiss_b_iter_);
       nda::h5_write(downfold_grp, "C_skIai", proj_boson.C_skIai(), false);
-      h5::h5_write(iter_grp, "pi_rpa_input", g_grp[0]);
+      h5::h5_write(iter_grp, "greens_func_source", g_grp[0]);
       h5::h5_write(iter_grp, "pi_rpa_iter", g_iter[0]);
       h5::h5_write(iter_grp, "pi_dc_input", g_grp[1]);
       h5::h5_write(iter_grp, "pi_dc_iter", g_iter[1]);
@@ -853,7 +905,7 @@ namespace methods {
       nda::h5_write(iter_grp, "Wloc_wabcd", W_wabcd, false);
       nda::h5_write(iter_grp, "Vloc_abcd", V_abcd, false);
       nda::h5_write(iter_grp, "Uloc_wabcd", U_wabcd, false); // optional
-      h5::h5_write(iter_grp, "Uloc_type", screen_type); // optional
+      h5::h5_write(iter_grp, "screening_type", screen_type); // optional
       nda::h5_write(iter_grp, "Pi_dc_wabcd", sPi_dc_wabcd_new.local(), false); // optional
       h5::h5_write(iter_grp, "permut_symm", permut_symm);
       nda::h5_write(iter_grp, "eps_inv_head_wq", eps_inv_head_wq, false);
@@ -869,12 +921,12 @@ namespace methods {
   void embed_eri_t::downfold_crpa_impl(THC_ERI auto &eri, MBState &mb_state, std::string screen_type,
                                        [[maybe_unused]] std::string factorization_type,
                                        std::string permut_symm,
-                                       std::string g_grp, long g_iter,
-                                       bool q_dependent,
+                                       std::string greens_func_source, long greens_func_iteration,
+                                       bool q_dependent_output,
                                        [[maybe_unused]] double thresh) {
     using math::shm::make_shared_array;
 
-    utils::check(screen_type.substr(0,4)=="crpa", "downfold_crpa_impl: invalid screen_type = {}.", screen_type);
+    utils::check(screen_type.substr(0,4)=="crpa", "embed_eri_t::downfold_crpa_impl: invalid screen_type = {}.", screen_type);    
 
     auto& ft = *mb_state.ft;
     bool density_only = (screen_type.find("density")==std::string::npos)? false : true;
@@ -882,19 +934,43 @@ namespace methods {
     ft.metadata_log();
     std::string filename = mb_state.coqui_prefix + ".mbpt.h5";
     auto [gw_iter, weiss_f_iter, weiss_b_iter, embed_iter] = chkpt::read_input_iterations(filename);
-    if (g_grp == "" or g_iter == -1)
-      std::tie(g_grp, g_iter) = downfold_2e_logic(gw_iter, weiss_f_iter, weiss_b_iter, embed_iter);
+    if (greens_func_source == "" or greens_func_iteration == -1)
+      std::tie(greens_func_source, greens_func_iteration) = downfold_2e_logic(gw_iter, weiss_f_iter, weiss_b_iter, embed_iter);
     else
-      downfold_2e_logic(g_grp, g_iter, gw_iter, embed_iter);
+      check_downfold_2e_logic(greens_func_source, greens_func_iteration, gw_iter, embed_iter);
 
     auto mpi = eri.mpi();
     auto& proj_boson = mb_state.proj_boson.value();
     long nImpOrbs = proj_boson.nImpOrbs();
 
+
+    // http://patorjk.com/software/taag/#p=display&f=Calvin%20S&t=COQUI%20two-e%20downfold
+    app_log(1, "\n"
+               "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌┬┐┬ ┬┌─┐   ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
+               "║  ║ ║║═╬╗║ ║║   │ ││││ │───├┤    │││ │││││││├┤ │ ││   ││\n"
+               "╚═╝╚═╝╚═╝╚╚═╝╩   ┴ └┴┘└─┘   └─┘  ─┴┘└─┘└┴┘┘└┘└  └─┘┴─┘─┴┘\n");
+    app_log(1, "  CoQuí checkpoint file:                    {}", filename);
+    app_log(1, "    - Input Green's function: ");
+    app_log(1, "      HDF5 group:                            {}", greens_func_source);
+    app_log(1, "      iteration:                             {}", greens_func_iteration);
+    app_log(1, "    - Output HDF5 group:                     downfold_2e/iter{}", greens_func_iteration+1);
+    app_log(1, "");
+    app_log(1, "  Transformation matrices:                   {}", proj_boson.C_file());
+    app_log(1, "  Number of impurities:                      {}", proj_boson.nImps());
+    app_log(1, "  Number of local orbitals per impurity:     {}", proj_boson.nImpOrbs());
+    app_log(1, "  Range of primary orbitals for local basis: [{}, {})",
+            proj_boson.W_rng()[0].first(), proj_boson.W_rng()[0].last());
+    app_log(1, "");
+    app_log(1, "  Screening type:                            {}", screen_type);
+    app_log(1, "  factorization type:                        {}", factorization_type);
+    app_log(1, "  permutation symmetry:                      {}\n", permut_symm);
+  
+
     _Timer.start("DF_READ");
+
     // Check status of MBState
     if (!mb_state.sG_tskij)
-      mb_state.sG_tskij.emplace(read_greens_function(*mpi, _MF, filename, g_iter, g_grp));
+      mb_state.sG_tskij.emplace(read_greens_function(*mpi, _MF, filename, greens_func_iteration, greens_func_source));
     auto& sG_tskij = mb_state.sG_tskij.value();
 
     bool pi_local_given = false;
@@ -923,44 +999,26 @@ namespace methods {
       ft.check_leakage_PHsym(X_tabcd, imag_axes_ft::boson, std::addressof(mpi->comm), "impurity polarizability");
     }
     mpi->comm.barrier();
+
     _Timer.stop("DF_READ");
 
+    _Timer.start("DF_DONWFOLD");
 
     std::optional<nda::array<ComplexType, 5>> V_qabcd_opt;
     std::optional<nda::array<ComplexType, 6>> U_wqabcd_opt;
-    std::optional<nda::array<ComplexType, 6>> W_wqabcd_opt;
+    nda::array<ComplexType, 4> V_abcd;
     nda::array<ComplexType,2> eps_inv_head_wq;
     nda::array<ComplexType,1> eps_inv_head_w;
     nda::array<ComplexType,2> pi_head_wq;
-    nda::array<ComplexType, 4> V_abcd;
-    nda::array<ComplexType, 5> W_wabcd;
-
-    _Timer.start("DF_DONWFOLD");
-    // evaluate local screened interaction W(iw) at RPA level
-    std::string w_scr_type = (screen_type.find("edmft")==std::string::npos)? "rpa" :
-                             (screen_type.find("density")==std::string::npos)? "gw_edmft" :
-                             "gw_edmft_density";
-    if (q_dependent == false) {
-      std::tie(V_abcd, W_wabcd, eps_inv_head_wq, eps_inv_head_w, pi_head_wq) =
-          local_eri_impl<true>(mb_state, eri, ft, w_scr_type);
-    } else {
-      std::tie(V_qabcd_opt, W_wqabcd_opt, V_abcd, W_wabcd,
-               eps_inv_head_wq, eps_inv_head_w, pi_head_wq)
-          = rpa_q_eri_impl<true>(mb_state, eri, ft, w_scr_type);
-    }
-
-    nda::array<ComplexType,2> crpa_eps_inv_head_wq;
-    nda::array<ComplexType,1> crpa_eps_inv_head_w;
-    nda::array<ComplexType,2> crpa_pi_head_wq;
     nda::array<ComplexType, 5> U_wabcd;
     // evaluate partially screened interaction u(iw) based on cRPA equations
-    if (q_dependent == false) {
-      std::tie(V_abcd, U_wabcd, crpa_eps_inv_head_wq, crpa_eps_inv_head_w, crpa_pi_head_wq)
+    if (q_dependent_output == false) {
+      std::tie(V_abcd, U_wabcd, eps_inv_head_wq, eps_inv_head_w, pi_head_wq)
           = local_eri_impl<true>(mb_state, eri, ft, screen_type);
     } else {
-      std::tie(V_qabcd_opt, U_wqabcd_opt, V_abcd, U_wabcd,
-               crpa_eps_inv_head_wq, crpa_eps_inv_head_w, crpa_pi_head_wq)
-          = rpa_q_eri_impl<true>(mb_state, eri, ft, screen_type);
+      std::tie(V_qabcd_opt, U_wqabcd_opt, V_abcd, U_wabcd, 
+        eps_inv_head_wq, eps_inv_head_w, pi_head_wq)
+        = rpa_q_eri_impl<true>(mb_state, eri, ft, screen_type);
     }
     auto G_tsIab = (permut_symm=="8-fold")?
                 proj_boson.proj_fermi().downfold_loc<true>(sG_tskij, "Gloc") :
@@ -969,7 +1027,7 @@ namespace methods {
     app_log(1, "\nEvaluating double counting polarizability with\n"
                "  - Gloc from {}/iter{}\n"
                "  - density-density only: {}\n",
-            g_grp, g_iter, density_only);
+            greens_func_source, greens_func_iteration, density_only);
     auto sPi_dc_wabcd_new = eval_Pi_rpa_dc<true>(*mpi, G_tsIab, ft, density_only);
     mpi->comm.barrier();
 
@@ -977,8 +1035,9 @@ namespace methods {
     _Timer.stop("DF_DOWNFOLD");
 
     // enforce permutation symmetries
+    _Timer.start("DF_SYMM");
+
     if (permut_symm!="none") {
-      _Timer.start("DF_SYMM");
       apply_permut_symm(V_abcd, permut_symm, "bare interactions");
 
       int nts_half = (ft.nt_b()%2==0)? ft.nt_b()/2 : ft.nt_b()/2+1;
@@ -988,11 +1047,9 @@ namespace methods {
       apply_permut_symm(tmp_tabcd, permut_symm, "Bosonic weiss field");
       ft.tau_to_w_PHsym(tmp_tabcd, U_wabcd);
 
-      ft.w_to_tau_PHsym(W_wabcd, tmp_tabcd);
-      apply_permut_symm(tmp_tabcd, permut_symm, "screened interactions");
-      ft.tau_to_w_PHsym(tmp_tabcd, W_wabcd);
-      _Timer.stop("DF_SYMM");
     }
+
+    _Timer.stop("DF_SYMM");
 
     auto[V, Vp, J_pair_bare, J_spin_bare] = orbital_average_int(V_abcd);
     auto[U, Up, J_pair_scr, J_spin_scr] = orbital_average_int(U_wabcd(0,nda::ellipsis{}));
@@ -1012,8 +1069,9 @@ namespace methods {
     app_log(1, "  - Hund's coupling (pair-hopping) = {} eV\n", (J_pair_bare+J_pair_scr)*hartree_to_eV);
 
     _Timer.start("DF_WRITE");
+
     if (mpi->comm.root()) {
-      long weiss_b_iter_ = g_iter+1;
+      long weiss_b_iter_ = greens_func_iteration+1;
       h5::file file(filename, 'a');
       auto grp = h5::group(file);
       auto downfold_grp = (grp.has_subgroup("downfold_2e"))?
@@ -1025,36 +1083,33 @@ namespace methods {
       h5::h5_write(downfold_grp, "final_iter", (long)weiss_b_iter_);
       nda::h5_write(downfold_grp, "C_skIai", proj_boson.C_skIai(), false);
       nda::h5_write(iter_grp, "Gloc_tsIab", G_tsIab, false);
-      h5::h5_write(iter_grp, "input_green_grp", g_grp);
-      h5::h5_write(iter_grp, "input_green_iter", g_iter);
+      h5::h5_write(iter_grp, "greens_func_source", greens_func_source);
+      h5::h5_write(iter_grp, "greens_func_iteration", greens_func_iteration);
 
       if (V_qabcd_opt) nda::h5_write(iter_grp, "V_qabcd", V_qabcd_opt.value(), false);
       if (U_wqabcd_opt) nda::h5_write(iter_grp, "U_wqabcd", U_wqabcd_opt.value(), false);
-      if (W_wqabcd_opt) nda::h5_write(iter_grp, "W_wqabcd", W_wqabcd_opt.value(), false);
 
-      nda::h5_write(iter_grp, "Wloc_wabcd", W_wabcd, false);
       nda::h5_write(iter_grp, "Vloc_abcd", V_abcd, false);
       nda::h5_write(iter_grp, "Uloc_wabcd", U_wabcd, false);
-      h5::h5_write(iter_grp, "Uloc_type", screen_type);
+      h5::h5_write(iter_grp, "screening_type", screen_type);
       h5::h5_write(iter_grp, "permut_symm", permut_symm);
       nda::h5_write(iter_grp, "Pi_dc_wabcd", sPi_dc_wabcd_new.local(), false); // optional
       nda::h5_write(iter_grp, "eps_inv_head_wq", eps_inv_head_wq, false);
       nda::h5_write(iter_grp, "eps_inv_head_w", eps_inv_head_w, false);
       nda::h5_write(iter_grp, "pi_head_wq", pi_head_wq, false);
-      nda::h5_write(iter_grp, "crpa_eps_inv_head_wq", crpa_eps_inv_head_wq, false);
-      nda::h5_write(iter_grp, "crpa_eps_inv_head_w", crpa_eps_inv_head_w, false);
-      nda::h5_write(iter_grp, "crpa_pi_head_wq", crpa_pi_head_wq, false);
     }
     mpi->comm.barrier();
+
     _Timer.stop("DF_WRITE");
     _Timer.stop("DF_TOTAL");
+
     print_downfold_timers();
   }
 
   void embed_eri_t::downfold_screen_model_impl(
       THC_ERI auto &eri, MBState &mb_state, std::string screen_type,
       std::string factorization_type, std::string permut_symm,
-      std::string g_grp, long g_iter, double thresh) {
+      std::string greens_func_source, long greens_func_iteration, double thresh) {
     using math::shm::make_shared_array;
     utils::check(screen_type.substr(0,4)=="crpa", "downfold_crpa_impl: invalid screen_type = {}.", screen_type);
 
@@ -1063,24 +1118,47 @@ namespace methods {
     std::string input_file = mb_state.coqui_prefix + ".mbpt.h5";
     std::string output_file = mb_state.coqui_prefix + ".model.h5";
     auto [gw_iter, weiss_f_iter, weiss_b_iter, embed_iter] = chkpt::read_input_iterations(input_file);
-    if (g_grp == "" or g_iter == -1)
-      std::tie(g_grp, g_iter) = downfold_2e_logic(gw_iter, weiss_f_iter, weiss_b_iter, embed_iter);
+    if (greens_func_source == "" or greens_func_iteration == -1)
+      std::tie(greens_func_source, greens_func_iteration) = downfold_2e_logic(gw_iter, weiss_f_iter, weiss_b_iter, embed_iter);
     else
-      downfold_2e_logic(g_grp, g_iter, gw_iter, embed_iter);
+      check_downfold_2e_logic(greens_func_source, greens_func_iteration, gw_iter, embed_iter);
 
     auto mpi = eri.mpi();
     auto& proj_boson = mb_state.proj_boson.value();
     long nImpOrbs = proj_boson.nImpOrbs();
 
+
+    // http://patorjk.com/software/taag/#p=display&f=Calvin%20S&t=COQUI%20two-e%20downfold
+    app_log(1, "\n"
+               "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌┬┐┬ ┬┌─┐   ┌─┐  ┌┬┐┌─┐┬ ┬┌┐┌┌─┐┌─┐┬  ┌┬┐\n"
+               "║  ║ ║║═╬╗║ ║║   │ ││││ │───├┤    │││ │││││││├┤ │ ││   ││\n"
+               "╚═╝╚═╝╚═╝╚╚═╝╩   ┴ └┴┘└─┘   └─┘  ─┴┘└─┘└┴┘┘└┘└  └─┘┴─┘─┴┘\n");
+    app_log(1, "  CoQuí input checkpoint file:              {}", input_file);
+    app_log(1, "    - Input Green's function: ");
+    app_log(1, "      HDF5 group:                            {}", greens_func_source);
+    app_log(1, "      iteration:                             {}", greens_func_iteration);
+    app_log(1, "  Output file with model hamiltonian:        {}", output_file);
+    app_log(1, "");
+    app_log(1, "  Transformation matrices:                   {}", proj_boson.C_file());
+    app_log(1, "  Number of impurities:                      {}", proj_boson.nImps());
+    app_log(1, "  Number of local orbitals per impurity:     {}", proj_boson.nImpOrbs());
+    app_log(1, "  Range of primary orbitals for local basis: [{}, {})",
+            proj_boson.W_rng()[0].first(), proj_boson.W_rng()[0].last());
+    app_log(1, "");
+    app_log(1, "  Screening type:                            {}", screen_type);
+    app_log(1, "  factorization type:                        {}", factorization_type);
+    app_log(1, "  permutation symmetry:                      {}\n", permut_symm);
+
+
     _Timer.start("DF_READ");
     // Check status of MBState
     if (!mb_state.sG_tskij)
-      mb_state.sG_tskij.emplace(read_greens_function(*mpi, _MF, input_file, g_iter, g_grp));
+      mb_state.sG_tskij.emplace(read_greens_function(*mpi, _MF, input_file, greens_func_iteration, greens_func_source));
     _Timer.stop("DF_READ");
 
     if (mpi->comm.root()) {
       // write basic info to downfold_2e, needed for logic in downfold_1e
-      weiss_b_iter = g_iter+1;
+      weiss_b_iter = greens_func_iteration+1;
       h5::file file(input_file, 'a');
       auto grp = h5::group(file);
       auto downfold_grp = (grp.has_subgroup("downfold_2e"))?
@@ -2241,9 +2319,9 @@ namespace methods {
 namespace methods {
 
   template std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> >
-  embed_eri_t::downfold_wloc<true>(thc_reader_t&, MBState &, std::string, bool, bool, imag_axes_ft::IAFT *, std::string, long);
+  embed_eri_t::compute_downfolded_coulomb_tensors<true>(thc_reader_t&, MBState &, std::string, bool, bool, imag_axes_ft::IAFT *, std::string, long, bool, bool);
   template std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> >
-  embed_eri_t::downfold_wloc<false>(thc_reader_t&, MBState &, std::string, bool, bool, imag_axes_ft::IAFT *, std::string, long);
+  embed_eri_t::compute_downfolded_coulomb_tensors<false>(thc_reader_t&, MBState &, std::string, bool, bool, imag_axes_ft::IAFT *, std::string, long, bool, bool);
 
   template void embed_eri_t::downfolding_edmft(thc_reader_t&, MBState&, ptree const&, std::string);
 

@@ -51,6 +51,45 @@
 namespace mpi3 = boost::mpi3;
 namespace methods
 {
+
+// Helper function to prepare checkpoint file for downfold_coulomb
+inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& output, 
+                                 std::string const& greens_func_source, ptree const& pt) {
+  
+  if (greens_func_source == "mf" and std::filesystem::exists(output+".mbpt.h5")) {
+    
+    app_log(1, "");
+    app_log(1, "╔═════════════════════════════════════════════════════════════╗");
+    app_log(1, "║ [ NOTE ]                                                    ║");
+    app_log(1, "║ greens_func_source is set to \"mf\", while a CoQuí checkpoint ║");
+    app_log(1, "║ HDF5 with the same prefix has been detected. CoQuí will     ║");
+    app_log(1, "║ read \"scf/iter0\" h5 group as the input, which should be     ║");
+    app_log(1, "║ equivalent to the mean-field solution.                      ║");
+    app_log(1, "╚═════════════════════════════════════════════════════════════╝\n");
+
+  } else if (greens_func_source == "mf" and not std::filesystem::exists(output+".mbpt.h5")) {
+    
+    auto beta = io::get_value_with_default<double>(pt,"beta", 1000.0);
+    auto wmax = io::get_value_with_default<double>(pt,"wmax", 12.0);
+    auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, iaft_prec, false);
+    hamilt::pseudopot psp(*mf);
+    write_mf_data(*mf, ft, psp, output);
+  
+  } else if (greens_func_source == "scf" or greens_func_source == "embed") {
+  
+    utils::check(std::filesystem::exists(output+".mbpt.h5"),
+                 "MBPT_drivers::ensure_checkpoint: greens_func_source == \"{}\" while the coqui h5, {}.mbpt.h5, does not exist!", 
+                 greens_func_source, output);
+
+  } else {
+
+    utils::check(false, "MBPT_drivers::ensure_checkpoint: invalid greens_func_source = {}. Valid options are \"mf\", \"scf\", and \"embed\".", 
+                 greens_func_source);
+
+  }
+}
+
 /**
  * Many-body perturbation calculations from a given mean-field and ERI objects with arguments in property tree.
  * Optional arguments (with default values):
@@ -87,8 +126,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   auto output = io::get_value_with_default<std::string>(pt,"output","bdft.mbpt");
 
   auto restart = io::get_value_with_default<bool>(pt,"restart",false);
-  auto input_grp = io::get_value_with_default<std::string>(pt,"input_type", "scf");
-  auto input_iter = io::get_value_with_default<long>(pt, "input_iter", -1);
+  auto greens_func_source = io::get_value_with_default<std::string>(pt,"greens_func_source", "scf");
+  auto greens_func_iteration = io::get_value_with_default<long>(pt, "greens_func_iteration", -1);
 
   auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
   auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
@@ -140,7 +179,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     MBState mb_state(mpi, ft, output);
     scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf),
              iter_solver.get(), niter, restart, conv_thr, const_mu,
-             input_grp, input_iter);
+             greens_func_source, greens_func_iteration);
 
   } else if(solver_type == "gw") {
     auto screen_type = io::get_value_with_default<std::string>(pt,"screen_type", "rpa");
@@ -161,7 +200,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
       MBState mb_state(ft, output, mf, wannier_file, trans_home_cell);
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw, &scr_eri),
                iter_solver.get(), niter, restart, conv_thr, const_mu,
-               input_grp, input_iter);
+               greens_func_source, greens_func_iteration);
 
       auto dump_w_to_h5 = io::get_value_with_default<bool>(pt,"dump_w_to_h5", false);
       if (dump_w_to_h5) {
@@ -180,7 +219,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
       MBState mb_state(mpi, ft, output);
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw, &scr_eri),
                iter_solver.get(), niter, restart, conv_thr, const_mu,
-               input_grp, input_iter);
+               greens_func_source, greens_func_iteration);
 
       auto dump_w_to_h5 = io::get_value_with_default<bool>(pt,"dump_w_to_h5", false);
       if (dump_w_to_h5) {
@@ -221,12 +260,12 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     if (gf2_direct_type == "gf2") {
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gf2),
                iter_solver.get(), niter, restart, conv_thr, const_mu,
-               input_grp, input_iter);
+               greens_func_source, greens_func_iteration);
     } else {
       solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum(div_treatment));
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gf2, &scr_eri),
                iter_solver.get(), niter, restart, conv_thr, const_mu,
-               input_grp, input_iter);
+               greens_func_source, greens_func_iteration);
     }
 
   } else if(solver_type == "gw_dca") {
@@ -302,7 +341,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
 
 template<typename eri_t>
 void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
-          nda::array<ComplexType, 5> const& C_ksIai,
+          nda::array<ComplexType, 5> const& projector_ksIai,
           nda::array<long, 3> const& band_window,
           nda::array<RealType, 2> const& kpts_crys,
           std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_polarizabilities)
@@ -325,8 +364,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
   auto output = io::get_value_with_default<std::string>(pt,"output","bdft.mbpt");
 
   auto restart = io::get_value_with_default<bool>(pt,"restart",false);
-  auto input_grp = io::get_value_with_default<std::string>(pt,"input_type", "scf");
-  auto input_iter = io::get_value_with_default<long>(pt, "input_iter", -1);
+  auto greens_func_source = io::get_value_with_default<std::string>(pt,"greens_func_source", "scf");
+  auto greens_func_iteration = io::get_value_with_default<long>(pt, "greens_func_iteration", -1);
   bool chkpt_exist = std::filesystem::exists(output + ".mbpt.h5");
   if (restart and !chkpt_exist) {
     restart = false;
@@ -373,7 +412,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
     }
     solvers::scr_coulomb_t scr_eri(&ft, screen_type, string_to_div_enum(div_treatment));
     solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
-    MBState mb_state(ft, output, mf, C_ksIai, band_window, kpts_crys, trans_home_cell, false);
+    MBState mb_state(ft, output, mf, projector_ksIai, band_window, kpts_crys, trans_home_cell, false);
     if (local_polarizabilities) {
       mb_state.set_local_polarizabilities(std::move(local_polarizabilities.value()));
       local_polarizabilities.reset();
@@ -381,7 +420,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
 
     scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw, &scr_eri),
              iter_solver.get(), niter, restart, conv_thr, const_mu,
-             input_grp, input_iter);
+             greens_func_source, greens_func_iteration);
 
   } else
     APP_ABORT("mbpt: Unknown solver type: {}",solver_type);
@@ -424,15 +463,15 @@ auto downfold_gloc_impl(std::shared_ptr<mf::MF> mf,
                         ptree const& pt)
 -> nda::array<ComplexType, 5> {
   std::string err = std::string("downfold_gloc_impl - Incorrect input - ");
-  auto g_grp = io::get_value<std::string>(pt, "input_type", err+"input_type");
-  auto g_iter = io::get_value_with_default<long>(pt, "input_iter", -1);
+  auto greens_func_source = io::get_value<std::string>(pt, "greens_func_source", err+"greens_func_source");
+  auto greens_func_iteration = io::get_value_with_default<long>(pt, "greens_func_iteration", -1);
   auto force_real = io::get_value_with_default<bool>(pt, "force_real", true);
   embed_t embed(*mf);
-  return embed.downfold_gloc(mb_state, force_real, g_grp, g_iter);
+  return embed.downfold_gloc(mb_state, force_real, greens_func_source, greens_func_iteration);
 }
 
 auto downfold_gloc(std::shared_ptr<mf::MF> mf, ptree const& pt,
-                  nda::array<ComplexType, 5> const& C_ksIai,
+                  nda::array<ComplexType, 5> const& projector_ksIai,
                   nda::array<long, 3> const& band_window,
                   nda::array<RealType, 2> const& kpts_crys)
   -> nda::array<ComplexType, 5> {
@@ -442,10 +481,10 @@ auto downfold_gloc(std::shared_ptr<mf::MF> mf, ptree const& pt,
   auto trans_home_cell = io::get_value_with_default<bool>(pt, "translate_home_cell", false);
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(outdir+"/"+prefix+".mbpt.h5", false));
   return downfold_gloc_impl(
-      mf, MBState(ft, outdir+"/"+prefix, mf, C_ksIai, band_window, kpts_crys, trans_home_cell, false), pt);
+      mf, MBState(ft, outdir+"/"+prefix, mf, projector_ksIai, band_window, kpts_crys, trans_home_cell, false), pt);
 }
 
-auto downfold_gloc(std::shared_ptr<mf::MF> mf, ptree const& pt)
+auto downfold_gloc_with_projector_from_h5(std::shared_ptr<mf::MF> mf, ptree const& pt)
 -> nda::array<ComplexType, 5> {
   std::string err = std::string("downfold_gloc - Incorrect input - ");
   auto prefix = io::get_value<std::string>(pt, "prefix", err+"prefix");
@@ -459,28 +498,26 @@ auto downfold_gloc(std::shared_ptr<mf::MF> mf, ptree const& pt)
 
 template<typename eri_t>
 std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> >
-downfold_wloc_impl(eri_t &eri, MBState&& mb_state, ptree const& pt,
+downfold_coulomb_impl(eri_t &eri, MBState&& mb_state, ptree const& pt, 
                    std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_polarizabilities) {
-  std::string err = std::string("downfold_wloc_impl - Incorrect input - ");
-  auto g_grp = io::get_value<std::string>(pt, "input_type");
-  io::tolower(g_grp);
-  g_grp = (g_grp == "mf")? "scf" : g_grp;
-  auto g_iter = io::get_value_with_default<long>(pt, "input_iter", -1);
+  std::string err = std::string("downfold_coulomb_impl - Incorrect input - ");
+  auto greens_func_source = io::tolower_copy(io::get_value<std::string>(pt, "greens_func_source"));
+  greens_func_source = (greens_func_source == "mf") ? "scf" : greens_func_source;
+  auto greens_func_iteration = io::get_value_with_default<long>(pt, "greens_func_iteration", -1);
   auto screen_type = io::get_value<std::string>(
       pt, "screen_type", err+"screen_type. This parameter determines the type of screened interactions for the downfolded Hamiltonian. "
                              "Valid types are \"crpa\", \"crpa_ks\", \"crpa_vasp\", "
                              "\"gw_edmft\", \"gw_edmft_rpa\", and \"gw_edmft_density\"");
   io::tolower(screen_type);
-
   auto permut_symm = io::get_value_with_default<bool>(pt, "permut_symm", true);
   auto force_real = io::get_value_with_default<bool>(pt, "force_real", true);
+  auto div_treatment = io::tolower_copy(io::get_value_with_default<std::string>(pt, "div_treatment", "gygi"));
+  auto bare_div_treatment = io::tolower_copy(io::get_value_with_default<std::string>(pt, "bare_div_treatment", "gygi"));
+  auto output_in_tau = io::get_value_with_default<bool>(pt, "output_in_tau", false);
+  bool write_to_hdf5 = io::get_value_with_default<bool>(pt, "write_to_hdf5", true);
+  bool q_dependent_output = io::get_value_with_default<bool>(pt, "q_dependent_output", false);
 
-  auto div_treatment = io::get_value_with_default<std::string>(pt, "div_treatment", "gygi");
-  auto bare_div_treatment = io::get_value_with_default<std::string>(pt, "bare_div_treatment", "gygi");
-  io::tolower(div_treatment);
-  io::tolower(bare_div_treatment);
-
-  auto output_in_tau = io::get_value_with_default<bool>(pt, "output_in_tau", true);
+  if (q_dependent_output) write_to_hdf5 = true;
 
   auto mf = eri.MF();
 
@@ -490,100 +527,62 @@ downfold_wloc_impl(eri_t &eri, MBState&& mb_state, ptree const& pt,
     local_polarizabilities.reset();
   }
   embed_eri_t embed_eri(*mf, string_to_div_enum(div_treatment),
-                        string_to_div_enum(bare_div_treatment), "default");
+              string_to_div_enum(bare_div_treatment), "default");
   return (output_in_tau)?
-    embed_eri.downfold_wloc<true>(eri, mb_state, screen_type, permut_symm, force_real, mb_state.ft, g_grp, g_iter) :
-    embed_eri.downfold_wloc<false>(eri, mb_state, screen_type, permut_symm, force_real, mb_state.ft, g_grp, g_iter);
+    embed_eri.compute_downfolded_coulomb_tensors<true>(
+      eri, mb_state, screen_type, permut_symm, force_real, mb_state.ft, 
+      greens_func_source, greens_func_iteration, write_to_hdf5, q_dependent_output) :
+    embed_eri.compute_downfolded_coulomb_tensors<false>(
+      eri, mb_state, screen_type, permut_symm, force_real, mb_state.ft, 
+      greens_func_source, greens_func_iteration, write_to_hdf5, q_dependent_output);
 }
 
 template<typename eri_t>
 std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> >
-downfold_wloc(eri_t &eri, ptree const& pt,
+downfold_coulomb_with_projector_from_h5(eri_t &eri, ptree const& pt,
               std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_polarizabilities) {
-  std::string err = std::string("downfold_wloc - Incorrect input - ");
+  std::string err = std::string("downfold_coulomb - Incorrect input - ");
   auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
   auto prefix = io::get_value<std::string>(pt,"prefix",err+"prefix");
   auto wannier_file = io::get_value<std::string>(pt,"wannier_file",err+"wannier_file");
   auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
-  auto input_type = io::get_value<std::string>(pt, "input_type",
-      err+"input_type. This parameter defines the source of input Green's function. Valid types are \"mf\", \"scf\", and \"embed\".");
-  io::tolower(input_type);
+  auto greens_func_source = io::tolower_copy(io::get_value<std::string>(pt, "greens_func_source",
+      err+"greens_func_source. This parameter defines the source of input Green's function. Valid types are \"mf\", \"scf\", and \"embed\"."));
 
   auto mf = eri.MF();
   std::string output = outdir + "/" + prefix;
-  if (input_type == "mf") {
-    if (std::filesystem::exists(output+".mbpt.h5")) {
-      app_log(1, "");
-      app_log(1, "╔══════════════════════════════════════════════════════════╗");
-      app_log(1, "║ [ WARNING ]                                              ║");
-      app_log(1, "║ Input type is set to \"mf\", while a CoQuí checkpoint      ║");
-      app_log(1, "║ HDF5 with the same prefix has been detected. CoQuí will  ║");
-      app_log(1, "║ overwrite the old checkpoint. Considering moving the old ║");
-      app_log(1, "║ HDF5 or changing CoQuí prefix next time.                 ║");
-      app_log(1, "╚══════════════════════════════════════════════════════════╝\n");
-    }
-    auto beta = io::get_value_with_default<double>(pt,"beta", 1000.0);
-    auto wmax = io::get_value_with_default<double>(pt,"wmax", 12.0);
-    auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, iaft_prec, false);
-    hamilt::pseudopot psp(*mf);
-    write_mf_data(*mf, ft, psp, output);
-  } else if (input_type == "scf" or input_type == "embed") {
-    utils::check(std::filesystem::exists(output+".mbpt.h5"),
-                 "downfold_2e: input_type == \"{}\" while the coqui h5, {}.mbpt.h5, does not exist!", input_type, output);
-  } else
-    utils::check(false, "downfold_2e: invalid input_type = {}. Valid options are \"mf\" and \"coqui\".", input_type);
+  
+  ensure_checkpoint(mf, output, greens_func_source, pt);
 
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(output+".mbpt.h5", false));
-  return downfold_wloc_impl(
-      eri, MBState(ft, output, mf, wannier_file, trans_home_cell, false),
-      pt, local_polarizabilities);
+  return downfold_coulomb_impl(
+    eri, MBState(ft, output, mf, wannier_file, trans_home_cell, false),
+    pt, local_polarizabilities);
 }
 
 template<typename eri_t>
 std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> >
-downfold_wloc(eri_t &eri, ptree const& pt,
-              nda::array<ComplexType, 5> const& C_ksIai,
+downfold_coulomb(eri_t &eri, ptree const& pt,
+              nda::array<ComplexType, 5> const& projector_ksIai,
               nda::array<long, 3> const& band_window,
               nda::array<RealType, 2> const& kpts_crys,
               std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_polarizabilities) {
-  std::string err = std::string("downfold_wloc - Incorrect input - ");
+  std::string err = std::string("downfold_coulomb - Incorrect input - ");
   auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
   auto prefix = io::get_value<std::string>(pt,"prefix",err+"prefix");
   auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
-  auto input_type = io::get_value<std::string>(pt,"input_type",
-      err+"input_type. This parameter defines the source of input Green's function. Valid types are \"mf\", \"scf\", and \"embed\". ");
-  io::tolower(input_type);
+  auto greens_func_source = io::tolower_copy(io::get_value<std::string>(pt,"greens_func_source",
+      err+"greens_func_source. This parameter defines the source of input Green's function. Valid types are \"mf\", \"scf\", and \"embed\". "));
 
   auto mf = eri.MF();
   std::string output = outdir + "/" + prefix;
-  if (input_type == "mf") {
-    if (std::filesystem::exists(output+".mbpt.h5")) {
-      app_log(1, "");
-      app_log(1, "╔══════════════════════════════════════════════════════════╗");
-      app_log(1, "║ [ WARNING ]                                              ║");
-      app_log(1, "║ Input type is set to \"mf\", while a CoQuí checkpoint      ║");
-      app_log(1, "║ HDF5 with the same prefix has been detected. CoQuí will  ║");
-      app_log(1, "║ overwrite the old checkpoint. Considering moving the old ║");
-      app_log(1, "║ HDF5 or changing CoQuí prefix next time.                 ║");
-      app_log(1, "╚══════════════════════════════════════════════════════════╝\n");
-    }
-    auto beta = io::get_value_with_default<double>(pt,"beta", 1000.0);
-    auto wmax = io::get_value_with_default<double>(pt,"wmax", 12.0);
-    auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, iaft_prec, false);
-    hamilt::pseudopot psp(*mf);
-    write_mf_data(*mf, ft, psp, output);
-  } else if (input_type == "scf" or input_type == "embed") {
-    utils::check(std::filesystem::exists(output+".mbpt.h5"),
-                 "downfold_2e: input_type == \"{}\" while the coqui h5, {}.mbpt.h5, does not exist!", input_type, output);
-  } else
-    utils::check(false, "downfold_2e: invalid input_type = {}. Valid options are \"mf\" and \"coqui\".", input_type);
+  
+  ensure_checkpoint(mf, output, greens_func_source, pt);
 
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(output+".mbpt.h5", false));
-  return downfold_wloc_impl(
-      eri, MBState(ft, output, mf, C_ksIai, band_window, kpts_crys, trans_home_cell, false),
-      pt, local_polarizabilities);
+  return downfold_coulomb_impl(
+    eri, MBState(ft, output, mf, projector_ksIai, band_window, kpts_crys, trans_home_cell, false),
+    pt, local_polarizabilities);
 }
 
 /**
@@ -601,60 +600,26 @@ downfold_wloc(eri_t &eri, ptree const& pt,
  *  - wmax: "12.0" Frequency cutoff for the IAFT grid (a.u.)
  *  - iaft_prec: "high" Precision of IAFT grids. {choices: "high", "medium", "low"}
  */
-template<bool return_vw, typename eri_t>
-std::conditional_t<return_vw, std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5>>, void>
-downfolding_2e(eri_t &eri, ptree const& pt,
+template<typename eri_t>
+void downfolding_2e(eri_t &eri, ptree const& pt,
                std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_polarizabilities) {
-  std::string err = std::string("downfolding_2e - Incorrect input - ");
-  auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
-  auto prefix = io::get_value<std::string>(pt,"prefix",err+"prefix");
-  auto wannier_file = io::get_value<std::string>(pt,"wannier_file",err+"wannier_file");
-  auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
-  auto screen_type = io::get_value<std::string>(pt, "screen_type",
-         err+"screen_type. This parameter determines the type of screened interactions for the downfolded Hamiltonian. "
-             "Valid types are \"crpa\", \"crpa_ks\", \"crpa_vasp\", "
-             "\"gw_edmft\", \"gw_edmft_rpa\", and \"gw_edmft_density\"");
-  io::tolower(screen_type);
-
-  auto pi_rpa_input = io::get_value<std::string>(
-      pt,"pi_rpa_input", err+"pi_rpa_input. This parameter defines the source of input Green's function. "
-                           "Valid types are \"mf\", \"scf\", and \"embed\". ");
-  io::tolower(pi_rpa_input);
-
-  auto div_treatment = io::get_value_with_default<std::string>(pt, "div_treatment", "gygi");
-  auto bare_div_treatment = io::get_value_with_default<std::string>(pt, "bare_div_treatment", "gygi");
-  io::tolower(div_treatment);
-  io::tolower(bare_div_treatment);
+  auto outdir = io::get_value_with_default<std::string>(pt, "outdir", "./");
+  auto prefix = io::get_value<std::string>(pt, "prefix", "downfolding_2e - Incorrect input - prefix");
+  auto wannier_file = io::get_value<std::string>(pt, "wannier_file", "downfolding_2e - Incorrect input - wannier_file");
+  auto trans_home_cell = io::get_value_with_default<bool>(pt, "translate_home_cell", false);
+  auto screen_type = io::tolower_copy(io::get_value<std::string>(pt, "screen_type", "downfolding_2e - Incorrect input - screen_type"));
+  auto greens_func_source = io::tolower_copy(io::get_value<std::string>(pt, "greens_func_source", "downfolding_2e - Incorrect input - greens_func_source"));
+  auto div_treatment = io::tolower_copy(io::get_value_with_default<std::string>(pt, "div_treatment", "gygi"));
+  auto bare_div_treatment = io::tolower_copy(io::get_value_with_default<std::string>(pt, "bare_div_treatment", "gygi"));
 
   auto mf = eri.MF();
   std::string output = outdir + "/" + prefix;
-  // FIXME consistent usage of pi_rpa_input (used in edmft) vs input_type (used in crap)
-  if (pi_rpa_input == "mf") {
-    if (std::filesystem::exists(output+".mbpt.h5")) {
-      app_log(1, "");
-      app_log(1, "╔══════════════════════════════════════════════════════════════╗");
-      app_log(1, "║ [ WARNING ]                                                  ║");
-      app_log(1, "║ pi_rpa_input type is set to \"mf\", while a CoQuí checkpoint   ║");
-      app_log(1, "║ HDF5 with the same prefix has been detected. CoQuí will      ║");
-      app_log(1, "║ overwrite the old checkpoint. Considering moving the old     ║");
-      app_log(1, "║ HDF5 or changing CoQuí prefix next time.                     ║");
-      app_log(1, "╚══════════════════════════════════════════════════════════════╝\n");
-    }
-    auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
-    auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
-    auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, iaft_prec, true);
-    hamilt::pseudopot psp(*mf);
-    write_mf_data(*mf, ft, psp, output);
-  } else if (pi_rpa_input == "scf" or pi_rpa_input == "embed") {
-    utils::check(std::filesystem::exists(output+".mbpt.h5"),
-                 "downfold_2e: pi_rpa_input == \"{}\" while the coqui h5, {}.mbpt.h5, does not exist!", pi_rpa_input, output);
-  } else
-    utils::check(false, "downfold_2e: invalid pi_rpa_input = {}. Valid options are \"mf\", \"scf\", and \"embed\".", pi_rpa_input);
+  
+  ensure_checkpoint(mf, output, greens_func_source, pt);
 
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(output+".mbpt.h5", false));
-  // create MBstate object to store the state of the downfolding
   MBState mb_state(ft, output, mf, wannier_file, trans_home_cell, false);
+
   if (local_polarizabilities) {
     mb_state.set_local_polarizabilities(std::move(local_polarizabilities.value()));
     local_polarizabilities.reset();
@@ -662,45 +627,11 @@ downfolding_2e(eri_t &eri, ptree const& pt,
 
   embed_eri_t embed_eri(*mf, string_to_div_enum(div_treatment),
                         string_to_div_enum(bare_div_treatment), "default");
-  if (screen_type.substr(0,8)=="gw_edmft") {
+
+  if (screen_type.substr(0, 8) == "gw_edmft") {
     embed_eri.downfolding_edmft(eri, mb_state, pt, screen_type);
   } else {
     embed_eri.downfolding_crpa(eri, mb_state, pt, screen_type);
-  }
-
-  if constexpr (return_vw) {
-    auto& mpi = eri.mpi();
-    nda::array<ComplexType, 4> V_abcd;
-    nda::array<ComplexType, 5> W_wabcd;
-    long nw_half; long nImpOrbs;
-    if (mpi->node_comm.root()) {
-
-      h5::file file(output+".mbpt.h5", 'r');
-      auto grp = h5::group(file).open_group("downfold_2e");
-      long iter;
-      h5::h5_read(grp, "final_iter", iter);
-      auto iter_grp = grp.open_group("iter" + std::to_string(iter));
-      nda::h5_read(iter_grp, "Vloc_abcd", V_abcd);
-      nda::h5_read(iter_grp, "Wloc_wabcd", W_wabcd);
-
-      nw_half = W_wabcd.shape(0);
-      nImpOrbs = W_wabcd.shape(1);
-      mpi->node_comm.broadcast_n(&nw_half, 1, 0);
-      mpi->node_comm.broadcast_n(&nImpOrbs, 1, 0);
-      mpi->node_comm.broadcast_n(V_abcd.data(), V_abcd.size(), 0);
-      mpi->node_comm.broadcast_n(W_wabcd.data(), W_wabcd.size(), 0);
-
-    } else {
-
-      mpi->node_comm.broadcast_n(&nw_half, 1, 0);
-      mpi->node_comm.broadcast_n(&nImpOrbs, 1, 0);
-      V_abcd = nda::array<ComplexType, 4>({nw_half, nImpOrbs, nImpOrbs, nImpOrbs});
-      W_wabcd = nda::array<ComplexType, 5>({nw_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs});
-      mpi->node_comm.broadcast_n(V_abcd.data(), V_abcd.size(), 0);
-      mpi->node_comm.broadcast_n(W_wabcd.data(), W_wabcd.size(), 0);
-
-    }
-    return std::make_tuple(std::move(V_abcd), std::move(W_wabcd));
   }
 }
 
@@ -862,7 +793,7 @@ void gw_downfold(eri_t &eri, ptree &pt) {
   embed.downfolding(mb_state, pt, &qp_context, "model_static");
 }
 
-void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
+void dmft_embed_with_projector_from_h5(std::shared_ptr<mf::MF> mf, ptree const& pt,
                 std::optional<std::map<std::string, nda::array<ComplexType, 4> > > local_hf_potentials,
                 std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_selfenergies) {
   std::string err = std::string("dmft_embed - Incorrect input - ");
@@ -896,7 +827,7 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
 }
 
 void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
-                nda::array<ComplexType, 5> const& C_ksIai,
+                nda::array<ComplexType, 5> const& projector_ksIai,
                 nda::array<long, 3> const& band_window,
                 nda::array<RealType, 2> const& kpts_crys,
                 std::optional<std::map<std::string, nda::array<ComplexType, 4> > > local_hf_potentials,
@@ -913,7 +844,7 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
   }
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(outdir+"/"+prefix+".mbpt.h5", false));
   MBState mb_state(ft, outdir+"/"+prefix, mf,
-                   C_ksIai, band_window, kpts_crys,
+                   projector_ksIai, band_window, kpts_crys,
                    io::get_value_with_default<bool>(pt,"translate_home_cell",false), false);
   if (local_hf_potentials and local_selfenergies) {
     mb_state.set_local_hf_potentials(std::move(local_hf_potentials.value()));
@@ -936,25 +867,22 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
 using mpi3::communicator;
 
 template std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> >
-downfold_wloc_impl(thc_reader_t &, MBState&& mb_state, ptree const& pt,
+downfold_coulomb_impl(thc_reader_t &, MBState&& mb_state, ptree const& pt,
                    std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_polarizabilities);
 
 template std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> >
-downfold_wloc(thc_reader_t &, ptree const&,
-              std::optional<std::map<std::string, nda::array<ComplexType, 5> > >);
+downfold_coulomb_with_projector_from_h5(
+  thc_reader_t &, ptree const&, std::optional<std::map<std::string, nda::array<ComplexType, 5> > >);
 
 template std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> >
-downfold_wloc(thc_reader_t &, ptree const&,
+downfold_coulomb(thc_reader_t &, ptree const&,
               nda::array<ComplexType, 5> const&,
               nda::array<long, 3> const&,
               nda::array<RealType, 2> const&,
               std::optional<std::map<std::string, nda::array<ComplexType, 5> > >);
 
-template void downfolding_2e<false>(
-    thc_reader_t&, ptree const&, std::optional<std::map<std::string, nda::array<ComplexType, 5> > >);
-template std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5>>
-downfolding_2e<true>(
-    thc_reader_t&, ptree const&, std::optional<std::map<std::string, nda::array<ComplexType, 5> > >);
+template void downfolding_2e(
+     thc_reader_t&, ptree const&, std::optional<std::map<std::string, nda::array<ComplexType, 5> > >);
 
 template void hf_downfold(thc_reader_t&, ptree const&);
 template void gw_downfold(thc_reader_t&, ptree&);
