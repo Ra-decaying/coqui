@@ -110,13 +110,13 @@ def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
         with HDFArchive(coqui_chkpt_h5, 'r') as ar:
             mbpt_final_iter = ar["scf/final_iter"]
             try:
-                pi_rpa_gf_source = ar[f"scf/iter{mbpt_final_iter}/greens_func_source"]
-                pi_rpa_gf_iteration = ar[f"scf/iter{mbpt_final_iter}/greens_func_iteration"]
+                gf_for_wloc_source = ar[f"scf/iter{mbpt_final_iter}/greens_func_source"]
+                gf_for_wloc_iteration = ar[f"scf/iter{mbpt_final_iter}/greens_func_iteration"]
             except KeyError:
-                pi_rpa_gf_source = ar[f"scf/iter{mbpt_final_iter}/input_grp"]
-                pi_rpa_gf_iteration = ar[f"scf/iter{mbpt_final_iter}/input_iter"]
-        wloc_params["greens_func_source"] = pi_rpa_gf_source
-        wloc_params["greens_func_iteration"] = pi_rpa_gf_iteration
+                gf_for_wloc_source = ar[f"scf/iter{mbpt_final_iter}/input_grp"]
+                gf_for_wloc_iteration = ar[f"scf/iter{mbpt_final_iter}/input_iter"]
+        wloc_params["greens_func_source"] = gf_for_wloc_source
+        wloc_params["greens_func_iteration"] = gf_for_wloc_iteration
         coqui_mpi.barrier()
 
         # inner EDMFT loop
@@ -166,7 +166,7 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
         Gloc_t = [Gloc_t[:, s] for s in range(Gloc_t.shape[1])]
         if mf.nspin() == 1:
             Gloc_t = [Gloc_t[0], Gloc_t[0].copy()]
-
+        
         # Extract local Green's function and screened interactions for each impurity
         Gloc_C    = dmft_state.embedding['1e'].extract(Gloc_t)   # block matrix
         Vloc_C    = dmft_state.embedding['2e'].extract(Vloc)
@@ -176,7 +176,7 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
 
         for imp_index, (G_t, W_t, V) in enumerate(zip(Gloc_C, Wloc_C, Vloc_C)):
             coqui_dmft.print_title_box(f"IMPURITY {imp_index}")
-
+            
             solver_params = solver_params_list[imp_index]
             Res, Input = dmft_state.solver_results[imp_index], dmft_state.solver_inputs[imp_index]
             Input['Gloc_t'] = G_t
@@ -274,7 +274,7 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
 
             # save solver results for current impurity
             dmft_state.save_impurity_results(solver_chkpt_h5, imp_index)
-
+            
         # Embed impurity results
         dmft_state.embed_impurity_results()
 

@@ -7,7 +7,7 @@ outdir = "/mnt/home/cyeh/Projects/coqui/tests/unit_test_files/qe/svo_kp222_nbnd4
 nbnd = 40
 
 [interaction.thc]
-thresh = 1e-6
+thresh = 1e-5
 ecut = 60
 save = "thc.coulomb.h5"
 
@@ -39,7 +39,7 @@ corr_only = true
 [impurity]
 chkpt_h5 = "svo.dmft.h5"   # checkpoint h5 for dmft results
 restart  = true
-dlr_wmax = 8
+dlr_wmax = 5
 dlr_eps  = 1e-10
 
 [[impurity.solver]]
@@ -47,8 +47,8 @@ init_weiss_type = 'dc'
 degenerate_blk = [[0,1,2,3,4,5]]    
 n_iw = 3000
 n_tau = 96001
-length_cycle = 400
-n_warmup_cycles = 20000
+length_cycle = 60
+n_warmup_cycles = 5000
 n_cycles = 2000000
 measure_pert_order = true
 perform_tail_fit = true
@@ -58,10 +58,10 @@ fit_max_w = 4.5
 
 [impurity.solver.chemical_potential] 
 verbosity       = true
-tolerance       = 0.001 
-length_cycle    = 200
-n_warmup_cycles = 5000
-n_cycles        = 200000
+tolerance       = 0.1 
+length_cycle    = 40
+n_warmup_cycles = 1000
+n_cycles        = 100000
 
 [impurity.iter_alg]
 alg = "damping"
