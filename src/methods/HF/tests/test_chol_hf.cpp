@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -43,6 +43,7 @@
 #include "methods/SCF/scf_driver.hpp"
 #include "methods/HF/hf_t.h"
 #include "methods/HF/cholesky_hf.icc"
+#include "methods/HF/hf_gradient_t.h"
 
 
 namespace bdft_tests {
@@ -151,4 +152,36 @@ namespace bdft_tests {
     }
     mpi_context->comm.barrier();
   }
+
+  TEST_CASE("chol_hf_grad", "[methods][chol][hf_gradient][pyscf]") {
+
+    auto& mpi_context = utils::make_unit_test_mpi_context();
+
+    auto [outdir, prefix] = utils::utest_filename("pyscf_h2o2_mol");
+
+    auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "pyscf_h2o2_mol"));
+    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_source);
+
+    solvers::hf_t hf;
+
+    chol_reader_t chol_reader(mf, outdir + "gdf_eri");
+    auto eri = mb_eri_t(chol_reader, chol_reader);
+
+    chol_grad_reader_t chol_grad_reader(mf, outdir + "gdf_eri_grad");
+    auto eri_grad = mb_eri_t(chol_grad_reader, chol_grad_reader);
+
+    simple_dyson dyson(mf.get(), &ft);
+    iter_scf::iter_scf_t iter_sol("damping");
+    MBState mb_state(mpi_context, ft, "h2o2");
+    auto [e_hf, e_corr] = scf_loop(mb_state, dyson, eri, ft,
+                                   solvers::mb_solver_t(&hf), &iter_sol,
+                                   1, false, 1e-9, false);
+
+    solvers::hf_gradient_t hf_gradient(mf, true);
+    hf_gradient.evaluate(mb_state.sDm_skij.value().local(), mb_state.sF_skij.value().local(),
+                         dyson.sS_skij().local(), dyson.sH0_skij().local(),
+                         eri_grad.hf_eri->get(), false);
+
+  }
+
 } // bdft_tests

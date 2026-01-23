@@ -124,7 +124,8 @@ namespace mf {
         nda::h5_read(grp, "at_pos", at_pos);
         nda::h5_read(grp, "latt", latt);
         nda::h5_read(grp, "recv", recv);
-        nda::h5_read(grp, "grad_nuc", grad_nuc);
+        if( grp.has_dataset("grad_nuc") )
+          nda::h5_read(grp, "grad_nuc", grad_nuc);
         h5::h5_read(grp, "madelung", madelung);
         h5::h5_read(grp, "enuc", enuc);
         if( H5Aexists(h5::hid_t(grp),"fermi_energy") )

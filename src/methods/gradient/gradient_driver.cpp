@@ -21,6 +21,9 @@
 
 #include "gradient_driver.h"
 
+#include <format>
+#include <iostream>
+
 #include "methods/ERI/chol_grad_reader_t.hpp"
 #include "methods/ERI/chol_reader_t.hpp"
 #include "methods/ERI/mb_eri_context.h"
@@ -37,7 +40,7 @@ namespace methods
 template<typename dyson_type, typename eri_grad_t>
 void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad_t, const imag_axes_ft::IAFT& FT,
                    const std::string &solver_type,
-                   const std::string &input, const std::string &input_grp, int input_iter,
+                   const std::string &input_grp, int input_iter,
                    const std::string &output, bool auxbasis_response)
 {
   utils::TimerManager Timer;
@@ -48,13 +51,15 @@ void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad
              "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌─┐┬─┐┌─┐┌┬┐┬┌─┐┌┐┌┌┬┐\n"
              "║  ║ ║║═╬╗║ ║║  │ ┬├┬┘├─┤ │││├┤ │││ │ \n"
              "╚═╝╚═╝╚═╝╚╚═╝╩  └─┘┴└─┴ ┴─┴┘┴└─┘┘└┘ ┴ \n");
-  app_log(1, "  - Input:                      {}", input + ".mbpt.h5");
-  app_log(1, "    * input_grp, iteration:          {}, {}", input_grp, input_iter);
+  app_log(1, "  Checkpoint HDF5          = {}", mb_state.coqui_prefix + ".mbpt.h5");
+  app_log(1, "    - H5 group             = {}", input_grp);
+  app_log(1, "    - Iteration            = {}", input_iter);
   app_log(1, "  - Total number processors:         {}", mpi->comm.size());
-  app_log(1, "  - Number of nodes:                 {}\n", mpi->internode_comm.size());
+  app_log(1, "  Number of processors     = {} cores per node, {} nodes\n",
+          mpi->comm.size(), mpi->internode_comm.size());
 
   if (input_iter == -1) {
-    h5::file file(input + ".mbpt.h5", 'r');
+    h5::file file(mb_state.coqui_prefix + ".mbpt.h5", 'r');
     auto scf_grp = h5::group(file).open_group(input_grp);
     h5::h5_read(scf_grp, "final_iter", input_iter);
   }
@@ -79,9 +84,9 @@ void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad
 
   double mu = 0.0;
   long init_it = 0;
-  init_it = read_scf(mpi->node_comm, sF_skij, sSigma_tskij, mu, input, input_grp, input_iter);
-  sG_tskij = read_greens_function(*mpi, mf.get(), input + ".mbpt.h5", input_iter, input_grp);
-  read_dm(mpi->node_comm, input, input_iter, sDm_skij);
+  init_it = read_scf(mpi->node_comm, sF_skij, sSigma_tskij, mu, mb_state.coqui_prefix, input_grp, input_iter);
+  sG_tskij = read_greens_function(*mpi, mf.get(), mb_state.coqui_prefix+ ".mbpt.h5", input_iter, input_grp);
+  read_dm(mpi->node_comm, mb_state.coqui_prefix, input_iter, sDm_skij);
 
   auto gradient_elec = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
   auto gradient_nuc = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
@@ -107,12 +112,12 @@ void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad
 
 template void eval_gradient(MBState&, simple_dyson&,
                             mb_eri_t<chol_grad_reader_t, chol_grad_reader_t, chol_grad_reader_t, chol_grad_reader_t>&,
-                            const imag_axes_ft::IAFT&, const std::string&, const std::string&, const std::string&, int,
+                            const imag_axes_ft::IAFT&, const std::string&, const std::string&, int,
                             const std::string&, bool);
 
 template void eval_gradient(MBState&, simple_dyson&,
                             mb_eri_t<chol_grad_reader_t, thc_reader_t, thc_reader_t, chol_grad_reader_t>&,
-                            const imag_axes_ft::IAFT&, const std::string&, const std::string&, const std::string&, int,
+                            const imag_axes_ft::IAFT&, const std::string&, const std::string&, int,
                             const std::string&, bool);
 
 } // namespace methods

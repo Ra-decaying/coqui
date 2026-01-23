@@ -52,7 +52,7 @@ void mbpt_gradient(const std::string &solver_type, eri_grad_t &eri_grad, const p
   if (solver_type == "hf_gradient") {
     simple_dyson dyson(mf.get(), &ft);
     MBState mb_state(mpi, ft, input);
-    eval_gradient(mb_state, dyson, eri_grad, ft, solver_type, input, input_grp, input_iter,
+    eval_gradient(mb_state, dyson, eri_grad, ft, solver_type, input_grp, input_iter,
                   output, auxbasis_response);
   } else {
     APP_ABORT("Only Hartree-Fock gradient is supported");

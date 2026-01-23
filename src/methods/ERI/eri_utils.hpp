@@ -331,7 +331,7 @@ namespace methods {
     return pt;
   }
 
-  inline ptree make_chol_reader_ptree(double tol=0.0001,
+  inline ptree make_chol_reader_ptree(double tol = 0.0001,
     double ecut = 0.0,
     int chol_block = 32,
     std::string path = "./",
@@ -341,7 +341,7 @@ namespace methods {
     bool redo = false)
   {
     auto err = std::string("make_chol_reader_ptree - Incorrect input - ");
-    ptree pt = make_chol_ptree(tol,ecut,chol_block);
+    ptree pt = make_chol_ptree(tol, ecut, chol_block);
 
     pt.put("storage", "outcore");
     pt.put("path", path);
@@ -349,6 +349,42 @@ namespace methods {
     pt.put("read_type", ( read_type == each_q ? "all" : "single" ) );
     pt.put("write_type", ( write_type == multi_file ? "multi" : "single" ) );
     pt.put("overwrite",redo);
+
+    return pt;
+  }
+
+  inline ptree make_chol_grad_ptree(double tol = 0.0001, double ecut = 0.0,
+      int chol_grad_block_size = 32)
+  {
+    ptree pt;
+    auto err = std::string("make_chol_ptree - Incorrect input - ");
+    utils::check(tol > 0, err + "Invalid tol:{}",tol);
+
+    pt.put("tol", tol);
+    pt.put("ecut", ecut);
+    pt.put("chol_grad_block_size", chol_grad_block_size);
+
+    return pt;
+  }
+
+  inline ptree make_chol_grad_reader_ptree(double tol = 0.0001,
+    double ecut = 0.0,
+    int chol_grad_block = 32,
+    std::string path = "./",
+    std::string output = "chol_grad_info.h5",
+    chol_reading_type_e read_type = each_q,
+    chol_writing_type_e write_type = multi_file,
+    bool redo = false)
+  {
+    auto err = std::string("make_chol_grad_reader_ptree - Incorrect input - ");
+    ptree pt = make_chol_grad_ptree(tol, ecut, chol_grad_block);
+
+    pt.put("storage", "outcore");
+    pt.put("path", path);
+    pt.put("output", output);
+    pt.put("read_type", ( read_type == each_q ? "all" : "single" ) );
+    pt.put("write_type", ( write_type == multi_file ? "multi" : "single" ) );
+    pt.put("overwrite", redo);
 
     return pt;
   }

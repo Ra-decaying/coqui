@@ -32,8 +32,7 @@ namespace methods
 
 template<typename dyson_type, typename eri_grad_t>
 void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad_t, const imag_axes_ft::IAFT& FT,
-                   const std::string &solver_type,
-                   const std::string &input, const std::string &input_grp, int input_iter,
+                   const std::string &solver_type, const std::string &input_grp, int input_iter,
                    const std::string &output, bool auxbasis_response);
 
 } // namespace methods

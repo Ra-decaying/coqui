@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,8 +19,8 @@
  */
 
 
-#ifndef MEAN_FIELD_DEFAULT_MF_HPP 
-#define MEAN_FIELD_DEFAULT_MF_HPP 
+#ifndef MEAN_FIELD_DEFAULT_MF_HPP
+#define MEAN_FIELD_DEFAULT_MF_HPP
 
 #include<string>
 #include<tuple>
@@ -36,7 +36,7 @@
 #include "mean_field/mf_utils.hpp"
 #include "utilities/mpi_context.h"
 
-namespace mf 
+namespace mf
 {
 
 template<utils::Communicator comm_t>
@@ -165,16 +165,40 @@ inline decltype(auto) default_MF(std::shared_ptr<utils::mpi_context_t<comm_t>>& 
     auto [outdir,prefix] = utils::utest_filename("pyscf_h2o_mol");
     return default_MF(comm, mf::pyscf_source, outdir, prefix, ftype);
 
+  } else if (src == "pyscf_h2o2_mol") {
+
+    auto [outdir,prefix] = utils::utest_filename("pyscf_h2o2_mol");
+    return default_MF(comm, mf::pyscf_source, outdir, prefix, ftype);
+
   } else {
     utils::check(false, "Unrecognized test system: {}. "
-                        "Available options: qe_si211, qe_lih222, bdft_si222, pyscf_si222, pyscf_h2_222, pyscf_li_222u", src);
+                        "Available options: qe_si211,"
+                        "                   qe_si111,"
+                        "                   qe_si222_so,"
+                        "                   qe_lih222,"
+                        "                   qe_lih222_sym,"
+                        "                   qe_lih223,"
+                        "                   qe_lih223_inv,"
+                        "                   qe_lih223_sym,"
+                        "                   qe_lih222_hf,"
+                        "                   qe_GaAs222_hf,"
+                        "                   qe_GaAs222_so_hf,"
+                        "                   bdft_lih222,"
+                        "                   bdft_lih222_sym,"
+                        "                   "
+                        "                   pyscf_si222,"
+                        "                   pyscf_h2_222,"
+                        "                   pyscf_li_222u,"
+                        "                   pyscf_h2o_mol,"
+                        "                   pyscf_h2o2_mol",
+                        src);
 
     auto [outdir,prefix] = utils::utest_filename("pyscf_si222");
     return default_MF(comm, mf::pyscf_source, outdir, prefix, ftype);
   }
 }
 
-} 
+}
 
 #endif
 

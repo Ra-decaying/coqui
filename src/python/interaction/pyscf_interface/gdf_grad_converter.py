@@ -65,7 +65,7 @@ def mol_gdf_grad_dump_to_h5(gdf, mo=False, outdir=None):
 
     # integral derivatives
 
-    filename = outdir + 'Vq0_grad.h5'
+    filename = outdir + '/Vq0_grad.h5'
     f = h5.File(filename, 'w')
     g = h5.Group(f).create_group("Interaction_Gradient")
     h5.h5_write(g, 'natoms', np.int32(natoms))
