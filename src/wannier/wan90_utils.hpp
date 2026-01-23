@@ -446,7 +446,9 @@ void write_wan90_h5(mf::MF &mf, ptree pt, nda::array<int,1> const& band_list,
   {
     h5::group cgrp1 = dgrp.create_group("corr_shells"); 
     h5::group cgrp2 = dgrp.create_group("shells");
-    // attribute to mark this a list
+    // Attributes on these groups mark their logical container type ("List"/"Dict").
+    // Marking them as "List"/"Dict" allows h5 package to correctly reconstruct 
+    // list-like vs dict-like structures in Python. 
     h5::h5_write_attribute(cgrp1, "Format", "List");
     h5::h5_write_attribute(cgrp2, "Format", "List");
     for(int i=0; i<nshell; ++i) {

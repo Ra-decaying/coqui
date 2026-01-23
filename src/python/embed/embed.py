@@ -21,7 +21,39 @@ limitations under the License.
 import json
 import numpy as np
 
+from h5 import HDFArchive
 import coqui._lib.embed_module as embed_cxx
+
+
+def combine_impurities(C_ksIai, imp_dims):
+    nkpts, nspins, nImps, nImpOrbs, Norbs = C_ksIai.shape
+    C_ksIai_new = np.zeros((nkpts, nspins, 1, np.sum(imp_dims), Norbs), dtype=C_ksIai.dtype)
+    offset = 0
+    for I, dim in enumerate(imp_dims):
+        C_ksIai_new[:, :, 0, offset:offset+dim] = C_ksIai[:, :, I, :dim]
+        offset += dim
+
+    return C_ksIai_new
+
+
+def read_proj_info(wannier_h5):
+  with HDFArchive(wannier_h5, 'r') as ar:
+    C_ksIai = ar['dft_input/proj_mat']
+    band_window = ar['dft_misc_input/band_window']
+    kpts_w90 = ar['dft_input/kpts']
+
+    nImps = band_window.shape[0]
+    imp_dims = []
+    for I in range(nImps):
+        imp_dims.append(ar[f'dft_input/shells/{I}/dim'])
+
+    if nImps > 1:
+        # combine multiple impurities into one
+        C_ksIai = combine_impurities(C_ksIai, imp_dims)
+        band_window = band_window[:1]
+
+  return {'proj_mat': C_ksIai, 'band_window': band_window, 'kpts_w90': kpts_w90}
+
 
 
 def downfold_local_gf(mf, params, *, projector_info=None):

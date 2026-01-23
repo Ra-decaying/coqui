@@ -93,8 +93,8 @@ void dump_scf(communicator_t &comm, long iter,
     if (input_iter==-1) input_iter = iter-1;
 
     h5::h5_write(scf_grp, "final_iter", iter);
-    h5::h5_write(iter_grp, "input_grp", input_grp);
-    h5::h5_write(iter_grp, "input_iter", input_iter);
+    h5::h5_write(iter_grp, "greens_func_source", input_grp);
+    h5::h5_write(iter_grp, "greens_func_iteration", input_iter);
     nda::h5_write(iter_grp, "G_tskij", G.local(), false);
     nda::h5_write(iter_grp, "Sigma_tskij", Sigma.local(), false);
     nda::h5_write(iter_grp, "F_skij", F.local(), false);

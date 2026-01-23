@@ -493,48 +493,6 @@ def _compute_weiss_fields(coqui_mpi, imp_results, imp_inputs, solver_params, ir_
         )
 
 
-def _solver_inner_loop_slow(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
-                       solver_results, solver_inputs, **solver_params):
-    solver_params.pop('degenerate_blk_thresh', None)
-    solver_params.pop('set_sigma_infty_to_dc', None)
-    solver_params.pop('init_weiss_type', None)
-    mu_tol = solver_params.pop('mu_tol', None)
-
-    while True:
-        if mu_tol is not None:
-            if coqui_mpi.root():
-                print(f"Applying a shift to impurity H0 -> H0-mu_imp with mu_imp = {solver_results['mu_imp']:.4f}\n")
-            # update h0 = h0 - mu_imp
-            h0_mat_shifted = np.array([ h0_mat - np.eye(h0_mat.shape[0])*solver_results['mu_imp'] for h0_mat in solver_inputs['h0'] ])
-            h0 = coqui_dmft.h0_operator(h0_mat_shifted, solver_inputs['gf_struct'], diagonal=True, force_real=True)
-
-        solver_results.update(coqui_dmft.ctseg.solve_dynamic_imp(delta_iw, h0, u_weiss_iw, h_int, **solver_params))
-        # impurity total density
-        imp_density = 0.0
-        for blk_name, occ in solver_results['orbital_occupations'].items():
-            imp_density += occ.sum()
-
-        if mu_tol is None:
-            break
-        elif abs(imp_density - solver_inputs['density']) <= mu_tol:
-            break
-
-        # find the chemical potential shift if the impurity density is too off
-        compute_nelec_fcn = partial(
-            coqui_dmft.compute_nelec,
-            h0 = coqui_dmft.arr_to_blk_arr(solver_inputs['h0'], solver_inputs['gf_struct']),
-            delta_iw = delta_iw, sigma_infty = solver_results['Sigma_infty'], sigma_iw = solver_results['Sigma_iw']
-        )
-        solver_results['mu_imp'], imp_density = coqui_dmft.compute_mu_impurity(
-            solver_inputs['density'], compute_nelec_fcn,
-            tolerance=mu_tol*0.01, mu0=solver_results['mu_imp'] # set tolerance to be a small value, independent to mu_tol
-        )
-
-    if coqui_mpi.root():
-        print(f"Total impurity densities = {imp_density}")
-        print(f"Convergence of impurity density: {imp_density - solver_inputs['density']}\n")
-
-
 def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
                        target_density, **solver_params):
 

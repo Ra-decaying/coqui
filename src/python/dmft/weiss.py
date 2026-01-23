@@ -66,36 +66,6 @@ def make_h5_sumk_format(mlwf_h5, orb_list=None):
         dft_inp["T"] = [np.zeros([lmax, lmax], dtype=complex) for i in range(n_inequiv_shells)]
 
 
-def combine_impurities(C_ksIai, imp_dims):
-    nkpts, nspins, nImps, nImpOrbs, Norbs = C_ksIai.shape
-    C_ksIai_new = np.zeros((nkpts, nspins, 1, np.sum(imp_dims), Norbs), dtype=C_ksIai.dtype)
-    offset = 0
-    for I, dim in enumerate(imp_dims):
-        C_ksIai_new[:, :, 0, offset:offset+dim] = C_ksIai[:, :, I, :dim]
-        offset += dim
-
-    return C_ksIai_new
-
-
-def read_proj_info(wannier_h5):
-  with HDFArchive(wannier_h5, 'r') as ar:
-    C_ksIai = ar['dft_input/proj_mat']
-    band_window = ar['dft_misc_input/band_window']
-    kpts_w90 = ar['dft_input/kpts']
-
-    nImps = band_window.shape[0]
-    imp_dims = []
-    for I in range(nImps):
-        imp_dims.append(ar[f'dft_input/shells/{I}/dim'])
-
-    if nImps > 1:
-        # combine multiple impurities into one
-        C_ksIai = combine_impurities(C_ksIai, imp_dims)
-        band_window = band_window[:1]
-
-  return {'proj_mat': C_ksIai, 'band_window': band_window, 'kpts_w90': kpts_w90}
-
-
 def get_proj_info(modest_proj):
     return {'proj_mat': modest_proj.P_k[:,:,np.newaxis],
             'band_window': modest_proj.band_window[:1],
