@@ -48,17 +48,14 @@ template <> constexpr bool c2py::is_wrapped<coqui_py::Mf> = true;
 // ==================== module classes =====================
 
 template <> inline constexpr auto c2py::tp_name<coqui_py::Mf> = "mf_module.Mf";
-template <>
-inline constexpr const char *c2py::tp_doc<coqui_py::Mf> =
-    R"DOC(   The Mf class encapsulates the state of a mean-field inputs to CoQuí. This class is read-only and is responsible for accessing the input data, including
-   1. Metadata of the simulated system, such as the number of bands, spins, and k-points. 2. Single-particle basis functions whom CoQuí uses to construct a many-body Hamiltonian in CoQuí.)DOC";
-
 static auto init_0 = c2py::dispatcher_c_kw_t{
     c2py::c_constructor<coqui_py::Mf, coqui_py::MpiHandler &, std::string,
                         const std::string &>("mpi", "mf_params", "mf_type")};
 template <>
 constexpr initproc c2py::tp_init<coqui_py::Mf> =
     c2py::pyfkw_constructor<init_0>;
+template <>
+const std::string c2py::tp_ctor_doc<coqui_py::Mf> = init_0.doc(R"DOC()DOC");
 // ecutrho
 static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::Mf const &self) { return self.ecutrho(); }, "self")};
@@ -150,6 +147,7 @@ static auto const fun_21 = c2py::dispatcher_f_kw_t{c2py::cmethod(
 // qpts_ibz
 static auto const fun_22 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::Mf const &self) { return self.qpts_ibz(); }, "self")};
+
 static const auto doc_d_0 = fun_0.doc(R"DOC()DOC");
 static const auto doc_d_1 = fun_1.doc(R"DOC()DOC");
 static const auto doc_d_2 = fun_2.doc(R"DOC()DOC");
@@ -232,6 +230,17 @@ template <>
 constinit PyGetSetDef c2py::tp_getset<coqui_py::Mf>[] = {
 
     {nullptr, nullptr, nullptr, nullptr, nullptr}};
+
+template <>
+const std::string c2py::tp_doc<coqui_py::Mf> =
+    R"DOC(Mf class
+
+The Mf class encapsulates the state of a mean-field inputs to CoQuí.
+This class is read-only and is responsible for accessing the input data, including
+
+  1. Metadata of the simulated system, such as the number of bands, spins, and k-points.
+  2. Single-particle basis functions whom CoQuí uses to construct a many-body Hamiltonian in CoQuí.)DOC" +
+    std::string{"\n\n----------\n\n"} + c2py::tp_ctor_doc<coqui_py::Mf>;
 
 // ==================== module functions ====================
 

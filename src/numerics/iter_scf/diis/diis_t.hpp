@@ -54,8 +54,8 @@ namespace iter_scf {
 
   public:
     diis_t() = default;
-    diis_t(double mixing_, size_t max_subsp_size_, size_t diis_start_): 
-        mixing(mixing_), max_subsp_size(max_subsp_size_), diis_start(diis_start_) {};
+    diis_t(double mixing_, size_t max_subsp_size_, size_t warmup_iter_):
+        mixing(mixing_), max_subsp_size(max_subsp_size_), warmup_iter(warmup_iter_) {};
 
     diis_t(const diis_t& other) = default;
     diis_t(diis_t&& other) = default;
@@ -68,13 +68,18 @@ namespace iter_scf {
         nda::MemoryArrayOfRank<4> S_t, nda::MemoryArrayOfRank<4> H0_t>
     void initialize(F_t &&F, Sigma_t &&Sigma, double mu, S_t &&S, H0_t &&H0,
                     const imag_axes_ft::IAFT *FT, std::string mbpt_output_) {
+        warmup_count = 0; // reset warmup counter
         mbpt_output = mbpt_output_;
-        FockSigma fs(F, Sigma, mu);
-        state.initialize(fs);
-        vsp.initialize("diis_vectors.h5");
+        // Initialize the extrapolated state using the current Fock and Sigma
+        extrapolated_state.initialize(FockSigma(F, Sigma, mu));
+        // initialize the vector space used to extrapolation
+        x_vsp.initialize("diis_vectors.h5");
+        // initialize the vector space for residuals
         res_vsp.initialize("diis_residuals.h5");
-        comFS_residual.initialize(&state, S, H0, FT, mbpt_output);
-        d_alg.init(&state, &comFS_residual, max_subsp_size, true, &vsp, &res_vsp, fs);
+        comFS_residual.initialize(&extrapolated_state, S, H0, FT, mbpt_output);
+        // providing non-owning pointers to DIIS kernel as well as the starting state
+        d_alg.init(&extrapolated_state, &comFS_residual, &x_vsp, &res_vsp,
+                   max_subsp_size, true, FockSigma(F, Sigma, mu));
         initialized = true;
     }
 
@@ -87,47 +92,53 @@ namespace iter_scf {
    
 
     template<nda::MemoryArray Array_4D_t, nda::MemoryArray Array_5D_t>
-    std::array<double, 2> solve(Array_4D_t &&F, std::string dataset_F, Array_5D_t &&Sigma, std::string dataset_Sigma,
-                 h5::group &scf_grp, long iter) {
-      utils::check(initialized, "DIIS must be initialed before solving");
-      // do damping and grow subspace
-      if(vsp.size() == 1 || iter < diis_start) {
-          damp_t damp(mixing);
-          damp.metadata_log();
+    std::array<double, 2> solve(
+        Array_4D_t &&F, std::string dataset_F, Array_5D_t &&Sigma, std::string dataset_Sigma,
+        h5::group &scf_grp, long iter) {
+        utils::check(initialized, "DIIS must be initialized before solving");
+        warmup_count += 1;
+        if (x_vsp.size() == 1 || warmup_count <= warmup_iter) {
+            app_log(2, "DIIS: Warmup iteration {}/{}. Simple damping will be executed instead.\n",
+                    warmup_count, warmup_iter);
+            damp_t damp(mixing);
 
-          // 1) grow DIIS subspace wo extrapolation
-          FockSigma fs(F, Sigma, get_mu());
-          d_alg.grow_xvsp = (vsp.size() <= 1);
-          d_alg.extrap = false;
-          d_alg.next_step(fs);
+            // grow x_vsp only if x_vsp.size() <= 1, otherwise grow both x_vsp and res_vsp
+            d_alg.grow_xvsp_only = (x_vsp.size() <= 1);
+            d_alg.extrap = false;
+            utils::check(d_alg.next_step(FockSigma(F, Sigma, get_mu()))==0,
+                         "DIIS: Unexpected extrapolation while DIIS algorithm is only growing the subspace");
+            app_log(4, "DIIS: DIIS vector space size: {}", x_vsp.size());
+            app_log(4, "DIIS: DIIS residual space size: {}\n", res_vsp.size());
 
-          // 2) return damped value
-          return damp.solve(F, dataset_F, Sigma, dataset_Sigma, scf_grp, iter);
-       }
-       // DO DIIS
-       else {
-          d_alg.extrap = true; 
-          d_alg.grow_xvsp = false;
-          FockSigma fs(F, Sigma, get_mu());
-          state.put(fs);
-          int is_extrapolated = d_alg.next_step(fs);
-          if(is_extrapolated != 0) {
-              auto Fdiff = nda::make_regular(F - d_alg.get_x().get_fock());
-              auto Sdiff = nda::make_regular(Sigma - d_alg.get_x().get_sigma());
-              auto Fmax_iter = max_element(Fdiff.data(), Fdiff.data()+Fdiff.size(),
+            // damping instead
+            return damp.solve(F, dataset_F, Sigma, dataset_Sigma, scf_grp, iter);
+
+         } else {
+            // DO DIIS
+            d_alg.extrap = true;
+            d_alg.grow_xvsp_only = false;
+            FockSigma fs(F, Sigma, get_mu());
+            int is_extrapolated = d_alg.next_step(FockSigma(F, Sigma, get_mu()));
+            if(is_extrapolated != 0) {
+                auto Fdiff = nda::make_regular(F - d_alg.get_extrapolated_state().get_fock());
+                auto Sdiff = nda::make_regular(Sigma - d_alg.get_extrapolated_state().get_sigma());
+                auto Fmax_iter = max_element(Fdiff.data(), Fdiff.data()+Fdiff.size(),
+                                    [](auto a, auto b) { return std::abs(a) < std::abs(b); });
+                auto Smax_iter = max_element(Sdiff.data(), Sdiff.data()+Sdiff.size(),
                                   [](auto a, auto b) { return std::abs(a) < std::abs(b); });
-              auto Smax_iter = max_element(Sdiff.data(), Sdiff.data()+Sdiff.size(),
-                                  [](auto a, auto b) { return std::abs(a) < std::abs(b); });
-              F     = d_alg.get_x().get_fock();
-              Sigma = d_alg.get_x().get_sigma();
-              return std::array<double, 2>{std::abs(*Fmax_iter), std::abs(*Smax_iter)};
-          }
-          else { // No DIIS extrapolation has been applied
-              damp_t damp(mixing);
-              damp.metadata_log();
-              return damp.solve(F, dataset_F, Sigma, dataset_Sigma, scf_grp, iter);
-          }
-       }
+                F     = d_alg.get_extrapolated_state().get_fock();
+                Sigma = d_alg.get_extrapolated_state().get_sigma();
+
+                return std::array<double, 2>{std::abs(*Fmax_iter), std::abs(*Smax_iter)};
+
+            } else {
+                // No DIIS extrapolation has been applied
+                app_log(2, "DIIS: Performing simple damping instead.\n");
+                damp_t damp(mixing);
+
+                return damp.solve(F, dataset_F, Sigma, dataset_Sigma, scf_grp, iter);
+            }
+        }
     }
 
     // TODO: update if other DIIS versions will be plugged in
@@ -138,27 +149,28 @@ namespace iter_scf {
                  "               P. Pokhilko, C.-N. Yeh, D. Zgid. J. Chem. Phys., 2022, 156, 094101\n"
                  "               https://doi.org/10.1063/5.0082586");
       app_log(2, "  * DIIS parameters: ");
-      app_log(2, "    mixing = {}", mixing);
-      app_log(2, "    max_subsp_size = {}", max_subsp_size);
-      app_log(2, "    diis_start = {}", diis_start);
-      app_log(2, "    mbpt_output = {}\n", mbpt_output);
+      app_log(2, "    mixing            = {}", mixing);
+      app_log(2, "    max subspace size = {}", max_subsp_size);
+      app_log(2, "    warmup iteration  = {}", warmup_iter);
+      app_log(2, "    checkpoint output = {}\n", mbpt_output);
     }
 
   public:
     double mixing = 0.2;
     size_t max_subsp_size = 5;
-    size_t diis_start = 5;
+    size_t warmup_iter = 5;
+    size_t warmup_count = 0;
+    bool initialized = false;
     
   private:
-    VSpace<FockSigma> vsp;     // space of Fock-self-energy vectors
-    VSpace<FockSigma> res_vsp; // space of residuals-commutators
-    opt_state<FockSigma> state; // current position of the Fock-self-energy vector
-    com_diis_residual comFS_residual; // residual needed for DIIS initialization
+    VSpace<FockSigma> x_vsp;                 // vector space of Fock-self-energy vectors
+    VSpace<FockSigma> res_vsp;               // vector space of residuals-commutators
+    opt_state<FockSigma> extrapolated_state; // extrapolated DIIS state
+    com_diis_residual comFS_residual;        // residual kernel
 
-    diis_alg<FockSigma> d_alg; // instance of the DIIS algorithm
+    diis_alg<FockSigma> d_alg;               // DIIS kernel
 
     std::string mbpt_output;
-    bool initialized = false;
 
     // Read mu from the checkpoint file
     double get_mu() {

@@ -71,6 +71,10 @@ namespace iter_scf {
       return std::visit( [&](auto&& v) { return v.initialize(std::forward<Args>(args)...); }, _alg_var);
     }
 
+    bool is_initialized() const {
+      return std::visit( [&](auto&& v) { return v.initialized; }, _alg_var);
+    }
+
     void metadata_log() const {
       std::visit( [&](auto&& v) { v.metadata_log(); }, _alg_var);
     }

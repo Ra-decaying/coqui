@@ -202,7 +202,7 @@ namespace methods {
     // if embed_iter != -1 -> mix with embed_iter-1
     auto [Vhf_conv, Sigma_conv] = solve_iterative(
         *_context, *iter_solver, (embed_iter==-1)? gw_iter+1 : embed_iter+1,
-        mb_state.coqui_prefix, sVhf_skij, sSigma_tskij, &ft, false,
+        mb_state.coqui_prefix, sVhf_skij, sSigma_tskij, &ft,
         (embed_iter==-1)? std::array<std::string, 3>{"scf", "F_skij", "Sigma_tskij"} :
                           std::array<std::string, 3>{"embed", "F_skij", "Sigma_tskij"});
     _Timer.stop("EMBED_ITERATIVE");
