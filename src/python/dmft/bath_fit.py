@@ -69,7 +69,8 @@ def bath_fitting(A_wsab, iw_mesh, statistics, Np=5,
     return A_out
 
 
-def causal_projection_boson(A_iw, ir_kernel, causal_params, ph_symmetry, target_name=""):
+def causal_projection_boson(A_iw, ir_kernel, causal_params, 
+                            ph_symmetry=False, flatten_input_at_w0=False, target_name=""):
     """
     Perform causal projection for bosonic Green's functions.
 
@@ -88,6 +89,8 @@ def causal_projection_boson(A_iw, ir_kernel, causal_params, ph_symmetry, target_
                                 the zero-frequency component.
         ph_symmetry (bool): If True, enforces particle-hole symmetry by
                             setting the imaginary part to zero.
+        flatten_input_at_w0 (bool): If True, flattens the input at w=0 before
+                                    causal projection by setting A(iw=0) = A(iw1).
         target_name (str, optional): Name of the target for reporting purposes.
 
     Returns:
@@ -99,6 +102,11 @@ def causal_projection_boson(A_iw, ir_kernel, causal_params, ph_symmetry, target_
     iw_mesh_b = ir_kernel.wn_mesh('b', positive_only=ph_symmetry) * np.pi / ir_kernel.beta
     exclude_w0 = causal_params.get('exclude_w0', False)
     zero_index = np.where(iw_mesh_b == 0.0)[0][0]
+
+    if flatten_input_at_w0 is True:
+        # Flatten input at iw=0 by setting A(iw=0) = A(iw1)
+        A_iw[zero_index] = A_iw[zero_index + 1]
+
     iw_inputs = np.delete(iw_mesh_b, zero_index) if exclude_w0 else iw_mesh_b
     A_iw_input = np.delete(A_iw, zero_index, axis=0) if exclude_w0 else A_iw
 
@@ -122,11 +130,13 @@ def fit_impurity_results_boson(imp_res, ir_kernel, causal_params):
     if mpi.is_master_node():
         fit_res = {
             "Pi_iw_data": causal_projection_boson(
-                imp_res["Pi_iw_data"][0], ir_kernel, causal_params, ph_symmetry=True,
+                imp_res["Pi_iw_data"][0], ir_kernel, causal_params, 
+                ph_symmetry=True, flatten_input_at_w0=causal_params.get("flatten_w0_for_pi", False), 
                 target_name="impurity polarizability"
             ),
             "W_iw_data": causal_projection_boson(
-                imp_res["W_iw_data"][0], ir_kernel, causal_params, ph_symmetry=True,
+                imp_res["W_iw_data"][0], ir_kernel, causal_params, 
+                ph_symmetry=True, flatten_input_at_w0=causal_params.get("flatten_w0_for_w", False), 
                 target_name="impurity screened interaction"
             )
         }
@@ -145,7 +155,8 @@ def fit_local_results_boson(local_res, ir_kernel, causal_params):
         nbnd = wloc_iw.shape[-1]
         wloc_iw_fit = causal_projection_boson(
             wloc_iw.reshape(-1, nbnd*nbnd, nbnd*nbnd), ir_kernel, causal_params,
-            ph_symmetry=True, target_name="local screened interaction"
+            ph_symmetry=True, flatten_input_at_w0=causal_params.get("flatten_w0_for_w", False), 
+            target_name="local screened interaction"
         )
         wloc_t_fit = ir_kernel.w_to_tau_phsym(
             wloc_iw_fit.reshape(-1, nbnd, nbnd, nbnd, nbnd), 'b'
@@ -164,7 +175,8 @@ def fit_u_weiss(u_weiss_iw, ir_kernel, causal_params):
         nbnd = u_weiss_iw.shape[-1]
         u_iw_fit = causal_projection_boson(
             u_weiss_iw.reshape(-1, nbnd*nbnd, nbnd*nbnd), ir_kernel, causal_params,
-            ph_symmetry=True, target_name="bosonic Weiss field"
+            ph_symmetry=True, flatten_input_at_w0=causal_params.get("flatten_w0_for_weiss", False), 
+            target_name="bosonic Weiss field"
         )
         u_iw_fit = u_iw_fit.reshape(-1, nbnd, nbnd, nbnd, nbnd)
 
