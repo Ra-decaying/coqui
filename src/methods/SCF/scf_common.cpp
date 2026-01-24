@@ -301,9 +301,10 @@ auto diis_impl(MPI_Context_t &context, iter_scf::iter_scf_t& iter_solver,
       utils::check(grp.has_subgroup(grp_name),
                    "diis_impl: {} does not exist in {}.", grp_name, filename);
       auto scf_grp = grp.open_group(datasets[0]);
-      std::tie(conv_F, conv_Sigma) = iter_solver.solve(sF_skij.local(), datasets[1],
-                                                       sSigma_tskij.local(), datasets[2],
-                                                       scf_grp, iteration);
+      auto residuals = iter_solver.solve(
+        sF_skij.local(), datasets[1], sSigma_tskij.local(), datasets[2], scf_grp, iteration);
+      conv_F = residuals[0];
+      conv_Sigma = residuals[1];
       internode_proc_holding_extrap = context.internode_comm.rank();
     }
     context.comm.broadcast_n(&conv_F, 1, 0);
