@@ -1,4 +1,21 @@
+
 # Changelog
+
+## [Pre-release] - 2026-02-01
+
+### Added
+
+- Fully self-consistent GW+EDMFT solver and interface, including the new `dmft` Python submodule (`src/python/dmft/`), drivers, utilities (bath fitting, chemical potential, checkpoints, SCF driver, etc.)
+- TRIQS CT-SEG interface (planned to be moved to the TRIQS library in the future).
+- New examples for cRPA and GW+EDMFT.
+
+### Improved
+
+- Major refactor for downfolding routines to improve the API, enhance modularity, and increase code readability.
+- Renamed `downfold_local_coulomb` to `downfold_coulomb` to reflect support for non-local downfolded interactions.
+- Downfolded Coulomb interactions are now stored under `downfolded_model` h5 group within the input h5 group, e.g. `scf/iter{}` or `embed/iter{}`.
+- `IAFT` initialization from CoQui checkpoint h5.
+- Interfacing with TRIQS ModEST for quantum embedding.
 
 ## [Pre-release] - 2026-01-23
 
