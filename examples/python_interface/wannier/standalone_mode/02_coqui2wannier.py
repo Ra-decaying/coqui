@@ -33,7 +33,7 @@ qe_dir = coqui.TEST_INPUT_DIR + "qe/svo_kp222_nbnd40/out"
 
 # mpi handler and verbosity
 mpi = coqui.MpiHandler()
-coqui.set_verbosity(mpi, output_level=1)
+coqui.set_verbosity(mpi, output_level=2)
 
 # Constructing a MF object
 mf_params = {

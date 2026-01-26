@@ -462,6 +462,9 @@ void run(mpi3::communicator &comm, InputParser &parser)
 #else
           APP_ABORT("Error: wannier90.library_mode without wannier90 support. Recompile with ENABLE_WANNIER90=ON."); 
 #endif
+        } else if (wann_type == "mlwf_h5") {
+          auto mf_name = mf::get_mf(mpi_context, wann_pt, mf_list);
+          wannier::mlwf_h5_from_wannier90_output(*mf_list[mf_name], wann_pt);
         } else
           APP_ABORT("Error: Invalid wannier90 type: {}",wann_type);
       }

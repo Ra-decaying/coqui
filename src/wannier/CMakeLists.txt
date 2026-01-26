@@ -10,6 +10,6 @@ install(TARGETS wannier_lib
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 if (BUILD_UNIT_TESTS)
-#  add_subdirectory(tests)
+  add_subdirectory(tests)
 endif()
 

@@ -21,7 +21,8 @@ limitations under the License.
 from .wannier import (
   wannier90,
   coqui2wannier90,
-  append_wannier90_win
+  append_wannier90_win,
+  mlwf_h5_from_wannier90_output
 ) 
 
-__all__ = ["wannier90","coqui2wannier90","append_wannier90_win"]
+__all__ = ["wannier90","coqui2wannier90","append_wannier90_win","mlwf_h5_from_wannier90_output"]
