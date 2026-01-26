@@ -1,7 +1,7 @@
 
 # Changelog
 
-## [Pre-release] - 2026-02-01
+## CoQui v0.2.0 [2026-02-01]
 
 ### Added
 
@@ -20,7 +20,7 @@
 - Interfacing with TRIQS ModEST for quantum embedding.
 - Examples for MLWF library and standalone modes.
 
-## [Pre-release] - 2026-01-23
+## CoQui v0.1.0 [2026-01-23]
 
 ### Added
 
