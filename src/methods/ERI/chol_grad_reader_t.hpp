@@ -305,6 +305,8 @@ namespace methods
     for( auto& v: {"BUILD", "READ"}) {
       _Timer.add(v);
     }
+
+    init();
   }
 
   // read from existing CD/GDF integral gradient
