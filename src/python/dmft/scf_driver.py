@@ -184,14 +184,16 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
             Input['Vloc'] = coqui_dmft.chemistry_to_product_basis(V)
 
             coqui_dmft.fit_local_results_boson(
-                Input, dmft_state.ir_kernel, solver_params.get("causal_projection"))
+                Input, dmft_state.ir_kernel, solver_params.get("causal_projection")
+            )
 
             # Fermionic and bosonic Weiss fields
             Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(
                 coqui_mpi, Res, Input, solver_params, dmft_state.ir_kernel
             )
             Input['u_weiss_iw'] = coqui_dmft.fit_u_weiss(
-                Input['u_weiss_iw'], dmft_state.ir_kernel, solver_params.get("causal_projection"))
+                Input['u_weiss_iw'], dmft_state.ir_kernel, solver_params.get("causal_projection")
+            )
 
             # h0: (nspin, norb, norb), delta_iw: (niw, nspin, norb, norb)
             Input['h0'], Input['delta_iw'] = coqui_dmft.extract_h0_and_delta(
@@ -345,6 +347,10 @@ def _edmft_loop_fixed_gloc_and_wloc(
             Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(
                 coqui_mpi, Res, Input, solver_params, dmft_state.ir_kernel
             )
+            Input['u_weiss_iw'] = coqui_dmft.fit_u_weiss(
+                Input['u_weiss_iw'], dmft_state.ir_kernel, solver_params.get("causal_projection")
+            )
+
             # h0: (nspin, norb, norb), delta_iw: (niw, nspin, norb, norb)
             Input['h0'], Input['delta_iw'] = coqui_dmft.extract_h0_and_delta(
                 Input['g_weiss_iw'], dmft_state.ir_kernel
@@ -565,6 +571,10 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
         coqui_dmft.print_title_box(f"IMPURITY {imp_index}")
         solver_params = solver_params_list[imp_index]
         Input = solver_inputs[imp_index]
+
+        Input['u_weiss_iw'] = coqui_dmft.fit_u_weiss(
+            Input['u_weiss_iw'], ir_kernel, solver_params.get("causal_projection")
+        )
 
         Ub, Ubp, Jb_spin, Jb_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc'])
         U, Up, J_spin, J_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc']+Input['u_weiss_iw'][0])

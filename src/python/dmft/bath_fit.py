@@ -70,7 +70,7 @@ def bath_fitting(A_wsab, iw_mesh, statistics, Np=5,
 
 
 def causal_projection_boson(A_iw, ir_kernel, causal_params, 
-                            ph_symmetry=False, flatten_input_at_w0=False, target_name=""):
+                            ph_symmetry=False, w0_regularization=None, target_name=""):
     """
     Perform causal projection for bosonic Green's functions.
 
@@ -89,9 +89,11 @@ def causal_projection_boson(A_iw, ir_kernel, causal_params,
                                 the zero-frequency component.
         ph_symmetry (bool): If True, enforces particle-hole symmetry by
                             setting the imaginary part to zero.
-        flatten_input_at_w0 (bool): If True, flattens the input at w=0 before
-                                    causal projection by setting A(iw=0) = A(iw1).
+        w0_regularization (optional): Regularization to A(iw=0) before causal projection.
         target_name (str, optional): Name of the target for reporting purposes.
+    
+    Note: If `causal_params` is None or `causal_params["nbath_per_orbital"]` <= 0, 
+          the function returns the input `A_iw` unchanged.
 
     Returns:
         numpy.ndarray: The fitted bosonic Green's function in causal form.
@@ -100,13 +102,16 @@ def causal_projection_boson(A_iw, ir_kernel, causal_params,
         return A_iw
 
     iw_mesh_b = ir_kernel.wn_mesh('b', positive_only=ph_symmetry) * np.pi / ir_kernel.beta
+
+    if w0_regularization is not None:
+        A_iw = apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name)
+
+    if causal_params["nbath_per_orbital"] <= 0:
+        mpi.report(f"Skipping causal projection for {target_name} as nbath_per_orbital <= 0")
+        return A_iw
+
     exclude_w0 = causal_params.get('exclude_w0', False)
     zero_index = np.where(iw_mesh_b == 0.0)[0][0]
-
-    if flatten_input_at_w0 is True:
-        # Flatten input at iw=0 by setting A(iw=0) = A(iw1)
-        A_iw[zero_index] = A_iw[zero_index + 1]
-
     iw_inputs = np.delete(iw_mesh_b, zero_index) if exclude_w0 else iw_mesh_b
     A_iw_input = np.delete(A_iw, zero_index, axis=0) if exclude_w0 else A_iw
 
@@ -131,12 +136,12 @@ def fit_impurity_results_boson(imp_res, ir_kernel, causal_params):
         fit_res = {
             "Pi_iw_data": causal_projection_boson(
                 imp_res["Pi_iw_data"][0], ir_kernel, causal_params, 
-                ph_symmetry=True, flatten_input_at_w0=causal_params.get("flatten_w0_for_pi", False), 
+                ph_symmetry=True, w0_regularization=causal_params.get("w0_treatment_for_pi", None), 
                 target_name="impurity polarizability"
             ),
             "W_iw_data": causal_projection_boson(
                 imp_res["W_iw_data"][0], ir_kernel, causal_params, 
-                ph_symmetry=True, flatten_input_at_w0=causal_params.get("flatten_w0_for_w", False), 
+                ph_symmetry=True, w0_regularization=causal_params.get("w0_treatment_for_w", None), 
                 target_name="impurity screened interaction"
             )
         }
@@ -155,7 +160,7 @@ def fit_local_results_boson(local_res, ir_kernel, causal_params):
         nbnd = wloc_iw.shape[-1]
         wloc_iw_fit = causal_projection_boson(
             wloc_iw.reshape(-1, nbnd*nbnd, nbnd*nbnd), ir_kernel, causal_params,
-            ph_symmetry=True, flatten_input_at_w0=causal_params.get("flatten_w0_for_w", False), 
+            ph_symmetry=True, w0_regularization=causal_params.get("w0_treatment_for_w", None), 
             target_name="local screened interaction"
         )
         wloc_t_fit = ir_kernel.w_to_tau_phsym(
@@ -175,10 +180,55 @@ def fit_u_weiss(u_weiss_iw, ir_kernel, causal_params):
         nbnd = u_weiss_iw.shape[-1]
         u_iw_fit = causal_projection_boson(
             u_weiss_iw.reshape(-1, nbnd*nbnd, nbnd*nbnd), ir_kernel, causal_params,
-            ph_symmetry=True, flatten_input_at_w0=causal_params.get("flatten_w0_for_weiss", False), 
+            ph_symmetry=True, w0_regularization=causal_params.get("w0_treatment_for_weiss", None), 
             target_name="bosonic Weiss field"
         )
         u_iw_fit = u_iw_fit.reshape(-1, nbnd, nbnd, nbnd, nbnd)
 
     u_iw_fit = mpi.bcast(u_iw_fit)
     return u_iw_fit
+
+
+def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
+    """
+    Apply regularization to the zero-frequency component of the bosonic Green's function.
+
+    This function modifies the bosonic Green's function `A_iw` at iw = 0 based on the
+    specified `w0_regularization` method. It supports two types of regularization:
+    "insulator" and "metal". 
+    
+    For "insulator", it flattens the value at iw = 0 by setting it equal to the value 
+    at the first positive frequency. 
+    
+    For "metal", it performs a linear extrapolation using the first two positive frequencies 
+    to estimate the value at iw = 0.
+
+    Parameters:
+        A_iw (numpy.ndarray): Input bosonic Green's function data.
+        iw_mesh_b (numpy.ndarray): Bosonic Matsubara frequency mesh.
+        w0_regularization (string): Type of regularization to apply ("insulator" or "metal").
+        target_name (str): Name of the target for reporting purposes.          
+
+    Returns:
+        numpy.ndarray: The modified bosonic Green's function with regularized iw = 0 component.
+    """
+    mpi.report(f"Applying {w0_regularization} w=0 regularization for {target_name} before causal projection:")
+    
+    if w0_regularization == "insulator":
+        
+        # For insulating case, flatten at iw=0 by setting A(iw=0) = A(iw1)
+        mpi.report(f"  --> Flattening {target_name} at w=0.")
+        zero_index = np.where(iw_mesh_b == 0.0)[0][0]
+        A_iw[zero_index] = A_iw[zero_index + 1]
+
+    elif w0_regularization == "metal":
+
+        # For metallic case, set A(iw=0) to a small positive value
+        mpi.report(f"  --> Extrapolating {target_name} at w=0 using linear extrapolation at iw1 and iw2.")
+        slope = (A_iw[zero_index + 1] - A_iw[zero_index + 2]) / (np.abs(iw_mesh_b[zero_index + 1]) - np.abs(iw_mesh_b[zero_index + 2]))
+        A_iw[zero_index] = A_iw[zero_index + 1] - slope * np.abs(iw_mesh_b[zero_index + 1])
+
+    else:
+        raise ValueError(f"Invalid w0_regularization option: {w0_regularization}. Use 'metal' or 'insulator'.")
+
+    return A_iw

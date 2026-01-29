@@ -638,7 +638,7 @@ def check_spectrum(A, radius=1.0, tol=0.0, truncation=False):
     V_keep = V[:, keep]
 
     if w_drop.size > 0:
-        mpi.report("Unqualified eigenvalues (|λ| > {}):".format(radius))
+        mpi.report(f"Unqualified eigenvalues (|λ| > {radius}):")
         for lam in w_drop:
             mpi.report(f"  {lam}")
         mpi.report("")
@@ -646,6 +646,7 @@ def check_spectrum(A, radius=1.0, tol=0.0, truncation=False):
     if not truncation or w_keep.size == w.size:
         return A
     else:
+        mpi.report(f"Reconstructing matrix with eigenvalues |λ| <= {radius} only.\n")
         n = A.shape[0]
         if w_keep.size == 0:
             return np.zeros((n, n), dtype=np.result_type(A, 1j))
