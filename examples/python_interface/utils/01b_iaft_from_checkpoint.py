@@ -5,6 +5,10 @@ This example shows how to construct an IAFT instance directly from a CoQui check
 This is useful for ensuring the IAFT instance constructed has he exact same parameters 
 (inverse temperature, frequency cutoff, precision) that were used in the CoQui calculation
 where the checkpoint was generated.
+
+See also
+--------
+- IAFT basics: 01a_iaft_basics.py
 """
 
 import h5py

@@ -16,12 +16,14 @@ intermediate representation (IR) basis and sparse sampling technique. It enables
 efficient transformations between imaginary-time and Matsubara-frequency domains
 without explicit spectral data.
 
+
 Dependency
 ----------
-The python IAFT submodule requires the sparse-ir package with xprec support:
+The python IAFT submodule requires the sparse-ir package (with xprec support), version 1.1.7:
 
-    pip install sparse-ir[xprec]
+  pip install sparse-ir[xprec]==1.1.7
 
+Note: Versions 2.0 and above of sparse-ir have not yet been tested and may not be compatible with this code.
 """
 
 import numpy as np

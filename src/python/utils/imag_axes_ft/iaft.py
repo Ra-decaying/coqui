@@ -66,8 +66,9 @@ class IAFT(object):
     IR basis and sparse sampling points on-the-fly.
 
     Dependency:
-        sparse-ir with xprec supports (https://sparse-ir.readthedocs.io/en/latest/)
-        To install sparse-ir with xprec supports: "pip install sparse-ir[xprec]".
+        Requires sparse-ir (https://sparse-ir.readthedocs.io/en/latest/) version 1.1.7 with xprec support.
+        To install: "pip install sparse-ir[xprec]==1.1.7".
+        Note: Versions 2.0 and above of sparse-ir have not yet been tested with this code and may not be compatible.
 
     Attributes:
     beta: float
