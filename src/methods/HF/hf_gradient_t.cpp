@@ -34,21 +34,6 @@ namespace methods {
     {
     }
 
-    const nda::array<ComplexType, 2> & hf_gradient_t::gradient_elec() const
-    {
-      return _gradient_elec;
-    }
-
-    const nda::array<ComplexType, 2> & hf_gradient_t::gradient_nuc() const
-    {
-      return _gradient_nuc;
-    }
-
-    const nda::array<ComplexType, 2> & hf_gradient_t::gradient_total() const
-    {
-      return _gradient_total;
-    }
-
     ComplexType hf_gradient_t::evaluate_1e(int iatom, int direction,
                                            const nda::MemoryArrayOfRank<4> auto &D_skij)
     {
@@ -64,6 +49,16 @@ namespace methods {
         }
       }
       return tmp_grad;
+    }
+
+    void hf_gradient_t::print_chol_hf_grad_timers()
+    {
+      app_log(2, "\n  CHOL-HF-GRAD timers");
+      app_log(2, "  --------------");
+      app_log(2, "    Total:                 {0:.3f} sec", _Timer.elapsed("TOTAL"));
+      app_log(2, "    1-electron:            {0:.3f} sec", _Timer.elapsed("1-ELECTRON"));
+      app_log(2, "    2-electron:            {0:.3f} sec", _Timer.elapsed("2-ELECTRON"));
+      app_log(2, "    Pulay:                 {0:.3f} sec\n", _Timer.elapsed("PULAY"));
     }
 
     using Arr4D = nda::array<ComplexType, 4>;

@@ -26,7 +26,10 @@ namespace methods {
 
   namespace solvers {
 
-    void hf_gradient_t::evaluate(const nda::MemoryArrayOfRank<4> auto &D_skij,
+    void hf_gradient_t::evaluate(nda::array<ComplexType, 2> &gradient_1e,
+                                 nda::array<ComplexType, 2> &gradient_2e,
+                                 nda::array<ComplexType, 2> &gradient_pulay,
+                                 const nda::MemoryArrayOfRank<4> auto &D_skij,
                                  const nda::MemoryArrayOfRank<4> auto &F_skij,
                                  const nda::MemoryArrayOfRank<4> auto &S_skij,
                                  const nda::MemoryArrayOfRank<4> auto &H0_skij,
@@ -64,8 +67,12 @@ namespace methods {
       app_log(1, "  - nbnd_aux:          {}", _nbnd_aux);
       app_log(1, "  - nspin:             {}", _nspin);
       app_log(1, "  - nkpts:             {}", _nkpts);
-      app_log(1, "  - npol:             {}", _nkpts);
+      app_log(1, "  - npol:              {}", _nkpts);
       app_log(1, "\n");
+
+      gradient_1e = nda::array<ComplexType, 2>::zeros({_natoms, 3});
+      gradient_2e = nda::array<ComplexType, 2>::zeros({_natoms, 3});
+      gradient_pulay = nda::array<ComplexType, 2>::zeros({_natoms, 3});
 
       auto DE_skij = nda::array<ComplexType, 4>::zeros({_nspin, _nkpts, _nbnd, _nbnd});
       for (int ispin = 0; ispin < _nspin; ++ispin) {
@@ -92,15 +99,10 @@ namespace methods {
         }
       }
 
-
-      _gradient_total = nda::array<ComplexType, 2>::zeros({_natoms, 3});
-      _gradient_elec = nda::array<ComplexType, 2>::zeros({_natoms, 3});
-      _gradient_nuc = nda::array<ComplexType, 2>::zeros({_natoms, 3});
-
       for (int iatom = 0; iatom < _natoms; ++iatom) {
         for (int direction = 0; direction < 3; ++direction) {
           _Timer.start("1-ELECTRON");
-          _gradient_elec(iatom, direction) += evaluate_1e(iatom, direction, D_skij);
+          gradient_1e(iatom, direction) += evaluate_1e(iatom, direction, D_skij);
           _Timer.stop("1-ELECTRON");
         }
       }
@@ -108,7 +110,7 @@ namespace methods {
       for (int iatom = 0; iatom < _natoms; ++iatom) {
         for (int direction = 0; direction < 3; ++direction) {
           _Timer.start("2-ELECTRON");
-          _gradient_elec(iatom, direction) += evaluate_2e(iatom, direction, D_skij, chol);
+          gradient_2e(iatom, direction) += evaluate_2e(iatom, direction, D_skij, chol);
           _Timer.stop("2-ELECTRON");
         }
       }
@@ -116,14 +118,14 @@ namespace methods {
       for (int iatom = 0; iatom < _natoms; ++iatom) {
         for (int direction = 0; direction < 3; ++direction) {
           _Timer.start("PULAY");
-          _gradient_elec(iatom, direction) += evaluate_pulay(iatom, direction, DE_skij);
+          gradient_pulay(iatom, direction) += evaluate_pulay(iatom, direction, DE_skij);
           _Timer.stop("PULAY");
         }
       }
 
-      _gradient_nuc = _MF->nuclear_gradient();
+      _Timer.stop("TOTAL");
 
-      _gradient_total = _gradient_elec + _gradient_nuc;
+      print_chol_hf_grad_timers();
 
     }
 
@@ -164,6 +166,7 @@ namespace methods {
       auto Vq0_PQk_dPQ = nda::array<ComplexType, 3>::zeros(_nbnd_aux, _nbnd_aux, _nkpts);
 
       // related i and j
+      // TO-DO: complex conj for index i or j while transpose?
       for (int iQ = 0; iQ < _nbnd_aux; ++iQ) {
         for (int ikpt = 0; ikpt < _nkpts; ++ikpt) {
           Vq0_Qkij_dQij(iQ, ikpt, nda::range(bnd_begin, bnd_end), all)
@@ -180,6 +183,7 @@ namespace methods {
       }
 
       // d/dX ( P | Q )
+      // TO-DO: complex conj for index Q while transpose?
       if (_auxbasis_response) {
         for (int ikpt = 0; ikpt < _nkpts; ++ikpt) {
           Vq0_PQk_dPQ(nda::range(bnd_begin_aux, bnd_end_aux), all, ikpt)
@@ -296,11 +300,14 @@ namespace methods {
     }
 
 
+    using Arr2D = nda::array<ComplexType, 2>;
     using Arr4D = nda::array<ComplexType, 4>;
     using Arrv4D = nda::array_view<ComplexType, 4>;
-    template void hf_gradient_t::evaluate(const Arr4D&, const Arr4D&, const Arr4D&, const Arr4D&,
+    template void hf_gradient_t::evaluate(Arr2D&, Arr2D&, Arr2D&,
+                                          const Arr4D&, const Arr4D&, const Arr4D&, const Arr4D&,
                                           chol_grad_reader_t&, bool);
-    template void hf_gradient_t::evaluate(const Arrv4D&, const Arrv4D&, const Arrv4D&, const Arrv4D&,
+    template void hf_gradient_t::evaluate(Arr2D&, Arr2D&, Arr2D&,
+                                          const Arrv4D&, const Arrv4D&, const Arrv4D&, const Arrv4D&,
                                           chol_grad_reader_t&, bool);
 
   } // namespace solvers

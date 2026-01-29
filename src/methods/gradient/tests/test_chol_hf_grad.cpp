@@ -67,20 +67,28 @@ namespace bdft_tests {
 
     VALUE_EQUAL(e_hf, -196.60675481, 1e-6);
 
+    auto gradient_1e = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
+    auto gradient_2e = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
+    auto gradient_pulay = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
+    auto gradient_elec = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
+    auto gradient_total = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
     solvers::hf_gradient_t hf_gradient(mf, true);
-    hf_gradient.evaluate(mb_state.sDm_skij.value().local(), mb_state.sF_skij.value().local(),
+    hf_gradient.evaluate(gradient_1e, gradient_2e, gradient_pulay,
+                         mb_state.sDm_skij.value().local(), mb_state.sF_skij.value().local(),
                          dyson.sS_skij().local(), dyson.sH0_skij().local(),
                          eri_grad.hf_eri->get(), false);
-    print_mbpt_gradient(hf_gradient.gradient_elec(), mf, "GRAD_ELEC");
-    print_mbpt_gradient(hf_gradient.gradient_nuc(), mf, "GRAD_NUC");
-    print_mbpt_gradient(hf_gradient.gradient_total(), mf, "GRAD_TOTAL");
+    gradient_elec = gradient_1e + gradient_2e + gradient_pulay;
+    gradient_total =  gradient_elec + mf->nuclear_gradient();
+    print_mbpt_gradient(mf->nuclear_gradient(), mf, "GRAD_NUC");
+    print_mbpt_gradient(gradient_elec, mf, "GRAD_ELEC");
+    print_mbpt_gradient(gradient_total, mf, "GRAD_TOTAL");
 
     auto grad_total_ref = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
     h5::file file(outdir + "/" + prefix + ".h5", 'r');
     h5::group grp(file);
     h5::group scf_grp = grp.open_group("SCF");
     nda::h5_read(scf_grp, "grad_total", grad_total_ref);
-    ARRAY_EQUAL(hf_gradient.gradient_total(), grad_total_ref, 1e-5);
+    ARRAY_EQUAL(gradient_total, grad_total_ref, 1e-5);
 
   }
 

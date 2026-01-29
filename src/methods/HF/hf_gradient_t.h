@@ -45,20 +45,22 @@ namespace methods {
 
     ~hf_gradient_t() = default;
 
-    void evaluate(const nda::MemoryArrayOfRank<4> auto &D_skij,
+    void evaluate(nda::array<ComplexType, 2> &gradient_1e,
+                  nda::array<ComplexType, 2> &gradient_2e,
+                  nda::array<ComplexType, 2> &gradient_pulay,
+                  const nda::MemoryArrayOfRank<4> auto &D_skij,
                   const nda::MemoryArrayOfRank<4> auto &F_skij,
                   const nda::MemoryArrayOfRank<4> auto &S_skij,
                   const nda::MemoryArrayOfRank<4> auto &H0_skij,
                   Cholesky_ERI auto &&chol, bool F_has_H0);
+
+    void print_chol_hf_grad_timers();
 
     ComplexType evaluate_1e(int iatom, int direction, const nda::MemoryArrayOfRank<4> auto &D_skij);
     ComplexType evaluate_2e(int iatom, int direction, const nda::MemoryArrayOfRank<4> auto &D_skij,
                             Cholesky_ERI auto && chol);
     ComplexType evaluate_pulay(int iatom, int direction, const nda::MemoryArrayOfRank<4> auto& DE_skij);
 
-    const nda::array<ComplexType, 2> & gradient_elec() const;
-    const nda::array<ComplexType, 2> & gradient_nuc() const;
-    const nda::array<ComplexType, 2> & gradient_total() const;
 
     private:
 
@@ -76,10 +78,6 @@ namespace methods {
     int _npol = 0;
 
     nda::array<RealType, 1> _k_weight;
-
-    nda::array<ComplexType, 2> _gradient_total;
-    nda::array<ComplexType, 2> _gradient_elec;
-    nda::array<ComplexType, 2> _gradient_nuc;
 
   };
 

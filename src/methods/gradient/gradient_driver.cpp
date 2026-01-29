@@ -88,22 +88,24 @@ void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad
   sG_tskij = read_greens_function(*mpi, mf.get(), mb_state.coqui_prefix+ ".mbpt.h5", input_iter, input_grp);
   read_dm(mpi->node_comm, mb_state.coqui_prefix, input_iter, sDm_skij);
 
+  auto gradient_1e = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
+  auto gradient_2e = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
+  auto gradient_pulay = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
   auto gradient_elec = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
-  auto gradient_nuc = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
   auto gradient_total = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
 
   if (solver_type == "hf_gradient") {
     hf_gradient_t hf_gradient(mf, auxbasis_response);
-    hf_gradient.evaluate(sDm_skij.local(), sF_skij.local(), dyson.sS_skij().local(), dyson.sH0_skij().local(),
+    hf_gradient.evaluate(gradient_1e, gradient_2e, gradient_pulay,
+                         sDm_skij.local(), sF_skij.local(), dyson.sS_skij().local(), dyson.sH0_skij().local(),
                          mb_eri_grad_t.hf_eri->get(), false);
     eval_hf_grand_potential(sDm_skij.local(), dyson.sS_skij().local(), mf, 0.0, FT.beta(), mu);
-    gradient_elec = hf_gradient.gradient_elec();
-    gradient_nuc = hf_gradient.gradient_nuc();
-    gradient_total = hf_gradient.gradient_total();
   }
 
+  gradient_elec = gradient_1e + gradient_2e + gradient_pulay;
+  gradient_total =  gradient_elec + mf->nuclear_gradient();
+  print_mbpt_gradient(mf->nuclear_gradient(), mf, "GRAD_NUC");
   print_mbpt_gradient(gradient_elec, mf, "GRAD_ELEC");
-  print_mbpt_gradient(gradient_nuc, mf, "GRAD_NUC");
   print_mbpt_gradient(gradient_total, mf, "GRAD_TOTAL");
 
   app_log(1, "####### Gradient routines end #######\n");
