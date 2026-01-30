@@ -112,6 +112,100 @@ namespace methods
 
     public:
 
+    chol_grad_reader_t(std::shared_ptr<mf::MF> MF, ptree const& pt):
+      _MF(std::move(MF)),
+      _mpi(_MF->mpi()),
+      _eri_grad_dir(io::get_value_with_default<std::string>(pt, "path","./")),
+      _eri_grad_filename(io::get_value_with_default<std::string>(pt, "output", "chol_grad_info.h5")),
+      _storage((_eri_grad_dir == "") ? incore : outcore),
+      _read_type(io::tolower_copy(io::get_value_with_default<std::string>(pt,"read_type","all")) == "all" ? each_q : single_kpair),
+      _write_type(io::tolower_copy(io::get_value_with_default<std::string>(pt,"write_type","multi")) == "multi" ? multi_file : single_file),
+      _ns(_MF->nspin()),
+      _ns_in_basis(_MF->nspin_in_basis()),
+      _nkpts(_MF->nkpts()),
+      _Np(0),
+      _nbnd(_MF->nbnd()),
+      _naux(_MF->nbnd_aux()),
+      _tol(io::get_value_with_default<double>(pt, "tol", 0.0001)),
+      _Timer()
+    {
+      utils::check(_storage != incore, "chol_grad_rader_t: incore version is not implemented yet!");
+
+      for( auto& v: {"READ"}) {
+        _Timer.add(v);
+      }
+
+      init();
+    }
+
+  // read from existing CD/GDF integral gradient
+    chol_grad_reader_t(std::shared_ptr<mf::MF> MF,
+                       std::string eri_grad_dir = "./",
+                       std::string eri_grad_filename = "chol_grad_info.h5",
+                       chol_reading_type_e read_type = each_q,
+                       chol_writing_type_e write_type = multi_file):
+      _MF(std::move(MF)),
+      _mpi(_MF->mpi()),
+      _eri_grad_dir(eri_grad_dir),
+      _eri_grad_filename(eri_grad_filename),
+      _storage((eri_grad_dir == "")? incore : outcore),
+      _read_type(read_type),
+      _write_type(write_type),
+      _ns(_MF->nspin()),
+      _ns_in_basis(_MF->nspin_in_basis()),
+      _nkpts(_MF->nkpts()),
+      _Np(0),
+      _nbnd(_MF->nbnd()),
+      _naux(_MF->nbnd_aux()),
+      _tol(-1.0),
+      _Timer() {
+
+      utils::check(_storage != incore, "chol_grad_reader_t: incore version is not implemented yet!");
+      if (!std::filesystem::exists(_eri_grad_dir + "/" + _eri_grad_filename)) {
+          utils::check(false, "chol_grad_reader_t: Cholesky ERI gradients not found!");
+        }
+
+      for (auto& v: {"READ"}) {
+        _Timer.add(v);
+      }
+
+      init();
+    }
+
+    auto& mpi() const { return _mpi; }
+    auto& MF() const { return _MF; }
+    int nspin() const { return _ns; }
+    int nkpts() const { return _nkpts; }
+    int Np() const { return _Np; }
+    int nbnd() const { return _nbnd; }
+    int nbnd_aux() const { return _naux; }
+    chol_reading_type_e& set_read_type() { return _read_type; }
+    chol_reading_type_e chol_read_type() const { return _read_type; }
+    chol_writing_type_e chol_write_type() const { return _write_type; }
+
+    int read_Np(long iq = -1)
+    {
+      int Np;
+      if (iq == -1) { // read from meta_data
+        std::string filename = _eri_grad_dir + "/" + _eri_grad_filename;
+        h5::file file = h5::file(filename, 'r');
+        h5::group grp(file);
+        auto sgrp = grp.open_group("Interaction_Gradient");
+        h5::h5_read(sgrp, "Np", Np);
+      } else {
+        std::string filename = _eri_grad_dir + "/" + (_write_type == multi_file ?
+                                                      "Vq" + std::to_string(iq) + ".h5" :
+                                                      _eri_grad_filename);
+        h5::file file = h5::file(filename, 'r');
+        h5::group grp(file);
+        auto sgrp = grp.open_group("Interaction_Gradient");
+        std::string dataset = "Vq" + std::to_string(iq) + "_grad";
+        auto l = h5::array_interface::get_dataset_info(sgrp, dataset);
+        Np = l.lengths[0];
+      }
+      return Np;
+    }
+
     /**
      * Read V_grad^{K(ik), K(ik)-Q(iq)}
      * @param iq
@@ -223,7 +317,7 @@ namespace methods
       nda::h5_read(sgrp, dataset, V_PQ_inv,
         std::tuple{all, all, std::min(is, size_t(_ns_in_basis-1)), ik});
 
-      _Timer.stop("END");
+      _Timer.stop("READ");
 
     }
 
@@ -338,103 +432,9 @@ namespace methods
           std::tuple{all, all, std::min(is, size_t(_ns_in_basis-1)), ik});
       }
 
-      _Timer.stop("END");
+      _Timer.stop("READ");
 
     }
-
-  chol_grad_reader_t(std::shared_ptr<mf::MF> MF, ptree const& pt):
-    _MF(std::move(MF)),
-    _mpi(_MF->mpi()),
-    _eri_grad_dir(io::get_value_with_default<std::string>(pt, "path","./")),
-    _eri_grad_filename(io::get_value_with_default<std::string>(pt, "output", "chol_grad_info.h5")),
-    _storage((_eri_grad_dir == "") ? incore : outcore),
-    _read_type(io::tolower_copy(io::get_value_with_default<std::string>(pt,"read_type","all")) == "all" ? each_q : single_kpair),
-    _write_type(io::tolower_copy(io::get_value_with_default<std::string>(pt,"write_type","multi")) == "multi" ? multi_file : single_file),
-    _ns(_MF->nspin()),
-    _ns_in_basis(_MF->nspin_in_basis()),
-    _nkpts(_MF->nkpts()),
-    _Np(0),
-    _nbnd(_MF->nbnd()),
-    _naux(_MF->nbnd_aux()),
-    _tol(io::get_value_with_default<double>(pt, "tol", 0.0001)),
-    _Timer()
-  {
-    utils::check(_storage != incore, "chol_grad_rader_t: incore version is not implemented yet!");
-
-    for( auto& v: {"BUILD", "READ"}) {
-      _Timer.add(v);
-    }
-
-    init();
-  }
-
-  // read from existing CD/GDF integral gradient
-    chol_grad_reader_t(std::shared_ptr<mf::MF> MF,
-                       std::string eri_grad_dir = "./",
-                       std::string eri_grad_filename = "chol_grad_info.h5",
-                       chol_reading_type_e read_type = each_q,
-                       chol_writing_type_e write_type = multi_file):
-      _MF(std::move(MF)),
-      _mpi(_MF->mpi()),
-      _eri_grad_dir(eri_grad_dir),
-      _eri_grad_filename(eri_grad_filename),
-      _storage((eri_grad_dir == "")? incore : outcore),
-      _read_type(read_type),
-      _write_type(write_type),
-      _ns(_MF->nspin()),
-      _ns_in_basis(_MF->nspin_in_basis()),
-      _nkpts(_MF->nkpts()),
-      _Np(0),
-      _nbnd(_MF->nbnd()),
-      _naux(_MF->nbnd_aux()),
-      _tol(-1.0),
-      _Timer() {
-
-      utils::check(_storage != incore, "chol_grad_reader_t: incore version is not implemented yet!");
-      if (!std::filesystem::exists(_eri_grad_dir + "/" + _eri_grad_filename)) {
-          utils::check(false, "chol_grad_reader_t: Cholesky ERI gradients not found!");
-        }
-
-      for (auto& v: {"BUILD", "READ"}) {
-        _Timer.add(v);
-      }
-
-      init();
-    }
-
-    int read_Np(long iq = -1)
-    {
-      int Np;
-      if (iq == -1) { // read from meta_data
-        std::string filename = _eri_grad_dir + "/" + _eri_grad_filename;
-        h5::file file = h5::file(filename, 'r');
-        h5::group grp(file);
-        auto sgrp = grp.open_group("Interaction_Gradient");
-        h5::h5_read(sgrp, "Np", Np);
-      } else {
-        std::string filename = _eri_grad_dir + "/" + (_write_type == multi_file ?
-                                                      "Vq" + std::to_string(iq) + ".h5" :
-                                                      _eri_grad_filename);
-        h5::file file = h5::file(filename, 'r');
-        h5::group grp(file);
-        auto sgrp = grp.open_group("Interaction_Gradient");
-        std::string dataset = "Vq" + std::to_string(iq) + "_grad";
-        auto l = h5::array_interface::get_dataset_info(sgrp, dataset);
-        Np = l.lengths[0];
-      }
-      return Np;
-    }
-
-    auto& mpi() const { return _mpi; }
-    auto& MF() const { return _MF; }
-    int nspin() const { return _ns; }
-    int nkpts() const { return _nkpts; }
-    int Np() const { return _Np; }
-    int nbnd() const { return _nbnd; }
-    int nbnd_aux() const { return _naux; }
-    chol_reading_type_e& set_read_type() { return _read_type; }
-    chol_reading_type_e chol_read_type() const { return _read_type; }
-    chol_writing_type_e chol_write_type() const { return _write_type; }
 
     auto V_3Qij_di(size_t iq, size_t is, size_t ik)
     {
@@ -488,6 +488,51 @@ namespace methods
       } else {
         return _Vq_kPQ_inv.value()(ik, nda::range::all, nda::range::all);
       }
+    }
+
+    auto V_k3Qij_di(size_t iq, size_t is)
+    {
+      utils::check(_read_type == each_q, "Error: V_k3Qij_di() can only be called in \"each_q\" read mode");
+      return _Vq_k3Qij_di.value()();
+    }
+
+    auto V_k3Qij_dQ(size_t iq, size_t is)
+    {
+      utils::check(_read_type == each_q, "Error: V_k3Qij_dQ() can only be called in \"each_q\" read mode");
+      return _Vq_k3Qij_dQ.value()();
+    }
+
+    auto V_kQij(size_t iq, size_t is)
+    {
+      utils::check(_read_type == each_q, "Error: V_kQij() can only be called in \"each_q\" read mode");
+      return _Vq_kQij.value()();
+    }
+
+    auto V_k3PQ_dP(size_t iq, size_t is)
+    {
+      utils::check(_read_type == each_q, "Error: V_k3PQ_dP() can only be called in \"each_q\" read mode");
+      return _Vq_k3PQ_dP.value()();
+    }
+
+    auto V_kPQ(size_t iq, size_t is)
+    {
+      utils::check(_read_type == each_q, "Error: V_kPQ() can only be called in \"each_q\" read mode");
+     return _Vq_kPQ.value()();
+    }
+
+    auto V_kPQ_inv(size_t iq, size_t is)
+    {
+      utils::check(_read_type == each_q, "Error: V_kPQ_inv() can only be called in \"each_q\" read mode");
+      return _Vq_kPQ_inv.value()();
+    }
+
+    inline void print_timers()
+    {
+      app_log(2, "\n***************************************************");
+      app_log(2, "                  CHOl-ERI-GRAD timers ");
+      app_log(2, "***************************************************");
+      app_log(2, "    READ:                 {} sec", _Timer.elapsed("READ"));
+      app_log(2, "***************************************************\n");
     }
 
      /**
