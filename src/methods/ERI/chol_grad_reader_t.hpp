@@ -110,6 +110,8 @@ namespace methods
       app_log(1, "    - ERI gardient output = {}\n", _eri_grad_filename);
     }
 
+    public:
+
     /**
      * Read V_grad^{K(ik), K(ik)-Q(iq)}
      * @param iq
@@ -119,6 +121,33 @@ namespace methods
     {
       decltype(nda::range::all) all;
       utils::check(_read_type == single_kpair, "Error: read_V() can only be called in \"single_kpair\" read mode");
+      utils::check( is < _ns, "Error in chol_reader_grad_t::read_Vq_grad: is out of bounds: is:{}", is);
+
+      _is = std::min(is, size_t(_ns_in_basis-1));
+      _ik = ik;
+      _iq = iq;
+
+      if (_Vq_k3Qij_di) {
+        _Vq_k3Qij_di = std::nullopt;
+      }
+      if (_Vq_k3Qij_dQ) {
+        _Vq_k3Qij_dQ = std::nullopt;
+      }
+      if (_Vq_kQij) {
+        _Vq_kQij = std::nullopt;
+      }
+      if (_Vq_k3PQ_dP) {
+        _Vq_k3PQ_dP = std::nullopt;
+      }
+      if (_Vq_kPQ) {
+        _Vq_kPQ = std::nullopt;
+      }
+      if (_Vq_kPQ_inv) {
+        _Vq_kPQ_inv = std::nullopt;
+      }
+
+      _Timer.start("READ");
+
       // ( d/dX i, j | Q )
       if (!_V_3Qij_di) {
         _V_3Qij_di.emplace(nda::array<ComplexType, 4>(3, _Np, _nbnd, _nbnd));
@@ -193,6 +222,9 @@ namespace methods
       auto V_PQ_inv =  _V_PQ_inv.value()(nda::range(_naux), nda::range(_naux), nda::ellipsis{});
       nda::h5_read(sgrp, dataset, V_PQ_inv,
         std::tuple{all, all, std::min(is, size_t(_ns_in_basis-1)), ik});
+
+      _Timer.stop("END");
+
     }
 
     /**
@@ -202,7 +234,33 @@ namespace methods
     void read_Vq_grad(size_t iq, size_t is)
     {
       decltype(nda::range::all) all;
+      utils::check( is < _ns, "Error in chol_reader_grad_t::read_Vq_grad: is out of bounds: is:{}", is);
       utils::check(_read_type == each_q, "Error: read_V() can only be called in \"each_q\" read mode");
+
+      _is = std::min(is, size_t(_ns_in_basis-1));
+      _iq = iq;
+
+      if (_V_3Qij_di) {
+       _V_3Qij_di = std::nullopt;
+      }
+      if (_V_3Qij_dQ) {
+        _V_3Qij_dQ = std::nullopt;
+      }
+      if (_V_Qij) {
+        _V_Qij = std::nullopt;
+      }
+      if (_V_3PQ_dP) {
+        _V_3PQ_dP = std::nullopt;
+      }
+      if (_V_PQ) {
+        _V_PQ = std::nullopt;
+      }
+      if (_V_PQ_inv) {
+        _V_PQ_inv = std::nullopt;
+      }
+
+      _Timer.start("READ");
+
       // ( Q | d/dX i, j )
       if (!_Vq_k3Qij_di) {
         _Vq_k3Qij_di.emplace(nda::array<ComplexType, 5>(_nkpts, 3, _Np, _nbnd, _nbnd));
@@ -279,9 +337,10 @@ namespace methods
         nda::h5_read(sgrp, dataset, Vq_kPQ_inv,
           std::tuple{all, all, std::min(is, size_t(_ns_in_basis-1)), ik});
       }
-    }
 
-  public:
+      _Timer.stop("END");
+
+    }
 
   chol_grad_reader_t(std::shared_ptr<mf::MF> MF, ptree const& pt):
     _MF(std::move(MF)),
@@ -376,6 +435,60 @@ namespace methods
     chol_reading_type_e& set_read_type() { return _read_type; }
     chol_reading_type_e chol_read_type() const { return _read_type; }
     chol_writing_type_e chol_write_type() const { return _write_type; }
+
+    auto V_3Qij_di(size_t iq, size_t is, size_t ik)
+    {
+      if (_read_type == single_kpair) {
+        return _V_3Qij_di.value()();
+      } else {
+        return _Vq_k3Qij_di.value()(ik, nda::range::all, nda::range::all, nda::range::all, nda::range::all);
+      }
+    }
+
+    auto V_3Qij_dQ(size_t iq, size_t is, size_t ik)
+    {
+      if (_read_type == single_kpair) {
+        return _V_3Qij_dQ.value()();
+      } else {
+        return _Vq_k3Qij_dQ.value()(ik, nda::range::all, nda::range::all, nda::range::all, nda::range::all);
+      }
+    }
+
+    auto V_Qij(size_t iq, size_t is, size_t ik)
+    {
+      if (_read_type == single_kpair) {
+        return _V_Qij.value()();
+      } else {
+        return _Vq_kQij.value()(ik, nda::range::all, nda::range::all, nda::range::all);
+      }
+    }
+
+    auto V_3PQ_dP(size_t iq, size_t is, size_t ik)
+    {
+      if (_read_type == single_kpair) {
+        return _V_3PQ_dP.value()();
+      } else {
+        return _Vq_k3PQ_dP.value()(ik, nda::range::all, nda::range::all, nda::range::all);
+      }
+    }
+
+    auto V_PQ(size_t iq, size_t is, size_t ik)
+    {
+      if (_read_type == single_kpair) {
+        return _V_PQ.value()();
+      } else {
+        return _Vq_kPQ.value()(ik, nda::range::all, nda::range::all);
+      }
+    }
+
+    auto V_PQ_inv(size_t iq, size_t is, size_t ik)
+    {
+      if (_read_type == single_kpair) {
+        return _V_PQ_inv.value()();
+      } else {
+        return _Vq_kPQ_inv.value()(ik, nda::range::all, nda::range::all);
+      }
+    }
 
      /**
       * Checks if the output file can be used to initializing an object
