@@ -206,41 +206,6 @@ void run(mpi3::communicator &comm, InputParser &parser)
         auto name = mf::add_mf(mpi_context, mf_pt, mf_type, mf_list, true);
       }
 
-    } else if (cname == "mean_field_gradient") {
-
-      ptree pt = it.second;
-      auto [eri_name, eri_type] = methods::get_eri_block(mpi_context, pt, mf_list,
-                                                         thc_list, chol_list, "interaction");
-      utils::check(eri_name != "" and eri_type != "",
-                   "Error: Failed to find interaction block needed by {}", cname);
-      auto [hf_eri_name, hf_eri_type] = methods::get_eri_block(mpi_context, pt, mf_list,
-                                                               thc_list, chol_list, "interaction_hf");
-      if (hf_eri_name == "" or hf_eri_type == "") {
-        hf_eri_name = eri_name;
-        hf_eri_type = eri_type;
-      }
-      auto [eri_grad_name, eri_grad_type] = methods::get_eri_grad_block(mpi_context, pt, mf_list,
-                                                                        chol_grad_list, "interaction_gradient");
-      utils::check(eri_grad_name != "" and eri_grad_type != "",
-                   "Error: Failed to find interaction gradient block needed by {}", cname);
-
-      auto [hf_eri_grad_name, hf_eri_grad_type] = methods::get_eri_grad_block(mpi_context, pt, mf_list,
-                                                                              chol_grad_list, "interaction_gradient_hf");
-      if (hf_eri_grad_name == "" or hf_eri_grad_type == "") {
-        hf_eri_grad_name = eri_grad_name;
-        hf_eri_grad_type = eri_grad_type;
-      }
-      if (hf_eri_type == "cholesky" and hf_eri_grad_type == "cholesky" and
-          eri_type == "cholesky" and eri_grad_type == "cholesky") {
-        auto mf_name = std::get<0>(chol_list[eri_name]);
-        utils::check(mf_name == std::get<0>(chol_list[hf_eri_name]), "{}: mfs of eri and hf_eri are inconsistent!");
-        mf::mf_gradient_t mf_gradient(mf_list[mf_name].get(), pt);
-        mf_gradient.evaluate(*std::get<1>(chol_list[hf_eri_name]), *std::get<1>(chol_grad_list[hf_eri_name]));
-      } else {
-        APP_ABORT("Error: only cholesky version is supported. hf_eri_type = {}, hf_eri_grad_type = {}, eri_type = {}, eri_grad_type = {}",
-                  hf_eri_type, hf_eri_grad_type, eri_type, eri_grad_type);
-      }
-
     } else if (cname == "interaction") {
 
       ptree pt = it.second;

@@ -34,7 +34,6 @@
 #include "mean_field/qe/qe_readonly.hpp"
 #include "mean_field/pyscf/pyscf_readonly.hpp"
 #include "mean_field/model_hamiltonian/model_readonly.hpp"
-#include "mean_field/mf_gradient_t.h"
 #include "mean_field/mf_source.hpp"
 
 namespace mf
