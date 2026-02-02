@@ -51,6 +51,23 @@ namespace methods {
       return tmp_grad;
     }
 
+    ComplexType hf_gradient_t::evaluate_pulay(int iatom, int direction,
+                                              const nda::MemoryArrayOfRank<4> auto &DE_skij)
+    {
+      ComplexType tmp_grad = 0;
+      auto S_grad = _MF->S_grad();
+      RealType spin_factor = (_nspin == 1 and _npol == 1) ? 2.0 : 1.0;
+      for (int ispin = 0; ispin < _nspin; ++ispin) {
+        for (int ikpt = 0; ikpt < _nkpts; ++ikpt) {
+          tmp_grad -= _k_weight(ikpt) * spin_factor *
+                      nda::sum(DE_skij(ispin, ikpt, nda::ellipsis{}) *
+                               S_grad(iatom, direction, ispin, ikpt, nda::ellipsis{}));
+
+        }
+      }
+      return tmp_grad;
+    }
+
     void hf_gradient_t::print_chol_hf_grad_timers()
     {
       app_log(2, "\n  CHOL-HF-GRAD timers");
@@ -65,6 +82,8 @@ namespace methods {
     using Arrv4D = nda::array_view<ComplexType, 4>;
     template ComplexType hf_gradient_t::evaluate_1e(int, int, const Arr4D&);
     template ComplexType hf_gradient_t::evaluate_1e(int, int, const Arrv4D&);
+    template ComplexType hf_gradient_t::evaluate_pulay(int, int, const Arr4D&);
+    template ComplexType hf_gradient_t::evaluate_pulay(int, int, const Arrv4D&);
 
  } // namespace solvers
 
