@@ -195,18 +195,18 @@ def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
 
     This function modifies the bosonic Green's function `A_iw` at iw = 0 based on the
     specified `w0_regularization` method. It supports two types of regularization:
-    "insulator" and "metal". 
+    "flatten" and "linear_extrapolate". 
     
-    For "insulator", it flattens the value at iw = 0 by setting it equal to the value 
+    For "flatten", it flattens the value at iw = 0 by setting it equal to the value 
     at the first positive frequency. 
     
-    For "metal", it performs a linear extrapolation using the first two positive frequencies 
+    For "linear_extrapolate", it performs a linear extrapolation using the first two positive frequencies 
     to estimate the value at iw = 0.
 
     Parameters:
         A_iw (numpy.ndarray): Input bosonic Green's function data.
         iw_mesh_b (numpy.ndarray): Bosonic Matsubara frequency mesh.
-        w0_regularization (string): Type of regularization to apply ("insulator" or "metal").
+        w0_regularization (string): Type of regularization to apply ("flatten" or "linear_extrapolate").
         target_name (str): Name of the target for reporting purposes.          
 
     Returns:
@@ -214,21 +214,22 @@ def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
     """
     mpi.report(f"Applying {w0_regularization} w=0 regularization for {target_name} before causal projection:")
     
-    if w0_regularization == "insulator":
+    if w0_regularization == "flatten":
         
         # For insulating case, flatten at iw=0 by setting A(iw=0) = A(iw1)
         mpi.report(f"  --> Flattening {target_name} at w=0.")
         zero_index = np.where(iw_mesh_b == 0.0)[0][0]
         A_iw[zero_index] = A_iw[zero_index + 1]
 
-    elif w0_regularization == "metal":
+    elif w0_regularization == "linear_extrapolate":
 
         # For metallic case, set A(iw=0) to a small positive value
         mpi.report(f"  --> Extrapolating {target_name} at w=0 using linear extrapolation at iw1 and iw2.")
+        zero_index = np.where(iw_mesh_b == 0.0)[0][0]
         slope = (A_iw[zero_index + 1] - A_iw[zero_index + 2]) / (np.abs(iw_mesh_b[zero_index + 1]) - np.abs(iw_mesh_b[zero_index + 2]))
         A_iw[zero_index] = A_iw[zero_index + 1] - slope * np.abs(iw_mesh_b[zero_index + 1])
 
     else:
-        raise ValueError(f"Invalid w0_regularization option: {w0_regularization}. Use 'metal' or 'insulator'.")
+        raise ValueError(f"Invalid w0_regularization option: {w0_regularization}. Use 'flatten' or 'linear_extrapolate'.")
 
     return A_iw
