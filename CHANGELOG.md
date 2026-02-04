@@ -1,7 +1,7 @@
 
 # Changelog
 
-## CoQui v0.2.0 [2026-02-01]
+## CoQui v0.2.0 [2026-02-04]
 
 ### Added
 
@@ -19,6 +19,7 @@
 - `IAFT` initialization from CoQui checkpoint h5.
 - Interfacing with TRIQS ModEST for quantum embedding.
 - Examples for MLWF library and standalone modes.
+- Examples for Fourier transform on imaginary time/frequency grids on Python.
 
 ## CoQui v0.1.0 [2026-01-23]
 
