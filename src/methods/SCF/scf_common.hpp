@@ -333,7 +333,7 @@ void write_mf_data(mf::MF &mf, const imag_axes_ft::IAFT &ft, hamilt::pseudopot &
  */
 template<typename MPI_Context_t>
 auto read_greens_function(MPI_Context_t &context, mf::MF *mf,
-                          std::string filename, long scf_iter, std::string scf_grp = "scf")
+                          std::string filename, long scf_iter=-1, std::string scf_grp = "scf")
 -> sArray_t<Array_view_5D_t>;
 
 }

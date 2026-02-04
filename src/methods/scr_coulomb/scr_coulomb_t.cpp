@@ -36,11 +36,14 @@ namespace solvers {
     _ft(ft), _screen_type(screen_type),
     _div_treatment(div), _Timer() {
 
-    const std::unordered_set<std::string> valid_pi_scheme = {"rpa", "rpa_r", "rpa_k",
-                                                             "crpa", "crpa_ks", "crpa_vasp",
-                                                             "gw_edmft", "gw_edmft_rpa",
-                                                             "gw_edmft_density", "gw_edmft_rpa_density",
-                                                             "crpa_edmft", "crpa_edmft_density"};
+    const std::unordered_set<std::string> valid_pi_scheme = {
+        "rpa", "rpa_r", "rpa_k",
+        "crpa", "crpa_ks", "crpa_vasp",
+        "gw_edmft", "gw_edmft_density",
+        "gw_edmft_rpa", "gw_edmft_rpa_density",
+        "gw_edmft_zero_pi_imp", "gw_edmft_zero_pi_imp_density",
+        "crpa_edmft", "crpa_edmft_density"
+    };
     utils::check(valid_pi_scheme.find(_screen_type)!=valid_pi_scheme.end(),
                  "scr_coulomb_t: unknown type of polarizability.");
 
@@ -76,6 +79,19 @@ namespace solvers {
     utils::check(thc.mpi() == mb_state.mpi,
                  "scr_coulomb_t::update_w: THC_ERI and MBState should have the same MPI context.");
 
+    if (_screen_type.find("edmft") != std::string::npos) {
+      if (!mb_state.sPi_imp_wabcd or !mb_state.sPi_dc_wabcd) {
+        if (mb_state.read_local_polarizabilities()) {
+          app_log(1, "scr_coulomb_t::update_w: "
+                     "No local polarizabilities found in MBState \n"
+                     "-> reading from checkpoint file.\n");
+        } else {
+          app_log(1, "scr_coulomb_t::update_w: "
+                     "No local polarizabilities found in MBState or checkpoint file \n"
+                     "-> Setting to zero.\n");
+        }
+      }
+    }
     auto dPi_tqPQ = eval_Pi_qdep(mb_state, thc);
 
     // evaluate screened interaction (dW_tqPQ) and reset polarizability (dPi_tqPQ)
@@ -226,6 +242,7 @@ namespace solvers {
 
   }
 
+  // CNY: This will be deprecated soon.
   auto scr_coulomb_t::eval_Pi_qdep(const nda::MemoryArrayOfRank<5> auto &G_tskij, THC_ERI auto &thc,
                                    const projector_boson_t* proj,
                                    const nda::array_view<ComplexType, 5> *pi_imp,
@@ -286,8 +303,13 @@ namespace solvers {
 
     if (_screen_type.find("edmft") == std::string::npos
         and (mb_state.sPi_imp_wabcd or mb_state.sPi_dc_wabcd)) {
-      app_log(2, "scr_coulomb_t::eval_Pi_qdep: pi_imp and pi_dc are only used in edmft mode. "
-                 "Ignoring them in {} mode.", _screen_type);
+      app_log(1, "");
+      app_log(1, "╔══════════════════════════════════════════════════════════╗");
+      app_log(1, "║ [ NOTE ]                                                 ║");
+      app_log(1, "║ Screening type is set to non-\"edmft\" type, but local     ║");
+      app_log(1, "║ polarizabilities were found or provided. The calculation ║");
+      app_log(1, "║ will simply ignoring the polarizability correction.      ║");
+      app_log(1, "╚══════════════════════════════════════════════════════════╝\n");
     }
     utils::check(mb_state.sG_tskij.has_value(),
                  "scr_coulomb_t::eval_Pi_qdep: G_tskij is not set in MBState.");
@@ -321,17 +343,7 @@ namespace solvers {
 
       utils::check(mb_state.proj_boson.has_value(), "scr_coulomb_t::eval_Pi_qdep: projector is missing in edmft mode.");
 
-      bool pi_local_given = false;
       if (!mb_state.sPi_imp_wabcd or !mb_state.sPi_dc_wabcd) {
-        pi_local_given = mb_state.read_local_polarizabilities();
-        if (pi_local_given)
-          app_log(2, "Found local polarizabilities in the checkpoint file: {}", mb_state.coqui_prefix + ".mbpt.h5");
-      } else {
-        app_log(2, "Found Local polarizabilities already set in MBState.");
-        pi_local_given = true;
-      }
-
-      if (!pi_local_given) {
         app_log(1, "");
         app_log(1, "╔══════════════════════════════════════════════════════════╗");
         app_log(1, "║ [ NOTE ]                                                 ║");

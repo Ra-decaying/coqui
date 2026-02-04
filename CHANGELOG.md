@@ -1,6 +1,27 @@
+
 # Changelog
 
-## [Pre-release] - 2026-01-23
+## CoQui v0.2.0 [2026-02-04]
+
+### Added
+
+- Fully self-consistent GW+EDMFT solver and interface, including the new `dmft` Python submodule (`src/python/dmft/`), drivers, utilities (bath fitting, chemical potential, checkpoints, SCF driver, etc.)
+- TRIQS CT-SEG interface (planned to be moved to the TRIQS library in the future).
+- New examples for cRPA and GW+EDMFT.
+- Unit test for Wannier90 MLWF workflow using SrVO3.
+- `mlwf_h5_from_wannier90_output` utility to read Wannier90 output files and write MLWF data into CoQui h5 format.
+
+### Improved
+
+- Major refactor for downfolding routines to improve the API, enhance modularity, and increase code readability.
+- Renamed `downfold_local_coulomb` to `downfold_coulomb` to reflect support for non-local downfolded interactions.
+- Downfolded Coulomb interactions are now stored under `downfolded_model` h5 group within the input h5 group, e.g. `scf/iter{}` or `embed/iter{}`.
+- `IAFT` initialization from CoQui checkpoint h5.
+- Interfacing with TRIQS ModEST for quantum embedding.
+- Examples for MLWF library and standalone modes.
+- Examples for Fourier transform on imaginary time/frequency grids on Python.
+
+## CoQui v0.1.0 [2026-01-23]
 
 ### Added
 
