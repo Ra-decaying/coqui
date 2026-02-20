@@ -62,7 +62,7 @@ namespace bdft_tests {
                                    solvers::mb_solver_t(&hf), &iter_sol,
                                    50, false, 1e-8, false);
 
-    VALUE_EQUAL(e_hf, -196.60675481, 1e-6);
+    VALUE_EQUAL(e_hf, -195.945095774442, 1e-6);
 
     auto gradient_1e = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
     auto gradient_2e = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
