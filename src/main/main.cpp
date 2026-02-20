@@ -182,12 +182,10 @@ void run(mpi3::communicator &comm, InputParser &parser)
 {
   using methods::thc_reader_t;
   using methods::chol_reader_t;
-  using methods::chol_grad_reader_t;
   // container of MF and eri objects. Enables reuse in multiple input blocks!
   std::map<std::string, std::shared_ptr<mf::MF>> mf_list;
   std::map<std::string, std::tuple<std::string,std::unique_ptr<thc_reader_t>>> thc_list;
   std::map<std::string, std::tuple<std::string,std::unique_ptr<chol_reader_t>>> chol_list;
-  std::map<std::string, std::tuple<std::string,std::unique_ptr<chol_grad_reader_t>>> chol_grad_list;
 
   auto mpi_context = std::make_shared<utils::mpi_context_t<>>(utils::make_mpi_context(comm));
 
@@ -229,22 +227,6 @@ void run(mpi3::communicator &comm, InputParser &parser)
       ptree pt = it.second;
       auto mf_name = mf::get_mf(mpi_context, pt, mf_list);
       methods::make_isdf(mf_list[mf_name], pt);
-
-    } else if (cname == "interaction_gradient") {
-
-      ptree pt = it.second;
-      if (auto v = pt.get_value_optional<std::string>())
-        utils::check(*v == "", "interaction_gradient reference not allowed at top level.");
-      for (auto const& int_it : pt) {
-        std::string int_type = int_it.first;
-        ptree int_pt = int_it.second;
-        utils::check(!int_pt.empty(), "Every entry of \'interaction_gradient\' should be a node.");
-        if (int_type == "cholesky") {
-            auto name = methods::add_cholesky_gradient(mpi_context, int_pt, mf_list, chol_grad_list);
-        } else {
-          APP_ABORT("Error: Invalid interaction_gradient type: {}", int_type);
-        }
-      }
 
     } else if (cname == "orbitals") {
 

@@ -21,7 +21,6 @@
 
 #include "MBPT_gradient_drivers.h"
 
-#include "methods/ERI/chol_grad_reader_t.hpp"
 #include "methods/ERI/mb_eri_context.h"
 #include "methods/gradient/gradient_driver.h"
 #include "methods/SCF/simple_dyson.h"

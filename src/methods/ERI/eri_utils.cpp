@@ -93,30 +93,4 @@ auto make_cholesky(std::shared_ptr<mf::MF> mf, ptree const& pt) -> chol_reader_t
            chol_reader_t(std::move(mf), pt) );
 };
 
-auto make_cholesky_gradient(std::shared_ptr<mf::MF> mf, ptree const& pt) -> chol_grad_reader_t
-{
-  // create and return cholesky reader
-  auto storage = io::get_value_with_default<std::string>(pt, "storage", "outcore");
-  auto path = io::get_value_with_default<std::string>(pt, "path", "./");
-  auto output = io::get_value_with_default<std::string>(pt, "output", "chol_grad_info.h5");
-  auto read_type = io::get_value_with_default<std::string>(pt, "read_type", "all");
-  auto write_type = io::get_value_with_default<std::string>(pt, "write_type", "multi");
-  auto redo = io::get_value_with_default<bool>(pt, "overwrite", false);
-  io::tolower(storage);
-  io::tolower(read_type);
-  io::tolower(write_type);
-  utils::check(storage == "outcore", "make_cholesky_gradient - the incore version is not implemented yet!");
-  utils::check(read_type == "all" or read_type == "single", "make_cholesky: Invalid value read_type:{}", read_type);
-  utils::check(write_type == "multi" or write_type == "single", "make_cholesky: Invalid value write_type:{}", write_type);
-  auto rtype = (read_type == "all" ? each_q : single_kpair);
-  auto wtype = (write_type == "multi" ? multi_file : single_file);
-
-  auto nq = mf->nqpts_ibz();
-  bool read_chol_grad = (chol_grad_reader_t::check_init(path, output, nq, wtype) and not redo);
-
-  return (read_chol_grad ?
-          chol_grad_reader_t(std::move(mf), path, output, rtype, wtype) :
-          chol_grad_reader_t(std::move(mf), pt));
-}
-
 }

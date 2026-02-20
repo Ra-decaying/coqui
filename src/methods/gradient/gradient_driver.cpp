@@ -24,7 +24,6 @@
 #include <format>
 #include <iostream>
 
-#include "methods/ERI/chol_grad_reader_t.hpp"
 #include "methods/ERI/chol_reader_t.hpp"
 #include "methods/ERI/mb_eri_context.h"
 #include "methods/ERI/thc_reader_t.hpp"

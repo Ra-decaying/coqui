@@ -19,7 +19,7 @@
  */
 
 
-#include "methods/ERI/chol_grad_reader_t.hpp"
+#include "methods/ERI/chol_reader_t.hpp"
 #include "methods/HF/hf_gradient_t.h"
 
 namespace methods {

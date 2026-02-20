@@ -22,7 +22,6 @@
 #ifndef COQUI_MBPT_CONTEXT_H
 #define COQUI_MBPT_CONTEXT_H
 
-#include "chol_grad_reader_t.hpp"
 #include "chol_reader_t.hpp"
 #include "thc_reader_t.hpp"
 

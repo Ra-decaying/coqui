@@ -280,42 +280,6 @@ namespace methods {
     return found ? std::optional<std::string>{name} : std::nullopt;
   };
 
-  template<typename comm_t>
-  std::optional<std::string> get_cholesky_gradient(const std::shared_ptr<utils::mpi_context_t<comm_t>> &mpi,
-          ptree const& base_pt, std::map<std::string, std::shared_ptr<mf::MF>> &mf_list,
-          std::map<std::string,std::tuple<std::string, std::unique_ptr<chol_grad_reader_t>>> &chol_grad_list,
-          std::string eri_tag = "interaction_gradient")
-  {
-    bool found = false;
-    std::string name;
-    for(auto const& it : base_pt)
-    {
-      if (it.first == eri_tag) {
-        ptree pt = it.second;
-        auto v = pt.get_value_optional<std::string>();
-        if(v.has_value() and *v != "") {
-          // reference to input block, check it exists in list and return
-          name = *v;
-          if(chol_grad_list.contains(name)) {
-            found = true;
-            break;
-          }
-        } else {
-          auto type = io::get_value<std::string>(pt, "type",
-                                                 "interaction_gradient - missing input element: type");
-          if(type == "cholesky") {
-            utils::check(not found, "Error: Only 1 interaction input block allowed.");
-            // input block, add to list and return name
-            name = add_cholesky_gradient(mpi, pt, mf_list, chol_grad_list);
-            found = true;
-            break;
-          }
-        }
-      }
-    }
-    return found ? std::optional<std::string>{name} : std::nullopt;
-  }
-
   // useful routine for unit_tests, etc
   inline ptree make_chol_ptree(double tol = 0.0001, double ecut = 0.0,
       int chol_block_size = 32)
@@ -353,81 +317,6 @@ namespace methods {
     return pt;
   }
 
-  inline ptree make_chol_grad_ptree(double tol = 0.0001, double ecut = 0.0,
-      int chol_grad_block_size = 32)
-  {
-    ptree pt;
-    auto err = std::string("make_chol_ptree - Incorrect input - ");
-    utils::check(tol > 0, err + "Invalid tol:{}",tol);
-
-    pt.put("tol", tol);
-    pt.put("ecut", ecut);
-    pt.put("chol_grad_block_size", chol_grad_block_size);
-
-    return pt;
-  }
-
-  inline ptree make_chol_grad_reader_ptree(double tol = 0.0001,
-    double ecut = 0.0,
-    int chol_grad_block = 32,
-    std::string path = "./",
-    std::string output = "chol_grad_info.h5",
-    chol_reading_type_e read_type = each_q,
-    chol_writing_type_e write_type = multi_file,
-    bool redo = false)
-  {
-    auto err = std::string("make_chol_grad_reader_ptree - Incorrect input - ");
-    ptree pt = make_chol_grad_ptree(tol, ecut, chol_grad_block);
-
-    pt.put("storage", "outcore");
-    pt.put("path", path);
-    pt.put("output", output);
-    pt.put("read_type", ( read_type == each_q ? "all" : "single" ) );
-    pt.put("write_type", ( write_type == multi_file ? "multi" : "single" ) );
-    pt.put("overwrite", redo);
-
-    return pt;
-  }
-
-/*
- * Creates a cholesky eri gradient object with arguments in property tree.
- * Requires:
- *  - type:"cholesky"
- * Optional arguments (with default values):
- *  - tol: 1e-4,  Convergence tolerance of cholesky decomposition of ERI tensor.
- *  - path: "./", Path to generated cholesky gradient data files.
- *  - output: "chol_grad_info.h5", Name of h5 file.
- *            If write_type="single", this file will contain all information (meta_data + cholesky tensors).
- *            If write_type="multi", this file only contains meta_data. In this case, cholesly vectors are writen
- *            in separate files, VqQ.h5
- *  - ecut: "same as MF", Plane wave cutoff used for the evaluation of coulomb matrix elements.
- *  - chol_block_size: "32", Block size in cholesky decomposition gradient.
- *  - read_type: "all". Whether to read all k-points at a given q-point (all), or each k-q pair separately ("single").
- *               "all" reduces IO time at the expense of extra memory requirements.
- *  - write_type: "multi" - Write separate files for the cholesky tensor of each q.
- *                "single" - Write a single file with the cholesky tensors for all q.
- *  - overwrite: false (default). Initialize from path+output if possible.
- *               true. Force generation of cholesky vectors, even if oe already exists in h5 files.
- */
-  auto make_cholesky_gradient(std::shared_ptr<mf::MF> mf, ptree const& pt) -> chol_grad_reader_t;
-
-  template<typename comm_t>
-  std::string add_cholesky_gradient(const std::shared_ptr<utils::mpi_context_t<comm_t>> &mpi, ptree const& pt,
-    std::map<std::string, std::shared_ptr<mf::MF>> &mf_list,
-    std::map<std::string, std::tuple<std::string,std::unique_ptr<chol_grad_reader_t>>>& chol_grad_list)
-  {
-    static int unique_id = 0;
-    std::string name;
-    name = io::get_value_with_default(pt, "name", "chol_grad_AaBbCcDd_" + std::to_string(++unique_id));
-    utils::check(not chol_grad_list.contains(name),
-      "interaction_grad::chol: Unique name are required: {}", name);
-    auto mf_name = mf::get_mf(mpi, pt, mf_list);
-    chol_grad_list.emplace(name, std::make_tuple(mf_name,
-      std::move(std::make_unique<chol_grad_reader_t>(make_cholesky_gradient(mf_list[mf_name], pt)))));
-    return name;
-  }
-
-
   /*
    * Get the name and the type of the integral block
    * @return std::tuple(eri_name, eri_type)
@@ -444,22 +333,6 @@ namespace methods {
       return std::make_tuple(*eri_name, std::string("thc") );
     else if (auto eri_name_ = get_cholesky(mpi, pt, mf_list, chol_list, eri_tag))
       return std::make_tuple(*eri_name_, std::string("cholesky") );
-    return std::tuple(std::string(""), std::string("") );
-  }
-
-  /*
-   * Get the name and the type of the integral gradient block
-   * @return std::tuple(eri_name, eri_type)
-   */
-  template<typename comm_t>
-  auto get_eri_grad_block(const std::shared_ptr<utils::mpi_context_t<comm_t>> &mpi, ptree const& pt,
-                          std::map<std::string, std::shared_ptr<mf::MF>> &mf_list,
-                          std::map<std::string, std::tuple<std::string,std::unique_ptr<chol_grad_reader_t>>> &chol_grad_list,
-                          std::string eri_tag = "interaction_gradient")
-  -> std::tuple<std::string, std::string>
-  {
-    if (auto eri_grad_name = get_cholesky_gradient(mpi, pt, mf_list, chol_grad_list, eri_tag))
-      return std::make_tuple(*eri_grad_name, std::string("cholesky") );
     return std::tuple(std::string(""), std::string("") );
   }
 
