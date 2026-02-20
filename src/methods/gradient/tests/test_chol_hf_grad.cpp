@@ -55,9 +55,6 @@ namespace bdft_tests {
     chol_reader_t chol_reader(mf, outdir + "gdf_eri");
     auto eri = mb_eri_t(chol_reader, chol_reader);
 
-    chol_grad_reader_t chol_grad_reader(mf, outdir + "gdf_eri_grad");
-    auto eri_grad = mb_eri_t(chol_grad_reader, chol_grad_reader);
-
     simple_dyson dyson(mf.get(), &ft);
     iter_scf::iter_scf_t iter_sol("damping");
     MBState mb_state(mpi_context, ft, "h2o2");
@@ -72,11 +69,11 @@ namespace bdft_tests {
     auto gradient_pulay = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
     auto gradient_elec = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
     auto gradient_total = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
-    solvers::hf_gradient_t hf_gradient(mf, true);
+    solvers::hf_gradient_t hf_gradient(mf);
     hf_gradient.evaluate(gradient_1e, gradient_2e, gradient_pulay,
                          mb_state.sDm_skij.value().local(), mb_state.sF_skij.value().local(),
                          dyson.sS_skij().local(), dyson.sH0_skij().local(),
-                         eri_grad.hf_eri->get(), false);
+                         eri.hf_eri->get(), false);
     gradient_elec = gradient_1e + gradient_2e + gradient_pulay;
     gradient_total =  gradient_elec + mf->nuclear_gradient();
     print_mbpt_gradient(mf->nuclear_gradient(), mf, "GRAD_NUC");

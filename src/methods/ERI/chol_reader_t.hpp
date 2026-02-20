@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -74,13 +74,13 @@ namespace methods {
     chol_reader_t(std::shared_ptr<mf::MF> MF, ptree const& pt):
       _MF(std::move(MF)), _mpi(_MF->mpi()),
       _eri_dir( io::get_value_with_default<std::string>(pt,"path","./") ),
-      _eri_filename( io::get_value_with_default<std::string>(pt,"output","chol_info.h5") ), 
+      _eri_filename( io::get_value_with_default<std::string>(pt,"output","chol_info.h5") ),
       _storage((_eri_dir=="")? incore : outcore),
-      _read_type( io::tolower_copy(io::get_value_with_default<std::string>(pt,"read_type","all")) == "all" ? each_q : single_kpair ), 
-      _write_type( io::tolower_copy(io::get_value_with_default<std::string>(pt,"write_type","multi")) == "multi" ? multi_file : single_file ), 
+      _read_type( io::tolower_copy(io::get_value_with_default<std::string>(pt,"read_type","all")) == "all" ? each_q : single_kpair ),
+      _write_type( io::tolower_copy(io::get_value_with_default<std::string>(pt,"write_type","multi")) == "multi" ? multi_file : single_file ),
       _ns(_MF->nspin()), _ns_in_basis(_MF->nspin_in_basis()),
       _nkpts(_MF->nkpts()), _Np(0), _nbnd(_MF->nbnd()), _naux(_MF->nbnd_aux()),
-      _tol( io::get_value_with_default<double>(pt,"tol",0.0001) ), 
+      _tol( io::get_value_with_default<double>(pt,"tol",0.0001) ),
       _chol_builder_opt(cholesky(_MF.get(), *_mpi, pt) ),
       _Timer() {
 
@@ -100,10 +100,10 @@ namespace methods {
                   chol_reading_type_e read_type = each_q,
                   chol_writing_type_e write_type = multi_file):
         _MF(std::move(MF)), _mpi(_MF->mpi()),
-        _eri_dir(eri_dir), 
-        _eri_filename(eri_filename), 
+        _eri_dir(eri_dir),
+        _eri_filename(eri_filename),
         _storage((eri_dir=="")? incore : outcore),
-        _read_type(read_type), _write_type(write_type), 
+        _read_type(read_type), _write_type(write_type),
         _ns(_MF->nspin()), _ns_in_basis(_MF->nspin_in_basis()),
         _nkpts(_MF->nkpts()), _Np(0), _nbnd(_MF->nbnd()), _naux(_MF->nbnd_aux()),
         _tol(-1.0), _Timer() {
@@ -182,7 +182,7 @@ namespace methods {
       std::string filename = _eri_dir+"/"+_eri_filename;
       h5::file file = h5::file(filename, 'r');
       h5::group grp(file);
-      h5::group sgrp = grp.open_group("Interaction"); 
+      h5::group sgrp = grp.open_group("Interaction");
       h5::h5_read(sgrp, "tol", _tol);
 
       std::string rtype = (_read_type == single_kpair)? "single_kpair" : "each_q";
@@ -200,6 +200,7 @@ namespace methods {
     /**
      * Read V^{K(ik), K(ik)-Q(iq)}
      * @param iq
+     * @param is
      * @param ik
      */
     void read_V(size_t iq, size_t is, size_t ik) {
@@ -220,17 +221,18 @@ namespace methods {
       h5::group grp(file);
       h5::group sgrp = grp.open_group("Interaction");
       //h5::h5_read(sgrp, "Np", Np);
-      auto l = h5::array_interface::get_dataset_info(sgrp, dataset); 
+      auto l = h5::array_interface::get_dataset_info(sgrp, dataset);
       int Np = l.lengths[0];
       auto Np_range = nda::range(0,Np);
       auto Vqk = _V_Qij.value()(Np_range, nda::ellipsis{});
-      nda::h5_read(sgrp, dataset, Vqk, 
+      nda::h5_read(sgrp, dataset, Vqk,
         std::tuple{all, std::min(is,size_t(_ns_in_basis-1)), ik, nda::range(_nbnd), nda::range(_nbnd)});
     }
 
     /**
      * Read V^{K(ik), K(ik)-Q(iq)} for all ik
      * @param iq
+     * @param is
      */
     void read_Vq(size_t iq, size_t is) {
       utils::check(_read_type == each_q, "Error: read_Vq() can only be called in \"each_q\" read mode");
@@ -255,8 +257,77 @@ namespace methods {
       auto Np_range = nda::range(0,Np);
       for (size_t ik = 0; ik < _nkpts; ++ik) {
         auto Vqk = _Vq_kQij.value()(ik, Np_range, all, all);
-        nda::h5_read(sgrp, "Vq" + std::to_string(iq), Vqk, 
+        nda::h5_read(sgrp, "Vq" + std::to_string(iq), Vqk,
              std::tuple{all, std::min(is,size_t(_ns_in_basis-1)), ik, nda::range(_nbnd), nda::range(_nbnd)});
+      }
+    }
+
+    /**
+     * Read dV^{K(ik), K(ik)-Q(iq)}
+     * @param iq
+     * @param iatom
+     * @param idirection
+     * @param is
+     * @param ik
+     */
+    void read_dV(size_t iq, size_t iatom, size_t idirection, size_t is, size_t ik) {
+      decltype(nda::range::all) all;
+      utils::check(_read_type == single_kpair, "Error: read_dV() can only be called in \"single_kpair\" read mode");
+      if (!_dV_Qij) {
+        _dV_Qij.emplace(nda::array<ComplexType, 3>(_Np, _nbnd, _nbnd));
+      } else {
+        _dV_Qij.value()() = 0.0;
+      }
+
+      //int Np;
+      std::string dataset = "dVq" + std::to_string(iq);
+      std::string filename = _eri_dir + "/" + (_write_type==multi_file       ?
+                                              "Vq"+std::to_string(iq)+".h5" :
+                                              _eri_filename);
+      h5::file file = h5::file(filename, 'r');
+      h5::group grp(file);
+      h5::group sgrp = grp.open_group("Interaction");
+      //h5::h5_read(sgrp, "Np", Np);
+      auto l = h5::array_interface::get_dataset_info(sgrp, dataset);
+      int Np = l.lengths[2];
+      auto Np_range = nda::range(0, Np);
+      auto dVqk = _dV_Qij.value()(Np_range, nda::ellipsis{});
+      nda::h5_read(sgrp, dataset, dVqk,
+        std::tuple{iatom, idirection, all, std::min(is,size_t(_ns_in_basis-1)), ik, nda::range(_nbnd), nda::range(_nbnd)});
+    }
+
+    /**
+     * Read dV^{K(ik), K(ik)-Q(iq)} for all ik
+     * @param iq
+     * @param iatom
+     * @param idirection
+     * @param is
+     */
+    void read_dVq(size_t iq, size_t iatom, size_t idirection, size_t is) {
+      utils::check(_read_type == each_q, "Error: read_Vq() can only be called in \"each_q\" read mode");
+      if (!_dVq_kQij) {
+        _dVq_kQij.emplace(nda::array<ComplexType, 4>(_nkpts, _Np, _nbnd, _nbnd));
+      } else {
+        _dVq_kQij.value()() = 0.0;
+      }
+      std::string filename = _eri_dir + "/" + (_write_type==multi_file       ?
+                                              "Vq"+std::to_string(iq)+".h5" :
+                                              _eri_filename);
+      std::string dataset;
+      //int Np;
+
+      decltype(nda::range::all) all;
+      h5::file file = h5::file(filename, 'r');
+      h5::group grp(file);
+      h5::group sgrp = grp.open_group("Interaction");
+      //h5::h5_read(sgrp, "Np", Np);
+      auto l = h5::array_interface::get_dataset_info(sgrp, "dVq" + std::to_string(iq));
+      int Np = l.lengths[2];
+      auto Np_range = nda::range(0, Np);
+      for (size_t ik = 0; ik < _nkpts; ++ik) {
+        auto dVqk = _dVq_kQij.value()(ik, Np_range, all, all);
+        nda::h5_read(sgrp, "dVq" + std::to_string(iq), dVqk,
+             std::tuple{iatom, idirection, all, std::min(is,size_t(_ns_in_basis-1)), ik, nda::range(_nbnd), nda::range(_nbnd)});
       }
     }
 
@@ -276,8 +347,8 @@ namespace methods {
         h5::file file = h5::file(filename, 'r');
         h5::group grp(file);
         auto sgrp = grp.open_group("Interaction");
-        std::string dataset = "Vq" + std::to_string(iq); 
-        auto l = h5::array_interface::get_dataset_info(sgrp, dataset); 
+        std::string dataset = "Vq" + std::to_string(iq);
+        auto l = h5::array_interface::get_dataset_info(sgrp, dataset);
         Np = l.lengths[0];
       }
       return Np;
@@ -302,6 +373,8 @@ namespace methods {
           _is = std::min(is,size_t(_ns_in_basis-1));
           _ik = ik;
           _iq = iq;
+          _iatom = -1;
+          _idirection = -1;
           return _V_Qij.value()();
         }
       } else { // _read_type == each_q
@@ -316,6 +389,8 @@ namespace methods {
           _Timer.stop("READ");
           _is = std::min(is,size_t(_ns_in_basis-1));
           _iq = iq;
+          _iatom = -1;
+          _idirection = -1;
           return _Vq_kQij.value()(ik, nda::range::all, nda::range::all, nda::range::all);
         }
       }
@@ -335,6 +410,50 @@ namespace methods {
         }
       }
       return V_kmq_k;
+    }
+
+    /**
+     * Return the three index Coulomb tensor dV^{k1,k2} at k1 = K(ik), k2 = K(ik)- Q(iq)
+     */
+    auto dV(size_t iq, size_t iatom, size_t idirection, size_t is, size_t ik) {
+      utils::check( is < _ns, "Error in chol_reader_r::read_dV: is out of bounds: is:{}",is);
+// MAM: should spin also be cached in _V_Qij and _Vq_kQij???
+      if (_read_type == single_kpair) {
+        if (_dVq_kQij) _dVq_kQij = std::nullopt;
+        if (!_dV_Qij) _dV_Qij.emplace(nda::array<ComplexType, 3>(_Np, _nbnd, _nbnd));
+        if (_ik == ik and _iq == iq and _is == std::min(is,size_t(_ns_in_basis-1)) and
+            _iatom == iatom and _idirection == idirection) {
+          return _dV_Qij.value()();
+        } else {
+          // read a new dV_Qij for k1 = K(ik) - Q(iq), k2 = K(ik)
+          _Timer.start("READ");
+          read_dV(iq, iatom, idirection, is, ik);
+          _Timer.stop("READ");
+          _is = std::min(is,size_t(_ns_in_basis-1));
+          _ik = ik;
+          _iq = iq;
+          _iatom = iatom;
+          _idirection = idirection;
+          return _dV_Qij.value()();
+        }
+      } else { // _read_type == each_q
+        if (_dV_Qij) _dV_Qij = std::nullopt;
+        if (!_dVq_kQij) _dVq_kQij.emplace(nda::array<ComplexType, 4>(_nkpts, _Np, _nbnd, _nbnd));
+        if (_iq == iq and _is == std::min(is,size_t(_ns_in_basis-1)) and
+            _iatom == iatom and _idirection == idirection) {
+          return _dVq_kQij.value()(ik, nda::range::all, nda::range::all, nda::range::all);
+        } else {
+          // read a new dVq_kQij for Q(iq)
+          _Timer.start("READ");
+          read_dVq(iq, iatom, idirection, is);
+          _Timer.stop("READ");
+          _is = std::min(is,size_t(_ns_in_basis-1));
+          _iq = iq;
+          _iatom = iatom;
+          _idirection = idirection;
+          return _dVq_kQij.value()(ik, nda::range::all, nda::range::all, nda::range::all);
+        }
+      }
     }
 
     auto& mpi() const { return _mpi; }
@@ -367,7 +486,7 @@ namespace methods {
       h5::group sgrp = grp.open_group("Interaction");
       if( not( sgrp.has_key("tol") and sgrp.has_key("Np") ) ) return false;
       if(write_type == single_file) {
-        for (size_t iq = 0; iq < nq; ++iq) 
+        for (size_t iq = 0; iq < nq; ++iq)
           if( not sgrp.has_dataset("Vq"+std::to_string(iq)) ) return false;
       } else {
         for (size_t iq = 0; iq < nq; ++iq) {
@@ -377,11 +496,11 @@ namespace methods {
           h5::group g(f);
           if( not g.has_subgroup("Interaction") ) return false;
           h5::group sg = g.open_group("Interaction");
-          if( not sg.has_dataset("Vq"+std::to_string(iq)) ) return false; 
+          if( not sg.has_dataset("Vq"+std::to_string(iq)) ) return false;
         }
       }
       return true;
-    }   
+    }
 
     /* a temporary interface between methods::cholesky and methods::chol_reader_t */
     static void write_meta_data(std::string outdir, std::string eri_filename, int Np, mf::MF *mf, double tol) {
@@ -389,18 +508,18 @@ namespace methods {
       h5::file file(filename, 'a');
       h5::group grp(file);
 
-      h5::group sgrp = (grp.has_subgroup("Interaction") ? 
+      h5::group sgrp = (grp.has_subgroup("Interaction") ?
                         grp.open_group("Interaction")   :
                         grp.create_group("Interaction",true));
 
       add_meta_data(sgrp, Np, tol, mf->nspin(), mf->nspin_in_basis(), mf->nkpts(),
-                    mf->nbnd(), mf->kpts(), mf->Qpts(), mf->qk_to_k2());           
+                    mf->nbnd(), mf->kpts(), mf->Qpts(), mf->qk_to_k2());
     }
 
     /**
      * Write Cholesky ERIs into one h5 file for a given q-point, one dataset for each (q, k) pair.
      * @param Vq_Qskij - [INPUT] Cholesky ERI: L(Nchol, ns, nkpts, nbnd, nbnd)
-     * @param filename - [INPUT] name of h5 file where data will be written 
+     * @param filename - [INPUT] name of h5 file where data will be written
      * @param iq       - [INPUT] q-point index
      */
     template<nda::MemoryArray Array_t>
@@ -429,7 +548,7 @@ namespace methods {
     /**
      * Write Cholesky ERIs into one single h5 file and one dataset for a given q-point
      * @param Vq_Qskij - [INPUT] Cholesky ERI in distributed nda array: L(Nchol, ns, nkpts, nbnd, nbnd)
-     * @param filename - [INPUT] name of h5 file where data will be written 
+     * @param filename - [INPUT] name of h5 file where data will be written
      * @param iq       - [INPUT] q-point index
      */
     template<nda::MemoryArray local_Array_t>
@@ -508,9 +627,13 @@ namespace methods {
     int _is = -1;
     int _ik = -1;
     int _iq = -1;
+    int _iatom = -1;
+    int _idirection = -1;
 
     std::optional<nda::array<ComplexType, 3> > _V_Qij;
     std::optional<nda::array<ComplexType, 4> > _Vq_kQij;
+    std::optional<nda::array<ComplexType, 3> > _dV_Qij;
+    std::optional<nda::array<ComplexType, 4> > _dVq_kQij;
     mutable utils::TimerManager _Timer;
   };
 

@@ -28,8 +28,8 @@
 namespace methods
 {
 
-template<typename eri_grad_t>
-void mbpt_gradient(const std::string &solver_type, eri_grad_t &eri_grad,
+template<typename eri_t>
+void mbpt_gradient(const std::string &solver_type, eri_t &eri,
                    const boost::property_tree::ptree &pt);
 
 } // namespace methods

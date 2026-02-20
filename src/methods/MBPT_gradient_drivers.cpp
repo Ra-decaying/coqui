@@ -31,12 +31,12 @@
 namespace methods
 {
 
-template<typename eri_grad_t>
-void mbpt_gradient(const std::string &solver_type, eri_grad_t &eri_grad, const ptree &pt)
+template<typename eri_t>
+void mbpt_gradient(const std::string &solver_type, eri_t &eri, const ptree &pt)
 {
 
-  auto mf = eri_grad.corr_eri->get().MF();
-  auto& mpi = eri_grad.corr_eri->get().mpi();
+  auto mf = eri.corr_eri->get().MF();
+  auto& mpi = eri.corr_eri->get().mpi();
   if (mpi->comm.size() % mpi->node_comm.size() !=0) {
     APP_ABORT("MBPT: number of processors on each node should be the same.");
   }
@@ -45,15 +45,13 @@ void mbpt_gradient(const std::string &solver_type, eri_grad_t &eri_grad, const p
   auto input_grp = io::get_value_with_default<std::string>(pt, "input_grp", "scf");
   auto input_iter = io::get_value_with_default<long>(pt, "input_iter", -1);
   auto output = io::get_value_with_default<std::string>(pt, "output", "mbpt.gradients");
-  bool auxbasis_response = io::get_value_with_default<bool>(pt, "auxbasis_response", true);
 
   imag_axes_ft::IAFT ft = imag_axes_ft::read_iaft(input + ".mbpt.h5");
 
   if (solver_type == "hf_gradient") {
     simple_dyson dyson(mf.get(), &ft);
     MBState mb_state(mpi, ft, input);
-    eval_gradient(mb_state, dyson, eri_grad, ft, solver_type, input_grp, input_iter,
-                  output, auxbasis_response);
+    eval_gradient(mb_state, dyson, eri, ft, solver_type, input_grp, input_iter, output);
   } else {
     APP_ABORT("Only Hartree-Fock gradient is supported");
   }
@@ -61,11 +59,11 @@ void mbpt_gradient(const std::string &solver_type, eri_grad_t &eri_grad, const p
 }
 
 template void mbpt_gradient(const std::string&,
-                            mb_eri_t<chol_grad_reader_t, chol_grad_reader_t, chol_grad_reader_t, chol_grad_reader_t>&,
+                            mb_eri_t<chol_reader_t, chol_reader_t, chol_reader_t, chol_reader_t>&,
                             ptree const&);
 
 template void mbpt_gradient(const std::string&,
-                            mb_eri_t<chol_grad_reader_t, thc_reader_t, thc_reader_t, chol_grad_reader_t>&,
+                            mb_eri_t<chol_reader_t, thc_reader_t, thc_reader_t, chol_reader_t>&,
                             ptree const&);
 
 } // namespace methods

@@ -27,10 +27,9 @@ namespace methods {
 
     namespace mpi3 = boost::mpi3;
 
-    hf_gradient_t::hf_gradient_t(std::shared_ptr<mf::MF> MF, bool auxbasis_response):
+    hf_gradient_t::hf_gradient_t(std::shared_ptr<mf::MF> MF):
       _MF(MF),
-      _Timer(),
-      _auxbasis_response(auxbasis_response)
+      _Timer()
     {
     }
 

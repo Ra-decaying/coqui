@@ -37,15 +37,15 @@
 namespace methods
 {
 
-template<typename dyson_type, typename eri_grad_t>
-void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad_t, const imag_axes_ft::IAFT& FT,
+template<typename dyson_type, typename eri_t>
+void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const imag_axes_ft::IAFT &FT,
                    const std::string &solver_type,
                    const std::string &input_grp, int input_iter,
-                   const std::string &output, bool auxbasis_response)
+                   const std::string &output)
 {
   utils::TimerManager Timer;
-  auto mpi = mb_eri_grad_t.corr_eri->get().mpi();
-  auto mf = mb_eri_grad_t.corr_eri->get().MF();
+  auto mpi = mb_eri_t.corr_eri->get().mpi();
+  auto mf = mb_eri_t.corr_eri->get().MF();
   // http://patorjk.com/software/taag/#p=display&f=Calvin%20S&t=COQUI%20gradient
   app_log(1, "\n"
              "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌─┐┬─┐┌─┐┌┬┐┬┌─┐┌┐┌┌┬┐\n"
@@ -95,10 +95,10 @@ void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad
   auto gradient_total = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
 
   if (solver_type == "hf_gradient") {
-    hf_gradient_t hf_gradient(mf, auxbasis_response);
+    hf_gradient_t hf_gradient(mf);
     hf_gradient.evaluate(gradient_1e, gradient_2e, gradient_pulay,
                          sDm_skij.local(), sF_skij.local(), dyson.sS_skij().local(), dyson.sH0_skij().local(),
-                         mb_eri_grad_t.hf_eri->get(), false);
+                         mb_eri_t.hf_eri->get(), false);
     eval_hf_grand_potential(sDm_skij.local(), dyson.sS_skij().local(), mf, 0.0, FT.beta(), mu);
   }
 
@@ -113,13 +113,13 @@ void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_grad_t &mb_eri_grad
 }
 
 template void eval_gradient(MBState&, simple_dyson&,
-                            mb_eri_t<chol_grad_reader_t, chol_grad_reader_t, chol_grad_reader_t, chol_grad_reader_t>&,
+                            mb_eri_t<chol_reader_t, chol_reader_t, chol_reader_t, chol_reader_t>&,
                             const imag_axes_ft::IAFT&, const std::string&, const std::string&, int,
-                            const std::string&, bool);
+                            const std::string&);
 
 template void eval_gradient(MBState&, simple_dyson&,
-                            mb_eri_t<chol_grad_reader_t, thc_reader_t, thc_reader_t, chol_grad_reader_t>&,
+                            mb_eri_t<chol_reader_t, thc_reader_t, thc_reader_t, chol_reader_t>&,
                             const imag_axes_ft::IAFT&, const std::string&, const std::string&, int,
-                            const std::string&, bool);
+                            const std::string&);
 
 } // namespace methods

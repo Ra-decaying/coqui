@@ -353,25 +353,14 @@ void run(mpi3::communicator &comm, InputParser &parser)
         hf_eri_name = eri_name;
         hf_eri_type = eri_type;
       }
-      auto [eri_grad_name, eri_grad_type] = methods::get_eri_grad_block(mpi_context, pt, mf_list,
-                                                                        chol_grad_list, "interaction_gradient");
-      utils::check(eri_grad_name != "" and eri_grad_type != "",
-                   "Error: Failed to find interaction gradient block needed by {}", cname);
-      auto [hf_eri_grad_name, hf_eri_grad_type] = methods::get_eri_grad_block(mpi_context, pt, mf_list,
-                                                                              chol_grad_list, "interaction_hf_gradient");
-      if (hf_eri_grad_name == "" or hf_eri_grad_type == "") {
-        hf_eri_grad_name = eri_grad_name;
-        hf_eri_grad_type = eri_grad_type;
-      }
-      if (hf_eri_type == "cholesky" and eri_type == "cholesky" and
-          hf_eri_type  == "cholesky" and eri_grad_type == "cholesky") {
+      if (hf_eri_type == "cholesky" and eri_type == "cholesky") {
         auto mf_name = std::get<0>(chol_list[eri_name]);
         utils::check(mf_name == std::get<0>(chol_list[hf_eri_name]), "{}: mfs of eri and hf_eri are inconsistent!");
-        auto mb_eri_grad = methods::mb_eri_t(*std::get<1>(chol_grad_list[hf_eri_grad_name]), *std::get<1>(chol_grad_list[eri_grad_name]));
+        auto mb_eri_grad = methods::mb_eri_t(*std::get<1>(chol_list[hf_eri_name]), *std::get<1>(chol_list[eri_name]));
         methods::mbpt_gradient(cname, mb_eri_grad, pt);
       } else {
-        APP_ABORT("Error: only cholesky version is supported. hf_eri_type = {}, eri_type = {}, eri_grad_type = {}",
-                  hf_eri_type, eri_type, eri_grad_type);
+        APP_ABORT("Error: only cholesky version is supported. hf_eri_type = {}, eri_type = {}",
+                  hf_eri_type, eri_type);
       }
 
     } else if (cname == "downfold_1e") {

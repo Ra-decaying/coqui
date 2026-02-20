@@ -41,7 +41,7 @@ namespace methods {
 
     public:
 
-    hf_gradient_t(std::shared_ptr<mf::MF> MF, bool auxbasis_response = true);
+    hf_gradient_t(std::shared_ptr<mf::MF> MF);
 
     ~hf_gradient_t() = default;
 
@@ -67,8 +67,6 @@ namespace methods {
     std::shared_ptr<mf::MF> _MF = nullptr;
 
     utils::TimerManager _Timer;
-
-    bool _auxbasis_response = true;
 
     int _natoms = 0;
     int _nbnd = 0;
