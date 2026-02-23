@@ -34,7 +34,9 @@ please visit our [examples](examples/README.md) page.
 - Hartree-Fock [[ref](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.3c00615)]
 - RPA correlation energy [[ref](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.3c00615)]
 - GW approximation [[ref](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.4c00085)]
-- Second-order exchange (SOX) diagram [[ref](https://arxiv.org/abs/2404.17744)]
+- Second-order exchange (SOX) diagram with bare interactions [[ref](https://doi.org/10.1063/5.0215954)]
+- Second-order screened exchange (SOSEX, 2SOSEX) diagram with statically and dynamically screened interactions [[ref](https://doi.org/10.1063/5.0269572)]
+- Vertex-corrected GW self-energy (G3W2) diagram with statically screened interactions [[ref](https://doi.org/10.1063/5.0269572)]
 - Self-consistency with quasiparticle approximation 
 - Self-consistency with full frequency dependence
 
@@ -110,3 +112,13 @@ Approximation Using Tensor Hypercontraction with k-point Sampling,
 [2] C.-N. Yeh, M. Morales, Low-Scaling Algorithms for GW and Constrained Random Phase
 Approximation Using Symmetry-Adapted Interpolative Separable Density Fitting,
 [J. Chem. Theory Comput. 20, 8, 3184–3198 (2024)](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.4c00085). 
+
+[3] P. Pokhilko, C.-N. Yeh, M. Morales, D. Zgid, Tensor hypercontraction for 
+fully self-consistent imaginary-time GF2 and GWSOX methods: 
+theory, implementation, and role of the Green's function second-order exchange for intermolecular interactions, 
+[J. Chem. Phys., 161, 084108 (2024)](https://doi.org/10.1063/5.0215954). 
+
+[4] P. Pokhilko, C.-N. Yeh, M. Morales, D. Zgid, Tensor hypercontraction for 
+self-consistent vertex corrected GW with static and dynamic 
+screening; applications to molecules and solids with superexchange,
+[J. Chem. Phys., 162, 244110 (2025)](https://doi.org/10.1063/5.0269572).  
