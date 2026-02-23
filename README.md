@@ -102,23 +102,4 @@ source [YOUR_INSTALL_PREFIX]/share/coqui/coqui_env.sh
 - **Reference inputs:** Browse runnable cases in [examples](examples/README.md).
 
 ## Citation
-If you use `CoQui` in your research, please consider supporting our developers 
-by citing the following papers:
-
-[1] C.-N. Yeh, M. Morales, Low-Scaling Algorithm for the Random Phase
-Approximation Using Tensor Hypercontraction with k-point Sampling,
-[J. Chem. Theory Comput. 19, 18, 6197–6207 (2023)](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.3c00615).
-
-[2] C.-N. Yeh, M. Morales, Low-Scaling Algorithms for GW and Constrained Random Phase
-Approximation Using Symmetry-Adapted Interpolative Separable Density Fitting,
-[J. Chem. Theory Comput. 20, 8, 3184–3198 (2024)](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.4c00085). 
-
-[3] P. Pokhilko, C.-N. Yeh, M. Morales, D. Zgid, Tensor hypercontraction for 
-fully self-consistent imaginary-time GF2 and GWSOX methods: 
-theory, implementation, and role of the Green's function second-order exchange for intermolecular interactions, 
-[J. Chem. Phys., 161, 084108 (2024)](https://doi.org/10.1063/5.0215954). 
-
-[4] P. Pokhilko, C.-N. Yeh, M. Morales, D. Zgid, Tensor hypercontraction for 
-self-consistent vertex corrected GW with static and dynamic 
-screening; applications to molecules and solids with superexchange,
-[J. Chem. Phys., 162, 244110 (2025)](https://doi.org/10.1063/5.0269572).  
+If you use `CoQui` in your research, please cite the relevant papers listed in [REFERENCES.md](REFERENCES.md).
