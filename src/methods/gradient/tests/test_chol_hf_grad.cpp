@@ -76,9 +76,9 @@ namespace bdft_tests {
                          eri.hf_eri->get(), false);
     gradient_elec = gradient_1e + gradient_2e + gradient_pulay;
     gradient_total =  gradient_elec + mf->nuclear_gradient();
-    print_mbpt_gradient(mf->nuclear_gradient(), mf, "GRAD_NUC");
-    print_mbpt_gradient(gradient_elec, mf, "GRAD_ELEC");
-    print_mbpt_gradient(gradient_total, mf, "GRAD_TOTAL");
+    print_mbpt_gradients(mf->nuclear_gradient(), mf, "GRAD_NUC");
+    print_mbpt_gradients(gradient_elec, mf, "GRAD_ELEC");
+    print_mbpt_gradients(gradient_total, mf, "GRAD_TOTAL");
 
     auto grad_total_ref = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
     h5::file file(outdir + "/" + prefix + ".h5", 'r');

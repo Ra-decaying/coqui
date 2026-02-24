@@ -37,10 +37,9 @@ namespace methods
 {
 
 template<typename dyson_type, typename eri_t>
-void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const imag_axes_ft::IAFT &FT,
+void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const imag_axes_ft::IAFT &FT,
                    const std::string &solver_type,
-                   const std::string &input_grp, int input_iter,
-                   const std::string &output)
+                   const std::string &input_grp, int input_iter)
 {
   utils::TimerManager Timer;
   auto mpi = mb_eri_t.corr_eri->get().mpi();
@@ -103,22 +102,21 @@ void eval_gradient(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const 
 
   gradient_elec = gradient_1e + gradient_2e + gradient_pulay;
   gradient_total =  gradient_elec + mf->nuclear_gradient();
-  print_mbpt_gradient(mf->nuclear_gradient(), mf, "GRAD_NUC");
-  print_mbpt_gradient(gradient_elec, mf, "GRAD_ELEC");
-  print_mbpt_gradient(gradient_total, mf, "GRAD_TOTAL");
+  print_mbpt_gradients(mf->nuclear_gradient(), mf, "GRAD_NUC");
+  print_mbpt_gradients(gradient_elec, mf, "GRAD_ELEC");
+  print_mbpt_gradients(gradient_total, mf, "GRAD_TOTAL");
+  write_mbpt_gradients(gradient_total, mb_state.coqui_prefix, input_iter);
 
   app_log(1, "####### Gradient routines end #######\n");
 
 }
 
-template void eval_gradient(MBState&, simple_dyson&,
+template void eval_gradients(MBState&, simple_dyson&,
                             mb_eri_t<chol_reader_t, chol_reader_t, chol_reader_t, chol_reader_t>&,
-                            const imag_axes_ft::IAFT&, const std::string&, const std::string&, int,
-                            const std::string&);
+                            const imag_axes_ft::IAFT&, const std::string&, const std::string&, int);
 
-template void eval_gradient(MBState&, simple_dyson&,
+template void eval_gradients(MBState&, simple_dyson&,
                             mb_eri_t<chol_reader_t, thc_reader_t, thc_reader_t, chol_reader_t>&,
-                            const imag_axes_ft::IAFT&, const std::string&, const std::string&, int,
-                            const std::string&);
+                            const imag_axes_ft::IAFT&, const std::string&, const std::string&, int);
 
 } // namespace methods

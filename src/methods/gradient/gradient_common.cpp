@@ -30,8 +30,8 @@
 namespace methods {
 
 template<typename data_type>
-void print_mbpt_gradient(const nda::array<data_type, 2>& gradient, std::shared_ptr<mf::MF> mf,
-                         const std::string &str, bool bohr)
+void print_mbpt_gradients(const nda::array<data_type, 2>& gradients, std::shared_ptr<mf::MF> mf,
+                          const std::string &str, bool bohr)
 {
     double factor;
     std::string unit;
@@ -50,19 +50,36 @@ void print_mbpt_gradient(const nda::array<data_type, 2>& gradient, std::shared_p
     for (int iatom = 0; iatom < mf->number_of_atoms(); ++iatom) {
       app_log(1, "   {:<5}{:<5}{:>+20.10f}{:>+20.10f}{:>+20.10f}",
         iatom, mf->atomic_id(iatom),
-        nda::real(gradient(iatom, 0) * factor),
-        nda::real(gradient(iatom, 1) * factor),
-        nda::real(gradient(iatom, 2) * factor));
+        nda::real(gradients(iatom, 0) * factor),
+        nda::real(gradients(iatom, 1) * factor),
+        nda::real(gradients(iatom, 2) * factor));
     }
     app_log(1, "\n");
 }
 
+template<typename data_type>
+void write_mbpt_gradients(const nda::array<data_type, 2>& gradients, const std::string &output, long iter)
+{
+  std::string filename = output + ".mbpt.h5";
+  std::string iter_grp_name = "iter" + std::to_string(iter);
+  h5::file file(filename, 'a');
+  h5::group grp(file);
+  auto scf_grp = (grp.has_subgroup("scf")) ? grp.open_group("scf") : grp.create_group("scf");
+  auto iter_grp = (scf_grp.has_subgroup(iter_grp_name)) ?
+                  scf_grp.open_group(iter_grp_name) : scf_grp.create_group(iter_grp_name);
 
-template void print_mbpt_gradient(const nda::array<RealType, 2>&, std::shared_ptr<mf::MF>,
-                                  const std::string&, bool);
+  nda::h5_write(iter_grp, "gradients", nda::make_regular(nda::real(gradients)), false);
+}
 
-template void print_mbpt_gradient(const nda::array<ComplexType, 2> &, std::shared_ptr<mf::MF>,
-                                  const std::string&, bool);
+template void print_mbpt_gradients(const nda::array<RealType, 2>&, std::shared_ptr<mf::MF>,
+                                   const std::string&, bool);
+
+template void print_mbpt_gradients(const nda::array<ComplexType, 2> &, std::shared_ptr<mf::MF>,
+                                   const std::string&, bool);
+
+template void write_mbpt_gradients(const nda::array<RealType, 2>&, const std::string&, long);
+
+template void write_mbpt_gradients(const nda::array<ComplexType, 2>&, const std::string&, long);
 
 } // namespace methods
 

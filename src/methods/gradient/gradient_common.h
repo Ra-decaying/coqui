@@ -30,14 +30,13 @@
 namespace methods {
 
 template<typename data_type>
-void print_mbpt_gradient(const nda::array<data_type, 2> &gradient,
+void print_mbpt_gradients(const nda::array<data_type, 2> &gradient,
                          std::shared_ptr<mf::MF> mf,
                          const std::string& str, bool bohr = true);
 
 template<typename data_type>
-void write_mbpt_gradient(const nda::array<data_type, 2> &gradient,
-                         std::shared_ptr<mf::MF> mf,
-                         const std::string &output, bool bohr = true);
+void write_mbpt_gradients(const nda::array<data_type, 2> &gradient,
+                          const std::string &output, long iter);
 
 } // namespace methods
 
