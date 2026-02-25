@@ -81,7 +81,7 @@ void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const
   auto& sSigma_tskij = mb_state.sSigma_tskij.value();
 
   double mu = 0.0;
-  long init_it = 0;
+
   init_it = read_scf(mpi->node_comm, sF_skij, sSigma_tskij, mu, mb_state.coqui_prefix, input_grp, input_iter);
   sG_tskij = read_greens_function(*mpi, mf.get(), mb_state.coqui_prefix+ ".mbpt.h5", input_iter, input_grp);
   read_dm(mpi->node_comm, mb_state.coqui_prefix, input_iter, sDm_skij);
@@ -112,11 +112,11 @@ void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const
 }
 
 template void eval_gradients(MBState&, simple_dyson&,
-                            mb_eri_t<chol_reader_t, chol_reader_t, chol_reader_t, chol_reader_t>&,
-                            const imag_axes_ft::IAFT&, const std::string&, const std::string&, int);
+                             mb_eri_t<chol_reader_t, chol_reader_t, chol_reader_t, chol_reader_t>&,
+                             const imag_axes_ft::IAFT&, const std::string&, const std::string&, int);
 
 template void eval_gradients(MBState&, simple_dyson&,
-                            mb_eri_t<chol_reader_t, thc_reader_t, thc_reader_t, chol_reader_t>&,
-                            const imag_axes_ft::IAFT&, const std::string&, const std::string&, int);
+                             mb_eri_t<chol_reader_t, thc_reader_t, thc_reader_t, chol_reader_t>&,
+                             const imag_axes_ft::IAFT&, const std::string&, const std::string&, int);
 
 } // namespace methods

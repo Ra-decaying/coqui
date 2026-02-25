@@ -18,6 +18,8 @@ limitations under the License.
 ==========================================================================
 """
 
+# TODO: merge gdf_grad_converter into gdf_converter
+
 import os
 
 import numpy as np

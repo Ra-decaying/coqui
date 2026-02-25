@@ -67,7 +67,7 @@ namespace methods {
       app_log(1, "  - nbnd_aux:          {}", _nbnd_aux);
       app_log(1, "  - nspin:             {}", _nspin);
       app_log(1, "  - nkpts:             {}", _nkpts);
-      app_log(1, "  - npol:              {}", _nkpts);
+      app_log(1, "  - npol:              {}", _npol);
       app_log(1, "\n");
 
       gradient_1e = nda::array<ComplexType, 2>::zeros({_natoms, 3});
