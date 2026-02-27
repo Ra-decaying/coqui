@@ -181,10 +181,10 @@ namespace methods {
       }
 
       // exchange
-      //   \sum D_{ji} D_{lk} [ d/dX (il|kj) ]
-      // = \sum D_{ji} D_{lk} ( V_{Qil} dV^{*}_{Qjk} + dV_{Qil} V^{*}_{Qjk} )
-      // = \sum ( V_{Qil} D_{lk} ) (dV_{Qjk} D^{*}_{ij} )^{*} +
-      //   \sum (dV_{Qil} D_{lk} ) ( V_{Qjk} D^{*}_{ij} )^{*}
+      //   \sum D_{li} D_{jk} [ d/dX (ij|kl) ]
+      // = \sum D_{li} D_{jk} ( V_{Qij} dV^{*}_{Qlk} + dV_{Qij} V^{*}_{Qlk} )
+      // = \sum ( V_{Qij} D_{jk} ) (dV_{Qlk} D^{*}_{il} )^{*} +
+      //   \sum (dV_{Qij} D_{jk} ) ( V_{Qlk} D^{*}_{il} )^{*}
       // TO-DO: check and confirm conjugate and transpose
 
         for (int ispin = 0; ispin < _nspin; ++ispin) {
@@ -195,9 +195,9 @@ namespace methods {
             auto dm_conj = nda::make_regular(nda::conj(D_skij(ispin, ikpt, all, all)));
 
             {
-              auto V_Pil_Pi_l = nda::reshape(V, std::array<int, 2>({_nbnd_aux * _nbnd, _nbnd}));
+              auto V_Pij_Pi_j = nda::reshape(V, std::array<int, 2>({_nbnd_aux * _nbnd, _nbnd}));
               auto tmp_Pik_Pi_k = nda::array<ComplexType, 2>::zeros({_nbnd_aux * _nbnd, _nbnd});
-              nda::blas::gemm(V_Pil_Pi_l, D_skij(ispin, ikpt, all, all), tmp_Pik_Pi_k);
+              nda::blas::gemm(V_Pij_Pi_j, D_skij(ispin, ikpt, all, all), tmp_Pik_Pi_k);
               auto tmp_Qik_Q_i_k = nda::array<ComplexType, 3>::zeros({_nbnd_aux, _nbnd, _nbnd});
               for (int iQ = 0; iQ < _nbnd_aux; ++iQ) {
                 nda::blas::gemm(dm_conj, dV(iQ, all, all), tmp_Qik_Q_i_k(iQ, all, all));
@@ -208,9 +208,9 @@ namespace methods {
             }
 
             {
-              auto dV_Pil_Pi_l = nda::reshape(dV, std::array<int, 2>({_nbnd_aux * _nbnd, _nbnd}));
+              auto dV_Pij_Pi_j = nda::reshape(dV, std::array<int, 2>({_nbnd_aux * _nbnd, _nbnd}));
               auto tmp_Pik_Pi_k = nda::array<ComplexType, 2>::zeros({_nbnd_aux * _nbnd, _nbnd});
-              nda::blas::gemm(dV_Pil_Pi_l, D_skij(ispin, ikpt, all, all), tmp_Pik_Pi_k);
+              nda::blas::gemm(dV_Pij_Pi_j, D_skij(ispin, ikpt, all, all), tmp_Pik_Pi_k);
               auto tmp_Qik_Q_i_k = nda::array<ComplexType, 3>::zeros({_nbnd_aux, _nbnd, _nbnd});
               for (int iQ = 0; iQ < _nbnd_aux; ++iQ) {
                 nda::blas::gemm(dm_conj, V(iQ, all, all), tmp_Qik_Q_i_k(iQ, all, all));
