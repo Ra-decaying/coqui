@@ -271,7 +271,8 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
 
             # mixing impurity and dc solutions to facilitate convergence
             dmft_state.damp_impurity_results(
-                solver_chkpt_h5, mixing=iterative_params.get('mixing', 0.7), impurity_indices=[imp_index]
+                solver_chkpt_h5, mixing=iterative_params.get('mixing', 0.7), impurity_indices=[imp_index], 
+                mix_in_first_iter=iterative_params.get('mix_in_first_iter', False)
             )
 
             # save solver results for current impurity
@@ -425,7 +426,8 @@ def _edmft_loop_fixed_gloc_and_wloc(
 
             # mixing impurity and dc solutions to facilitate convergence
             dmft_state.damp_impurity_results(
-                solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7), impurity_indices=[imp_index]
+                solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7), impurity_indices=[imp_index], 
+                mix_in_first_iter=iterative_params.get('mix_in_first_iter', False)
             )
 
             # save solver results for current impurity
@@ -493,7 +495,7 @@ def _compute_weiss_fields(coqui_mpi, imp_results, imp_inputs, solver_params, ir_
                     "Wloc_t": imp_inputs['Wloc_t'],
                     "Vloc": imp_inputs['Vloc']
                 },
-                init_weiss_type = solver_params.get('init_weiss_type', 'dc'),
+                init_imp_results = solver_params.get('init_imp_results', 'dc'),
                 density_only=True
             )
         )
@@ -504,7 +506,7 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
 
     solver_params.pop('degenerate_blk_thresh', None)
     solver_params.pop('set_sigma_infty_to_dc', None)
-    solver_params.pop('init_weiss_type', None)
+    solver_params.pop('init_imp_results', None)
     solver_params.pop("causal_projection", None)
     solver_params.pop("screen_j", None)
     mu_params = solver_params.pop('chemical_potential', None)

@@ -293,7 +293,8 @@ class DMFTState(object):
         mpi.barrier()
 
 
-    def damp_impurity_results(self, solver_chkpt, mixing=0.7, *, impurity_indices=None):
+    def damp_impurity_results(self, solver_chkpt, mixing=0.7, *, impurity_indices=None, 
+                              mix_in_first_iter=False):
         assert self.iteration >= 0, "damp_impurity_results: Iteration must be greater than 0"
 
         if impurity_indices is not None:
@@ -301,12 +302,13 @@ class DMFTState(object):
         else:
             impurity_indices = np.arange(len(self.solver_results))
 
-        #if self.iteration == 0: # no damping in the first iteration
-        #    return
+        if self.iteration == 0 and not mix_in_first_iter: # no damping in the first iteration
+            mpi.report("Skipping damping the impurity results in the first iteration.\n")
+            return
 
-        mpi.report(f"Damping impurity results for impurities {impurity_indices}\n")
-        if self.iteration == 0:
+        if self.iteration == 0 and mix_in_first_iter:
             # first iteration: mix impurity results with the dc terms in the first iteration 
+            mpi.report(f"Mixing impurity results with DC terms for impurities {impurity_indices}\n")
             for idx, imp_idx in enumerate(impurity_indices):
                 res = self.solver_results[imp_idx]
                 imp_key = ['Sigma_infty', 'Sigma_iw_data', 'Pi_iw_data']
@@ -318,7 +320,8 @@ class DMFTState(object):
                         raise KeyError(f"Missing key '{dc}' for impurity {imp_idx} during damping.")
                     _mix_into(res[imp], res[dc], mixing)
             return
-
+        
+        mpi.report(f"Mixing impurity results with the previous iteration for impurities {impurity_indices}\n")
         solver_results_prev = dmft_io.read_impurity_chkpt(
             solver_chkpt, self.iteration-1, read="results", impurity_indices=impurity_indices
         )
