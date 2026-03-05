@@ -457,9 +457,11 @@ namespace methods {
         div_treatment = ignore_g0;
       }
 
-      if (div_treatment == ignore_g0) {
+      auto div_string = div_enum_to_string(div_treatment);
+
+      if (div_string == "ignore_g0") {
         return;
-      } else if (div_treatment==gygi or div_treatment==gygi_extrplt or div_treatment==gygi_extrplt_2d) {
+      } else if (div_string.find("gygi") != std::string::npos) {
         auto MF = thc.MF();
         auto mpi = thc.mpi();
         app_log(1, "    - madelung = {}", MF->madelung());

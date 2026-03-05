@@ -301,24 +301,23 @@ class DMFTState(object):
         else:
             impurity_indices = np.arange(len(self.solver_results))
 
-        if self.iteration == 0: # no damping in the first iteration
-            return
+        #if self.iteration == 0: # no damping in the first iteration
+        #    return
 
         mpi.report(f"Damping impurity results for impurities {impurity_indices}\n")
-        # Preserve the original first-iteration damping logic for reference, but keep it disabled.
-        #if self.iteration == 0:
-        #    # first iteration: mix with dc terms
-        #    for idx, imp_idx in enumerate(impurity_indices):
-        #        res = self.solver_results[imp_idx]
-        #        imp_key = ['Sigma_infty', 'Sigma_iw_data', 'Pi_iw_data']
-        #        dc_key  = ['Sigma_infty_dc', 'Sigma_iw_dc_data', 'Pi_iw_dc_data']
-        #        for (imp, dc) in zip(imp_key, dc_key):
-        #            if imp not in res:
-        #                raise KeyError(f"Missing key '{imp}' for impurity {imp_idx} during damping.")
-        #            if dc not in res:
-        #                raise KeyError(f"Missing key '{dc}' for impurity {imp_idx} during damping.")
-        #            _mix_into(res[imp], res[dc], mixing)
-        #    return
+        if self.iteration == 0:
+            # first iteration: mix impurity results with the dc terms in the first iteration 
+            for idx, imp_idx in enumerate(impurity_indices):
+                res = self.solver_results[imp_idx]
+                imp_key = ['Sigma_infty', 'Sigma_iw_data', 'Pi_iw_data']
+                dc_key  = ['Sigma_infty_dc', 'Sigma_iw_dc_data', 'Pi_iw_dc_data']
+                for (imp, dc) in zip(imp_key, dc_key):
+                    if imp not in res:
+                        raise KeyError(f"Missing key '{imp}' for impurity {imp_idx} during damping.")
+                    if dc not in res:
+                        raise KeyError(f"Missing key '{dc}' for impurity {imp_idx} during damping.")
+                    _mix_into(res[imp], res[dc], mixing)
+            return
 
         solver_results_prev = dmft_io.read_impurity_chkpt(
             solver_chkpt, self.iteration-1, read="results", impurity_indices=impurity_indices
