@@ -75,7 +75,7 @@ namespace bdft_tests {
     grad_pulay = eval_grad_pulay(mf, mb_state.sDm_skij.value().local(), mb_state.sF_skij.value().local(),
                                  dyson.sS_skij().local(), dyson.sH0_skij().local(), false);
     grad_elec = grad_1e + grad_2e + grad_pulay;
-    grad_total =  grad_elec + mf->nuclear_gradient();
+    grad_total = grad_elec + mf->nuclear_gradient();
     print_mbpt_gradients(mf->nuclear_gradient(), mf, "GRAD_NUC");
     print_mbpt_gradients(grad_elec, mf, "GRAD_ELEC");
     print_mbpt_gradients(grad_total, mf, "GRAD_TOTAL");

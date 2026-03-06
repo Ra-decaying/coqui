@@ -46,15 +46,6 @@ namespace methods {
 
       _Timer.start("TOTAL");
 
-      _natoms = _MF->number_of_atoms();
-      _nbnd = _MF->nbnd();
-      _nbnd_aux = _MF->nbnd_aux();
-      _nspin = _MF->nspin();
-      _nkpts = _MF->nkpts();
-      _npol = _MF->npol();
-
-      _k_weight = _MF->k_weight();
-
       app_log(1, "  - nbnd:              {}", _nbnd);
       app_log(1, "  - nbnd_aux:          {}", _nbnd_aux);
       app_log(1, "  - nspin:             {}", _nspin);
@@ -62,7 +53,7 @@ namespace methods {
       app_log(1, "  - npol:              {}", _npol);
       app_log(1, "\n");
 
-      auto tmp_grad_2e = eval_grad_2e(D_skij, chol);
+      nda::array<ComplexType, 2> tmp_grad_2e = eval_grad_2e(D_skij, chol);
 
       _Timer.stop("TOTAL");
 
@@ -119,18 +110,18 @@ namespace methods {
       return dm_total;
     }
 
-    ComplexType hf_gradient_t::eval_grad_2e(int iatom, int idirection,
+    ComplexType hf_gradient_t::eval_grad_2e(int iatom, int direction,
                                            const nda::MemoryArrayOfRank<4> auto &D_skij,
                                            Cholesky_ERI auto && chol)
     {
       auto D_total_kij = eval_dm_total(D_skij);
       ComplexType tmp_grad(0.0, 0.0);
-      tmp_grad += eval_grad_coulomb(iatom, idirection, D_total_kij, chol);
-      tmp_grad += eval_grad_exchange(iatom, idirection, D_skij, chol);
+      tmp_grad += eval_grad_coulomb(iatom, direction, D_total_kij, chol);
+      tmp_grad += eval_grad_exchange(iatom, direction, D_skij, chol);
       return tmp_grad;
     }
 
-    ComplexType hf_gradient_t::eval_grad_coulomb(int iatom, int idirection,
+    ComplexType hf_gradient_t::eval_grad_coulomb(int iatom, int direction,
                                                  const nda::MemoryArrayOfRank<3> auto &D_total_kij,
                                                  Cholesky_ERI auto && chol)
     {
@@ -148,7 +139,7 @@ namespace methods {
       for (int ikpt = 0; ikpt < _nkpts; ++ikpt) {
         auto tmp = nda::array<ComplexType, 2>::zeros({1, 1});
         auto V = chol.V(0, 0, ikpt);
-        auto dV = chol.dV(0, iatom, idirection, 0, ikpt);
+        auto dV = chol.dV(0, iatom, direction, 0, ikpt);
 
         auto dm_total_conj = nda::make_regular(nda::conj(D_total_kij(ikpt, all, all)));
         auto dm_total_conj_ij_1 = nda::reshape(dm_total_conj, std::array<int, 2>({_nbnd * _nbnd, 1}));
@@ -180,9 +171,9 @@ namespace methods {
       return tmp_grad;
     }
 
-    ComplexType hf_gradient_t::eval_grad_exchange(int iatom, int idirection,
-                                             const nda::MemoryArrayOfRank<4> auto &D_skij,
-                                             Cholesky_ERI auto && chol)
+    ComplexType hf_gradient_t::eval_grad_exchange(int iatom, int direction,
+                                                  const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                                  Cholesky_ERI auto && chol)
     {
       decltype(nda::range::all) all;
 
@@ -199,7 +190,7 @@ namespace methods {
         for (int ikpt = 0; ikpt < _nkpts; ++ikpt) {
           RealType spin_factor = (_nspin == 1 and _npol == 1) ? 1.0 : 0.5;
           auto V = chol.V(0, 0, ikpt);
-          auto dV = chol.dV(0, iatom, idirection, 0, ikpt);
+          auto dV = chol.dV(0, iatom, direction, 0, ikpt);
           auto dm_conj = nda::make_regular(nda::conj(D_skij(ispin, ikpt, all, all)));
 
           {

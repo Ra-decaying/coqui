@@ -29,7 +29,14 @@ namespace methods {
 
     hf_gradient_t::hf_gradient_t(std::shared_ptr<mf::MF> MF):
       _MF(MF),
-      _Timer()
+      _Timer(),
+      _natoms(_MF->number_of_atoms()),
+      _nbnd(_MF->nbnd()),
+      _nbnd_aux(_MF->nbnd_aux()),
+      _nspin(_MF->nspin()),
+      _nkpts(_MF->nkpts()),
+      _npol(_MF->npol()),
+      _k_weight(_MF->k_weight())
     {
     }
 
