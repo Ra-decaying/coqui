@@ -45,22 +45,30 @@ namespace methods {
 
     ~hf_gradient_t() = default;
 
-    void evaluate(nda::array<ComplexType, 2> &gradient_1e,
-                  nda::array<ComplexType, 2> &gradient_2e,
-                  nda::array<ComplexType, 2> &gradient_pulay,
-                  const nda::MemoryArrayOfRank<4> auto &D_skij,
-                  const nda::MemoryArrayOfRank<4> auto &F_skij,
-                  const nda::MemoryArrayOfRank<4> auto &S_skij,
-                  const nda::MemoryArrayOfRank<4> auto &H0_skij,
-                  Cholesky_ERI auto &&chol, bool F_has_H0);
+    nda::array<ComplexType, 2> evaluate(const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                        Cholesky_ERI auto && chol);
+
+    nda::array<ComplexType, 2> eval_grad_2e(const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                            Cholesky_ERI auto && chol);
+
+    nda::array<ComplexType, 2> eval_grad_coulomb(const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                                 Cholesky_ERI auto && chol);
+
+    nda::array<ComplexType, 2> eval_grad_exchange(const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                                  Cholesky_ERI auto && chol);
+
+    nda::array<ComplexType, 3> eval_dm_total(const nda::MemoryArrayOfRank<4> auto &D_skij);
+
+    ComplexType eval_grad_2e(int iatom, int direction, const nda::MemoryArrayOfRank<4> auto &D_skij,
+                             Cholesky_ERI auto && chol);
+
+    ComplexType eval_grad_coulomb(int iatom, int direction, const nda::MemoryArrayOfRank<3> auto &D_total_kij,
+                                  Cholesky_ERI auto && chol);
+
+    ComplexType eval_grad_exchange(int iatom, int direction, const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                    Cholesky_ERI auto && chol);
 
     void print_chol_hf_grad_timers();
-
-    ComplexType evaluate_1e(int iatom, int direction, const nda::MemoryArrayOfRank<4> auto &D_skij);
-    ComplexType evaluate_2e(int iatom, int direction, const nda::MemoryArrayOfRank<4> auto &D_skij,
-                            Cholesky_ERI auto && chol);
-    ComplexType evaluate_pulay(int iatom, int direction, const nda::MemoryArrayOfRank<4> auto& DE_skij);
-
 
     private:
 

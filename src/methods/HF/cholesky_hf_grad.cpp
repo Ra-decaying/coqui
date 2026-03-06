@@ -26,14 +26,8 @@ namespace methods {
 
   namespace solvers {
 
-    void hf_gradient_t::evaluate(nda::array<ComplexType, 2> &gradient_1e,
-                                 nda::array<ComplexType, 2> &gradient_2e,
-                                 nda::array<ComplexType, 2> &gradient_pulay,
-                                 const nda::MemoryArrayOfRank<4> auto &D_skij,
-                                 const nda::MemoryArrayOfRank<4> auto &F_skij,
-                                 const nda::MemoryArrayOfRank<4> auto &S_skij,
-                                 const nda::MemoryArrayOfRank<4> auto &H0_skij,
-                                 Cholesky_ERI auto &&chol, bool F_has_H0)
+    nda::array<ComplexType, 2> hf_gradient_t::evaluate(const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                                       Cholesky_ERI auto &&chol)
     {
       utils::TimerManager Timer;
 
@@ -46,9 +40,7 @@ namespace methods {
       utils::check(_MF->nkpts() == _MF->nkpts_ibz(),
                    "hf_t::cholesky_hf_grad::evaluate: Symmetry not yet implemented.");
 
-      decltype(nda::range::all) all;
-
-      for( auto& v: {"TOTAL", "1-ELECTRON", "2-ELECTRON", "PULAY", "WRITE"} ) {
+      for( auto& v: {"TOTAL", "COULOMB", "EXCHANGE", "WRITE"} ) {
         _Timer.add(v);
       }
 
@@ -70,72 +62,81 @@ namespace methods {
       app_log(1, "  - npol:              {}", _npol);
       app_log(1, "\n");
 
-      gradient_1e = nda::array<ComplexType, 2>::zeros({_natoms, 3});
-      gradient_2e = nda::array<ComplexType, 2>::zeros({_natoms, 3});
-      gradient_pulay = nda::array<ComplexType, 2>::zeros({_natoms, 3});
-
-      auto DE_skij = nda::array<ComplexType, 4>::zeros({_nspin, _nkpts, _nbnd, _nbnd});
-      for (int ispin = 0; ispin < _nspin; ++ispin) {
-        for (int ikpt = 0; ikpt < _nkpts; ++ikpt) {
-          auto tmp = nda::array<ComplexType, 2>::zeros({_nbnd, _nbnd});
-          auto SC = nda::array<ComplexType, 2>::zeros({_nbnd, _nbnd});
-          auto F = nda::array<ComplexType, 2>::zeros({_nbnd, _nbnd});
-          auto S = nda::array<ComplexType, 2>::zeros({_nbnd, _nbnd});
-          if (F_has_H0) {
-            F = F_skij(ispin, ikpt, all, all);
-          } else {
-            F = F_skij(ispin, ikpt, all, all) + H0_skij(ispin, ikpt, all, all);
-          }
-          S = S_skij(ispin, ikpt, all, all);
-          auto [energies, coeffs] = nda::linalg::eigenelements(F, S);
-          nda::blas::gemm(1.0, S_skij(ispin, ikpt, all, all), coeffs, 0.0, SC);
-          nda::blas::gemm(1.0, nda::transpose(nda::conj(SC)), D_skij(ispin, ikpt, all, all), 0.0, tmp);
-          nda::blas::gemm(1.0, tmp, SC, 0.0, DE_skij(ispin, ikpt, all, all));
-          for (int ibnd = 0; ibnd < _nbnd; ++ibnd) {
-            DE_skij(ispin, ikpt, ibnd, ibnd) = energies(ibnd) * DE_skij(ispin, ikpt, ibnd, ibnd);
-          }
-          nda::blas::gemm(1.0, coeffs, DE_skij(ispin, ikpt, all, all), 0.0, tmp);
-          nda::blas::gemm(1.0, tmp, nda::transpose(nda::conj(coeffs)), 0.0, DE_skij(ispin, ikpt, all, all));
-        }
-      }
-
-      for (int iatom = 0; iatom < _natoms; ++iatom) {
-        for (int direction = 0; direction < 3; ++direction) {
-          _Timer.start("1-ELECTRON");
-          gradient_1e(iatom, direction) += evaluate_1e(iatom, direction, D_skij);
-          _Timer.stop("1-ELECTRON");
-        }
-      }
-
-      for (int iatom = 0; iatom < _natoms; ++iatom) {
-        for (int direction = 0; direction < 3; ++direction) {
-          _Timer.start("2-ELECTRON");
-          gradient_2e(iatom, direction) += evaluate_2e(iatom, direction, D_skij, chol);
-          _Timer.stop("2-ELECTRON");
-        }
-      }
-
-      for (int iatom = 0; iatom < _natoms; ++iatom) {
-        for (int direction = 0; direction < 3; ++direction) {
-          _Timer.start("PULAY");
-          gradient_pulay(iatom, direction) += evaluate_pulay(iatom, direction, DE_skij);
-          _Timer.stop("PULAY");
-        }
-      }
+      auto tmp_grad_2e = eval_grad_2e(D_skij, chol);
 
       _Timer.stop("TOTAL");
 
       print_chol_hf_grad_timers();
       chol.print_timers();
 
+      return tmp_grad_2e;
     }
 
-    ComplexType hf_gradient_t::evaluate_2e(int iatom, int idirection, const nda::MemoryArrayOfRank<4> auto &D_skij,
-                                           Cholesky_ERI auto && chol)
+    nda::array<ComplexType, 2> hf_gradient_t::eval_grad_2e(const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                                           Cholesky_ERI auto && chol)
+    {
+      auto tmp_grad_2e = nda::array<ComplexType, 2>::zeros({_natoms, 3});
+      tmp_grad_2e = eval_grad_coulomb(D_skij, chol) + eval_grad_exchange(D_skij, chol);
+      return tmp_grad_2e;
+    }
+
+    nda::array<ComplexType, 2> hf_gradient_t::eval_grad_coulomb(const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                                                Cholesky_ERI auto && chol)
+    {
+      auto dm_total = eval_dm_total(D_skij);
+      auto tmp_grad_coulomb = nda::array<ComplexType, 2>::zeros({_natoms, 3});
+      for (int iatom = 0; iatom < _natoms; ++iatom) {
+        for (int direction = 0; direction < 3; ++direction) {
+          tmp_grad_coulomb(iatom, direction) += eval_grad_coulomb(iatom, direction, dm_total, chol);
+        }
+      }
+      return tmp_grad_coulomb;
+    }
+
+    nda::array<ComplexType, 2> hf_gradient_t::eval_grad_exchange(const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                                                 Cholesky_ERI auto && chol)
+    {
+      auto tmp_grad_exchange = nda::array<ComplexType, 2>::zeros({_natoms, 3});
+      for (int iatom = 0; iatom < _natoms; ++iatom) {
+        for (int direction = 0; direction < 3; ++direction) {
+          tmp_grad_exchange(iatom, direction) += eval_grad_exchange(iatom, direction, D_skij, chol);
+        }
+      }
+      return tmp_grad_exchange;
+    }
+
+    nda::array<ComplexType, 3> hf_gradient_t::eval_dm_total(const nda::MemoryArrayOfRank<4> auto &D_skij)
     {
       decltype(nda::range::all) all;
 
-      ComplexType tmp_grad = 0;
+      RealType spin_factor = (_nspin == 1 and _npol == 1) ? 2.0 : 1.0;
+      auto dm_total = nda::array<ComplexType, 3>::zeros(_nkpts, _nbnd, _nbnd);
+      for (int ikpt = 0; ikpt < _nkpts; ++ikpt) {
+         for (int ispin = 0; ispin < _nspin; ++ispin) {
+          dm_total(ikpt, all, all) += D_skij(ispin, ikpt, all, all) * spin_factor;
+        }
+      }
+      return dm_total;
+    }
+
+    ComplexType hf_gradient_t::eval_grad_2e(int iatom, int idirection,
+                                           const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                           Cholesky_ERI auto && chol)
+    {
+      auto D_total_kij = eval_dm_total(D_skij);
+      ComplexType tmp_grad(0.0, 0.0);
+      tmp_grad += eval_grad_coulomb(iatom, idirection, D_total_kij, chol);
+      tmp_grad += eval_grad_exchange(iatom, idirection, D_skij, chol);
+      return tmp_grad;
+    }
+
+    ComplexType hf_gradient_t::eval_grad_coulomb(int iatom, int idirection,
+                                                 const nda::MemoryArrayOfRank<3> auto &D_total_kij,
+                                                 Cholesky_ERI auto && chol)
+    {
+      decltype(nda::range::all) all;
+
+      ComplexType tmp_grad(0.0, 0.0);
 
       // coulomb
       //   \sum D_{ji} D_{lk} [ d/dX (ij|kl) ]
@@ -145,17 +146,13 @@ namespace methods {
       // TO-DO: check and confirm complex conjugate and transpose
 
       for (int ikpt = 0; ikpt < _nkpts; ++ikpt) {
-        RealType spin_factor = (_nspin == 1 and _npol == 1) ? 2.0 : 1.0;
         auto tmp = nda::array<ComplexType, 2>::zeros({1, 1});
         auto V = chol.V(0, 0, ikpt);
         auto dV = chol.dV(0, iatom, idirection, 0, ikpt);
-        auto dm_total = nda::array<ComplexType, 2>::zeros(_nbnd, _nbnd);
-        for (int ispin = 0; ispin < _nspin; ++ispin) {
-          dm_total += D_skij(ispin, ikpt, all, all) * spin_factor;
-        }
-        auto dm_total_conj = nda::make_regular(nda::conj(dm_total));
+
+        auto dm_total_conj = nda::make_regular(nda::conj(D_total_kij(ikpt, all, all)));
         auto dm_total_conj_ij_1 = nda::reshape(dm_total_conj, std::array<int, 2>({_nbnd * _nbnd, 1}));
-        auto dm_total_kl_1 = nda::reshape(dm_total, std::array<int, 2>({_nbnd * _nbnd, 1}));
+        auto dm_total_kl_1 = nda::reshape(D_total_kij(ikpt, all, all), std::array<int, 2>({_nbnd * _nbnd, 1}));
 
         {
           auto V_Pij_P_ij = nda::reshape(V, std::array<int, 2>({_nbnd_aux, _nbnd * _nbnd}));
@@ -180,6 +177,17 @@ namespace methods {
         tmp_grad += tmp(0, 0) * 0.5 * _k_weight(ikpt);
       }
 
+      return tmp_grad;
+    }
+
+    ComplexType hf_gradient_t::eval_grad_exchange(int iatom, int idirection,
+                                             const nda::MemoryArrayOfRank<4> auto &D_skij,
+                                             Cholesky_ERI auto && chol)
+    {
+      decltype(nda::range::all) all;
+
+      ComplexType tmp_grad(0.0, 0.0);
+
       // exchange
       //   \sum D_{li} D_{jk} [ d/dX (ij|kl) ]
       // = \sum D_{li} D_{jk} ( V_{Qij} dV^{*}_{Qlk} + dV_{Qij} V^{*}_{Qlk} )
@@ -187,53 +195,73 @@ namespace methods {
       //   \sum (dV_{Qij} D_{jk} ) ( V_{Qlk} D^{*}_{il} )^{*}
       // TO-DO: check and confirm conjugate and transpose
 
-        for (int ispin = 0; ispin < _nspin; ++ispin) {
-          for (int ikpt = 0; ikpt < _nkpts; ++ikpt) {
-            RealType spin_factor = (_nspin == 1 and _npol == 1) ? 1.0 : 0.5;
-            auto V = chol.V(0, 0, ikpt);
-            auto dV = chol.dV(0, iatom, idirection, 0, ikpt);
-            auto dm_conj = nda::make_regular(nda::conj(D_skij(ispin, ikpt, all, all)));
+      for (int ispin = 0; ispin < _nspin; ++ispin) {
+        for (int ikpt = 0; ikpt < _nkpts; ++ikpt) {
+          RealType spin_factor = (_nspin == 1 and _npol == 1) ? 1.0 : 0.5;
+          auto V = chol.V(0, 0, ikpt);
+          auto dV = chol.dV(0, iatom, idirection, 0, ikpt);
+          auto dm_conj = nda::make_regular(nda::conj(D_skij(ispin, ikpt, all, all)));
 
-            {
-              auto V_Pij_Pi_j = nda::reshape(V, std::array<int, 2>({_nbnd_aux * _nbnd, _nbnd}));
-              auto tmp_Pik_Pi_k = nda::array<ComplexType, 2>::zeros({_nbnd_aux * _nbnd, _nbnd});
-              nda::blas::gemm(V_Pij_Pi_j, D_skij(ispin, ikpt, all, all), tmp_Pik_Pi_k);
-              auto tmp_Qik_Q_i_k = nda::array<ComplexType, 3>::zeros({_nbnd_aux, _nbnd, _nbnd});
-              for (int iQ = 0; iQ < _nbnd_aux; ++iQ) {
-                nda::blas::gemm(dm_conj, dV(iQ, all, all), tmp_Qik_Q_i_k(iQ, all, all));
-                tmp_Qik_Q_i_k(iQ, all, all) = nda::conj(tmp_Qik_Q_i_k(iQ, all, all));
-              }
-              auto tmp_Pik_P_i_k = nda::reshape(tmp_Pik_Pi_k, std::array<int, 3>({_nbnd_aux, _nbnd, _nbnd}));
-              tmp_grad -= nda::sum(tmp_Pik_P_i_k * tmp_Qik_Q_i_k) * spin_factor * _k_weight(ikpt);
+          {
+            auto V_Pij_Pi_j = nda::reshape(V, std::array<int, 2>({_nbnd_aux * _nbnd, _nbnd}));
+            auto tmp_Pik_Pi_k = nda::array<ComplexType, 2>::zeros({_nbnd_aux * _nbnd, _nbnd});
+            nda::blas::gemm(V_Pij_Pi_j, D_skij(ispin, ikpt, all, all), tmp_Pik_Pi_k);
+            auto tmp_Qik_Q_i_k = nda::array<ComplexType, 3>::zeros({_nbnd_aux, _nbnd, _nbnd});
+            for (int iQ = 0; iQ < _nbnd_aux; ++iQ) {
+              nda::blas::gemm(dm_conj, dV(iQ, all, all), tmp_Qik_Q_i_k(iQ, all, all));
+              tmp_Qik_Q_i_k(iQ, all, all) = nda::make_regular(nda::conj(tmp_Qik_Q_i_k(iQ, all, all)));
             }
+            auto tmp_Pik_P_i_k = nda::reshape(tmp_Pik_Pi_k, std::array<int, 3>({_nbnd_aux, _nbnd, _nbnd}));
+            tmp_grad -= nda::sum(tmp_Pik_P_i_k * tmp_Qik_Q_i_k) * spin_factor * _k_weight(ikpt);
+          }
 
-            {
-              auto dV_Pij_Pi_j = nda::reshape(dV, std::array<int, 2>({_nbnd_aux * _nbnd, _nbnd}));
-              auto tmp_Pik_Pi_k = nda::array<ComplexType, 2>::zeros({_nbnd_aux * _nbnd, _nbnd});
-              nda::blas::gemm(dV_Pij_Pi_j, D_skij(ispin, ikpt, all, all), tmp_Pik_Pi_k);
-              auto tmp_Qik_Q_i_k = nda::array<ComplexType, 3>::zeros({_nbnd_aux, _nbnd, _nbnd});
-              for (int iQ = 0; iQ < _nbnd_aux; ++iQ) {
-                nda::blas::gemm(dm_conj, V(iQ, all, all), tmp_Qik_Q_i_k(iQ, all, all));
-                tmp_Qik_Q_i_k(iQ, all, all) = nda::conj(tmp_Qik_Q_i_k(iQ, all, all));
-              }
-              auto tmp_Pik_P_i_k = nda::reshape(tmp_Pik_Pi_k, std::array<int, 3>({_nbnd_aux, _nbnd, _nbnd}));
-              tmp_grad -= nda::sum(tmp_Pik_P_i_k * tmp_Qik_Q_i_k) * spin_factor * _k_weight(ikpt);
+          {
+            auto dV_Pij_Pi_j = nda::reshape(dV, std::array<int, 2>({_nbnd_aux * _nbnd, _nbnd}));
+            auto tmp_Pik_Pi_k = nda::array<ComplexType, 2>::zeros({_nbnd_aux * _nbnd, _nbnd});
+            nda::blas::gemm(dV_Pij_Pi_j, D_skij(ispin, ikpt, all, all), tmp_Pik_Pi_k);
+            auto tmp_Qik_Q_i_k = nda::array<ComplexType, 3>::zeros({_nbnd_aux, _nbnd, _nbnd});
+            for (int iQ = 0; iQ < _nbnd_aux; ++iQ) {
+              nda::blas::gemm(dm_conj, V(iQ, all, all), tmp_Qik_Q_i_k(iQ, all, all));
+              tmp_Qik_Q_i_k(iQ, all, all) = nda::make_regular(nda::conj(tmp_Qik_Q_i_k(iQ, all, all)));
             }
-        }
+            auto tmp_Pik_P_i_k = nda::reshape(tmp_Pik_Pi_k, std::array<int, 3>({_nbnd_aux, _nbnd, _nbnd}));
+            tmp_grad -= nda::sum(tmp_Pik_P_i_k * tmp_Qik_Q_i_k) * spin_factor * _k_weight(ikpt);
+          }
       }
+    }
 
       return tmp_grad;
     }
 
     using Arr2D = nda::array<ComplexType, 2>;
+    using Arr3D = nda::array<ComplexType, 3>;
     using Arr4D = nda::array<ComplexType, 4>;
+    using Arrv3D = nda::array_view<ComplexType, 3>;
     using Arrv4D = nda::array_view<ComplexType, 4>;
-    template void hf_gradient_t::evaluate(Arr2D&, Arr2D&, Arr2D&,
-                                          const Arr4D&, const Arr4D&, const Arr4D&, const Arr4D&,
-                                          chol_reader_t&, bool);
-    template void hf_gradient_t::evaluate(Arr2D&, Arr2D&, Arr2D&,
-                                          const Arrv4D&, const Arrv4D&, const Arrv4D&, const Arrv4D&,
-                                          chol_reader_t&, bool);
+
+    template Arr2D hf_gradient_t::evaluate(const Arr4D&, chol_reader_t&);
+    template Arr2D hf_gradient_t::evaluate(const Arrv4D&, chol_reader_t&);
+
+    template Arr2D hf_gradient_t::eval_grad_2e(const Arr4D&, chol_reader_t&);
+    template Arr2D hf_gradient_t::eval_grad_2e(const Arrv4D&, chol_reader_t&);
+
+    template Arr2D hf_gradient_t::eval_grad_coulomb(const Arr4D&, chol_reader_t&);
+    template Arr2D hf_gradient_t::eval_grad_coulomb(const Arrv4D&, chol_reader_t&);
+
+    template Arr2D hf_gradient_t::eval_grad_exchange(const Arr4D&, chol_reader_t&);
+    template Arr2D hf_gradient_t::eval_grad_exchange(const Arrv4D&, chol_reader_t&);
+
+    template Arr3D hf_gradient_t::eval_dm_total(const Arr4D&);
+    template Arr3D hf_gradient_t::eval_dm_total(const Arrv4D&);
+
+    template ComplexType hf_gradient_t::eval_grad_2e(int, int, const Arr4D&, chol_reader_t&);
+    template ComplexType hf_gradient_t::eval_grad_2e(int, int, const Arrv4D&, chol_reader_t&);
+
+    template ComplexType hf_gradient_t::eval_grad_coulomb(int, int, const Arr3D&, chol_reader_t&);
+    template ComplexType hf_gradient_t::eval_grad_coulomb(int, int, const Arrv3D&, chol_reader_t&);
+
+    template ComplexType hf_gradient_t::eval_grad_exchange(int, int, const Arr4D&, chol_reader_t&);
+    template ComplexType hf_gradient_t::eval_grad_exchange(int, int, const Arrv4D&, chol_reader_t&);
 
   } // namespace solvers
 
