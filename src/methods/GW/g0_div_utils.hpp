@@ -78,6 +78,9 @@ namespace methods {
                                           div_treatment_e div_treatment=gygi_extrplt,
                                           bool poly_in_q2=false, double q_max=0.8, int fit_order=2)
       -> nda::array<ComplexType, 1> {
+
+        auto div_string = div_enum_to_string(div_treatment);
+        bool two_dimension = (div_string.find("2d") != std::string::npos)? true : false;
         
         auto [niw, nqpts_ibz] = eps_inv_wq.shape();
         nda::array<ComplexType, 1> eps_inv_q0_w(niw);
@@ -91,12 +94,11 @@ namespace methods {
           Q_abs(iq) = ComplexType( std::sqrt( qpt(0)*qpt(0) + qpt(1)*qpt(1) + qpt(2)*qpt(2) ) );
         }
 
-        if (div_treatment==gygi_extrplt or div_treatment==gygi_extrplt_2d) {
+        if (div_string.find("gygi_extrplt") != std::string::npos) {
           utils::check(mf.nkpts_ibz() > 1, "extrapolate_eps_inv_q0: nkpts_ibz <= 1 while div_treatment==gygi_extrplt");
-          bool two_dim = (div_treatment==gygi_extrplt_2d)? true : false;
           
-          auto q_indices = (poly_in_q2)? filter_qpts(mf.Qpts_ibz(), q_max, 2, two_dim)
-                           : filter_qpts(mf.Qpts_ibz(), q_max, 1, two_dim);
+          auto q_indices = (poly_in_q2)? filter_qpts(mf.Qpts_ibz(), q_max, 2, two_dimension)
+                           : filter_qpts(mf.Qpts_ibz(), q_max, 1, two_dimension);
           nda::array<ComplexType, 1> Q_filtered(q_indices.size());
           nda::array<ComplexType, 2> eps_inv_filtered(niw, q_indices.size());
           
@@ -109,7 +111,7 @@ namespace methods {
             // Choose the closest point to the gamma instead
             eps_inv_q0_w = eps_inv_wq(nda::range::all, q_indices[0]);
           } else {
-            if (two_dim)
+            if (two_dimension)
               app_log(2, "  Extrapolate head of the inverse of the dielectric function from {} q-points on the xy-plane", q_indices.size());
             else
               app_log(2, "  Extrapolate head of the inverse of the dielectric function from {} q-points", q_indices.size());
@@ -119,12 +121,11 @@ namespace methods {
                                                   (n==0)? true : false);
             }
           }
-        } else if (div_treatment==gygi_linear or div_treatment==gygi_linear_2d) {
+        } else if (div_string.find("gygi_linear") != std::string::npos) {
           // Linear extrapolation to q=0 as A + B*q^2 using the two closest q-points to Gamma
           auto closest_two_indices = find_two_closest_per_direction(mf.Qpts_ibz(), mf.recv());
           
-          bool two_dim = (div_treatment==gygi_linear_2d)? true : false;
-          if (two_dim)
+          if (two_dimension)
             app_log(2, "  Linear extrapolate head of the inverse of the dielectric function (A + B*q^2)\n"
                        "  using the closet two points along b1 and b2 directions");
           else
@@ -134,7 +135,7 @@ namespace methods {
           int dim = 0;
           for (int dir = 0; dir < 3; ++dir) {
             
-            if (two_dim and dir == 2) continue; // skip b3 direction for 2D materials
+            if (two_dimension and dir == 2) continue; // skip b3 direction for 2D materials
             
             nda::array<ComplexType, 1> Q_filtered(closest_two_indices[dir].size());
             nda::array<ComplexType, 2> eps_inv_filtered(niw, closest_two_indices[dir].size());
@@ -162,7 +163,13 @@ namespace methods {
           utils::check(dim > 0, "extrapolate_eps_inv_q0: no valid q-point found for extrapolation in any direction");
           eps_inv_q0_w /= static_cast<double>(dim); // average over the number of dimensions extrapolated
 
-        } else if (div_treatment==gygi_average) {
+          if (div_string.find("metal") != std::string::npos) {
+            app_log(2, "Enforcing the static limit of the inverse dielectric function to 0 for metallic systems.");
+            // for metals, set the static limit to -1 manually, i.e. inverse dielectric function goes to 0 at q=0 and w=0
+            eps_inv_q0_w(0) = -1.0;
+          }
+
+        } else if (div_string.find("gygi_average") != std::string::npos) {
           // Average over all q-points with smallest |q|
           auto smallest_indices = find_smallest_qabs_indices(mf.Qpts_ibz(), false, false);
           eps_inv_q0_w = 0.0;
@@ -241,7 +248,6 @@ namespace methods {
 
         // Compute the head (i.e. G=G'=0 component) of the inverse dielectric function at finite q
         auto eps_inv_w = eval_eps_inv_q(dW_wqPQ, thc, mf);
-        auto [nw, nqpts_ibz] = eps_inv_w.shape();
 
         if (thc.MF()->nqpts_ibz() == 1 and div_treatment != ignore_g0) {
           app_log(2, "eps_inv_head_w: nqpts_ibz == 1 while div_treatment != ignore. "

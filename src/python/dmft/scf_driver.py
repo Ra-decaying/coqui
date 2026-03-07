@@ -561,6 +561,9 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
     solver_params_list = imp_params['solver']
     for solver_params in solver_params_list:
         solver_params['n_cycles'] = int(solver_params['n_cycles']/coqui_mpi.comm_size())
+        mu_params = solver_params.get('chemical_potential')
+        if mu_params and 'n_cycles' in mu_params.keys():
+            mu_params['n_cycles'] = int(mu_params['n_cycles']/coqui_mpi.comm_size())
 
     ir_kernel = IAFT.from_coqui_chkpt(imp_params['chkpt_h5'], verbose=coqui_mpi.root())
     wmax_imp, prec_imp = imp_params.pop('dlr_wmax', ir_kernel.wmax), imp_params.pop('dlr_eps', ir_kernel.prec)

@@ -26,7 +26,10 @@ namespace methods
 {
 
 enum div_treatment_e {
-  ignore_g0, gygi, gygi_average, gygi_linear, gygi_linear_2d, gygi_extrplt, gygi_extrplt_2d
+  ignore_g0, gygi, gygi_average, 
+  gygi_linear, gygi_linear_metal, 
+  gygi_linear_2d, gygi_linear_metal_2d,
+  gygi_extrplt, gygi_extrplt_2d
 };
 
 inline std::string div_enum_to_string(int div_enum) {
@@ -39,6 +42,10 @@ inline std::string div_enum_to_string(int div_enum) {
       return "gygi_average";
     case div_treatment_e::gygi_linear:
       return "gygi_linear";
+    case div_treatment_e::gygi_linear_metal:
+      return "gygi_linear_metal";
+    case div_treatment_e::gygi_linear_metal_2d:
+      return "gygi_linear_metal_2d";
     case div_treatment_e::gygi_linear_2d:
       return "gygi_linear_2d";
     case div_treatment_e::gygi_extrplt:
@@ -59,8 +66,12 @@ inline div_treatment_e string_to_div_enum(std::string div_name) {
     return div_treatment_e::gygi_average;
   } else if (div_name == "gygi_linear") {
     return div_treatment_e::gygi_linear;
+  } else if (div_name == "gygi_linear_metal") {
+    return div_treatment_e::gygi_linear_metal;
   } else if (div_name == "gygi_linear_2d") {
     return div_treatment_e::gygi_linear_2d;
+  } else if (div_name == "gygi_linear_metal_2d") {
+    return div_treatment_e::gygi_linear_metal_2d;
   } else if (div_name == "gygi_extrplt") {
     return div_treatment_e::gygi_extrplt;
   } else if (div_name == "gygi_extrplt_2d") {
