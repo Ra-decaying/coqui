@@ -66,6 +66,8 @@ void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const
   using Array_view_4D_t = nda::array_view<ComplexType, 4>;
   using Array_view_5D_t = nda::array_view<ComplexType, 5>;
 
+  Timer.start("GRAD_TOTAL");
+
   // Initialize MBState
   mb_state.sF_skij.emplace(math::shm::make_shared_array<Array_view_4D_t>(
       *mpi, {mf->nspin(), mf->nkpts_ibz(), mf->nbnd(), mf->nbnd()}));
@@ -92,24 +94,44 @@ void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const
   auto grad_elec = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
   auto grad_total = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
 
+  Timer.start("PULAY");
+  grad_pulay = eval_grad_pulay(mf, sDm_skij.local(), sF_skij.local(),
+                               dyson.sS_skij().local(), dyson.sH0_skij().local(), false);
+  Timer.stop("PULAY");
+
+  Timer.start("ONE_ELECTRON");
+  grad_1e = eval_grad_1e(mf, sDm_skij.local());
+  Timer.stop("ONE_ELECTRON");
+
+  Timer.start("TWO_ELECTRON");
   if (solver_type == "hf_gradient") {
     hf_gradient_t hf_gradient(mf);
     grad_2e = hf_gradient.evaluate(sDm_skij.local(), mb_eri_t.hf_eri->get());
     eval_hf_grand_potential(sDm_skij.local(), dyson.sS_skij().local(), mf, 0.0, FT.beta(), mu);
   }
+  Timer.stop("TWO_ELECTRON");
 
-  grad_1e = eval_grad_1e(mf, sDm_skij.local());
-  grad_pulay = eval_grad_pulay(mf, sDm_skij.local(), sF_skij.local(),
-                               dyson.sS_skij().local(), dyson.sH0_skij().local(), false);
   grad_elec = grad_1e + grad_2e + grad_pulay;
   grad_total = grad_elec + mf->nuclear_gradient();
   print_mbpt_gradients(mf->nuclear_gradient(), mf, "GRAD_NUC");
   print_mbpt_gradients(grad_elec, mf, "GRAD_ELEC");
   print_mbpt_gradients(grad_total, mf, "GRAD_TOTAL");
+
+  Timer.start("WRITE");
   write_mbpt_gradients(grad_total, mb_state.coqui_prefix, input_iter);
+  Timer.stop("WRITE");
+
+  Timer.stop("GRAD_TOTAL");
+
+  app_log(2, "\n  Gradient timers");
+  app_log(2, "  ----------------");
+  app_log(2, "    Total:                {0:.3f} sec", Timer.elapsed("GRAD_TOTAL"));
+  app_log(2, "    One-electron:         {0:.3f} sec", Timer.elapsed("ONE_ELECTRON"));
+  app_log(2, "    Two-electron:         {0:.3f} sec", Timer.elapsed("TWO_ELECTRON"));
+  app_log(2, "    Pulay:                {0:.3f} sec", Timer.elapsed("PULAY"));
+  app_log(2, "    Write:                {0:.3f} sec\n", Timer.elapsed("WRITE"));
 
   app_log(1, "####### Gradient routines end #######\n");
-
 }
 
 template void eval_gradients(MBState&, simple_dyson&,

@@ -127,6 +127,8 @@ namespace methods {
     {
       decltype(nda::range::all) all;
 
+      _Timer.start("COULOMB");
+
       ComplexType tmp_grad(0.0, 0.0);
 
       // coulomb
@@ -168,6 +170,8 @@ namespace methods {
         tmp_grad += tmp(0, 0) * 0.5 * _k_weight(ikpt);
       }
 
+      _Timer.stop("COULOMB");
+
       return tmp_grad;
     }
 
@@ -176,6 +180,8 @@ namespace methods {
                                                   Cholesky_ERI auto && chol)
     {
       decltype(nda::range::all) all;
+
+      _Timer.start("EXCHANGE");
 
       ComplexType tmp_grad(0.0, 0.0);
 
@@ -218,8 +224,10 @@ namespace methods {
             auto tmp_Pik_P_i_k = nda::reshape(tmp_Pik_Pi_k, std::array<int, 3>({_nbnd_aux, _nbnd, _nbnd}));
             tmp_grad -= nda::sum(tmp_Pik_P_i_k * tmp_Qik_Q_i_k) * spin_factor * _k_weight(ikpt);
           }
+        }
       }
-    }
+
+      _Timer.stop("EXCHANGE");
 
       return tmp_grad;
     }
