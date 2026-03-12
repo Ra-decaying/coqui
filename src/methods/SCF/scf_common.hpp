@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -314,6 +314,13 @@ template<typename comm_t, typename X_t, nda::ArrayOfRank<1> Array1D>
 double eval_corr_energy(comm_t& comm, const imag_axes_ft::IAFT &FT,
                         const X_t & G_shm, const X_t & Sigma_shm,
                         Array1D &k_weight);
+
+template<typename comm_t, typename X_t, typename Xt_t>
+double eval_grand_potential(comm_t& comm, const mf::MF &mf, const imag_axes_ft::IAFT &FT,
+                            const X_t &F, const X_t &H, const X_t &S, const Xt_t &G, const Xt_t &Sigma,
+                            const std::vector<double> &energies, double e_rpa,
+                            double mu, bool F_has_H0);
+
 template<typename X_t, nda::ArrayOfRank<1> Array1D>
 auto eval_hf_energy(const X_t &sDm_skij, const X_t &sF_skij, const X_t &sH0_skij,
                     Array1D &k_weight, bool F_has_H0=true)

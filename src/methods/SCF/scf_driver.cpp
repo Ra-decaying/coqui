@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -224,6 +224,18 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
   app_log(2, "    MBPT solvers:         {0:.3f} sec", Timer.elapsed("MBPT_SOLVERS"));
   app_log(2, "    Iterative alg:        {0:.3f} sec", Timer.elapsed("ITERATIVE"));
   app_log(2, "    Write:                {0:.3f} sec\n", Timer.elapsed("WRITE"));
+
+  if (std::is_same_v<corr_solver_t, solvers::gw_t> and mb_solver.corr != nullptr) {
+    double e_rpa = [&]() {
+      if constexpr (requires { mb_solver.corr->rpa_energy(sG_tskij.local(), mb_eri.corr_eri->get()); }) {
+        return mb_solver.corr->rpa_energy(sG_tskij.local(), mb_eri.corr_eri->get());
+      } else {
+        return 0.0;
+      }
+    }();
+    eval_grand_potential(mpi->comm, *mf, FT, sF_skij, dyson.sH0_skij(), dyson.sS_skij(),
+                         sG_tskij, sSigma_tskij, energies, e_rpa, mu, false);
+  }
 
   app_log(1, "####### SCF routines end #######\n");
   return std::make_tuple(energies[0]+energies[1], energies[2]);
