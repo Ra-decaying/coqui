@@ -95,8 +95,11 @@ void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const
   auto grad_total = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
 
   Timer.start("PULAY");
+  /*
   grad_pulay = eval_grad_pulay(mf, sDm_skij.local(), sF_skij.local(),
                                dyson.sS_skij().local(), dyson.sH0_skij().local(), false);
+  */
+  grad_pulay = eval_grad_pulay(mf, FT, dyson.sS_skij().local(), sG_tskij.local(), mu);
   Timer.stop("PULAY");
 
   Timer.start("ONE_ELECTRON");

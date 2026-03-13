@@ -25,7 +25,6 @@
 #include "gradient_common.h"
 
 #include "IO/app_loggers.h"
-#include "methods/HF/hf_grand_potential.h"
 
 namespace methods {
 
@@ -38,6 +37,22 @@ nda::array<ComplexType, 2> eval_grad_1e(std::shared_ptr<mf::MF> mf, const nda::M
     }
   }
   return grad_1e;
+}
+
+nda::array<ComplexType, 2> eval_grad_pulay(std::shared_ptr<mf::MF> mf,
+                                           const imag_axes_ft::IAFT &FT,
+                                           const nda::MemoryArrayOfRank<4> auto &S_skij,
+                                           const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                                           double mu)
+{
+  auto DE_skij = eval_DE(mf, FT, S_skij, G_tskij, mu);
+  auto grad_pulay = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
+  for (int iatom = 0; iatom < mf->number_of_atoms(); ++iatom) {
+    for (int direction = 0; direction < 3; ++direction) {
+      grad_pulay(iatom, direction) += eval_grad_pulay(iatom, direction, mf, DE_skij);
+    }
+  }
+  return grad_pulay;
 }
 
 nda::array<ComplexType, 2> eval_grad_pulay(std::shared_ptr<mf::MF> mf,
@@ -55,6 +70,46 @@ nda::array<ComplexType, 2> eval_grad_pulay(std::shared_ptr<mf::MF> mf,
     }
   }
   return grad_pulay;
+}
+
+nda::array<ComplexType, 4> eval_DE(std::shared_ptr<mf::MF> mf,
+                                   const imag_axes_ft::IAFT &FT,
+                                   const nda::MemoryArrayOfRank<4> auto &S_skij,
+                                   const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                                   double mu)
+{
+  int nbnd = mf->nbnd();
+  int nspin = mf->nspin();
+  int nkpts = mf->nkpts();
+
+  auto nt = FT.nt_f();
+  auto nw = FT.nw_f();
+
+  auto DE_skij = nda::array<ComplexType, 4>::zeros({nspin, nkpts, nbnd, nbnd});
+  auto DE_beta_skij = nda::array<ComplexType, 4>::zeros({nspin, nkpts, nbnd, nbnd});
+  auto Gw_skij = nda::array<ComplexType, 4>::zeros({nspin, nkpts, nbnd, nbnd});
+  auto omega_mu_G_tskij = nda::array<ComplexType, 5>::zeros({nt, nspin, nkpts, nbnd, nbnd});
+  auto omega_mu_G_wskij = nda::array<ComplexType, 5>::zeros({nw, nspin, nkpts, nbnd, nbnd});
+
+  for (int n = 0; n < nw; ++n) {
+    auto wn = FT.wn_mesh()(n);
+    ComplexType omega_mu = FT.omega(wn) + mu;
+    FT.tau_to_w(G_tskij, Gw_skij, imag_axes_ft::fermi, n);
+    for (int ispin = 0; ispin < nspin; ++ispin) {
+      for (int ik = 0; ik < nkpts; ++ik) {
+        nda::matrix<ComplexType> S = nda::make_regular(S_skij(ispin, ik, nda::ellipsis{}));
+        nda::matrix<ComplexType> S_inv = nda::inverse(S);
+        omega_mu_G_wskij(n, ispin, ik, nda::ellipsis{}) = omega_mu * Gw_skij(ispin, ik, nda::ellipsis{}) - S_inv;
+      }
+    }
+  }
+  FT.w_to_tau(omega_mu_G_wskij, omega_mu_G_tskij, imag_axes_ft::fermi);
+  FT.tau_to_beta(omega_mu_G_tskij, DE_beta_skij);
+
+  DE_skij = -1 * DE_beta_skij;
+  std::cout << DE_skij << std::endl;
+
+  return DE_skij;
 }
 
 nda::array<ComplexType, 4> eval_DE(std::shared_ptr<mf::MF> mf,
@@ -116,6 +171,20 @@ ComplexType eval_grad_1e(int iatom, int direction, std::shared_ptr<mf::MF> mf,
   }
   return tmp_grad;
 }
+
+ComplexType eval_grad_pulay(int iatom, int direction, std::shared_ptr<mf::MF> mf,
+                            const imag_axes_ft::IAFT &FT,
+                            const nda::MemoryArrayOfRank<4> auto &S_skij,
+                            const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                            double mu)
+{
+  auto DE_skij = eval_DE(mf, FT, S_skij, G_tskij, mu);
+
+  ComplexType tmp_grad = 0;
+  tmp_grad = eval_grad_pulay(iatom, direction, mf, DE_skij);
+  return tmp_grad;
+}
+
 
 ComplexType eval_grad_pulay(int iatom, int direction, std::shared_ptr<mf::MF> mf,
                             const nda::MemoryArrayOfRank<4> auto &D_skij,
@@ -197,13 +266,20 @@ void write_mbpt_gradients(const nda::array<data_type, 2>& gradients, const std::
 
 using Arr2D = nda::array<ComplexType, 2>;
 using Arr4D = nda::array<ComplexType, 4>;
+using Arr5D = nda::array<ComplexType, 5>;
 using Arrv4D = nda::array_view<ComplexType, 4>;
+using Arrv5D = nda::array_view<ComplexType, 5>;
 
 template Arr2D eval_grad_1e(std::shared_ptr<mf::MF>, const Arr4D&);
 template Arr2D eval_grad_1e(std::shared_ptr<mf::MF>, const Arrv4D&);
 
+template Arr2D eval_grad_pulay(std::shared_ptr<mf::MF>, const imag_axes_ft::IAFT&, const Arr4D&, const Arr5D&, double);
+template Arr2D eval_grad_pulay(std::shared_ptr<mf::MF>, const imag_axes_ft::IAFT&, const Arrv4D&, const Arrv5D&, double);
 template Arr2D eval_grad_pulay(std::shared_ptr<mf::MF>, const Arr4D&, const Arr4D&, const Arr4D&, const Arr4D&, bool);
 template Arr2D eval_grad_pulay(std::shared_ptr<mf::MF>, const Arrv4D&, const Arrv4D&, const Arrv4D&, const Arrv4D&, bool);
+
+template Arr4D eval_DE(std::shared_ptr<mf::MF>, const imag_axes_ft::IAFT&, const Arr4D&, const Arr5D&, double);
+template Arr4D eval_DE(std::shared_ptr<mf::MF>, const imag_axes_ft::IAFT&, const Arrv4D&, const Arrv5D&, double);
 
 template Arr4D eval_DE(std::shared_ptr<mf::MF>, const Arr4D&, const Arr4D&, const Arr4D&, const Arr4D&, bool);
 template Arr4D eval_DE(std::shared_ptr<mf::MF>, const Arrv4D&, const Arrv4D&, const Arrv4D&, const Arrv4D&, bool);

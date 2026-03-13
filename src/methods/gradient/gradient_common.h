@@ -26,6 +26,7 @@
 #include "nda/nda.hpp"
 
 #include "mean_field/MF.hpp"
+#include "numerics/imag_axes_ft/IAFT.hpp"
 
 namespace methods {
 
@@ -33,11 +34,23 @@ nda::array<ComplexType, 2> eval_grad_1e(std::shared_ptr<mf::MF> mf,
                                         const nda::MemoryArrayOfRank<4> auto &D_skij);
 
 nda::array<ComplexType, 2> eval_grad_pulay(std::shared_ptr<mf::MF> mf,
+                                           const imag_axes_ft::IAFT &FT,
+                                           const nda::MemoryArrayOfRank<4> auto &S_skij,
+                                           const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                                           double mu);
+
+nda::array<ComplexType, 2> eval_grad_pulay(std::shared_ptr<mf::MF> mf,
                                            const nda::MemoryArrayOfRank<4> auto &D_skij,
                                            const nda::MemoryArrayOfRank<4> auto &F_skij,
                                            const nda::MemoryArrayOfRank<4> auto &S_skij,
                                            const nda::MemoryArrayOfRank<4> auto &H0_skij,
                                            bool F_has_H0);
+
+nda::array<ComplexType, 4> eval_DE(std::shared_ptr<mf::MF> mf,
+                                   const imag_axes_ft::IAFT &FT,
+                                   const nda::MemoryArrayOfRank<4> auto &S_skij,
+                                   const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                                   double mu);
 
 nda::array<ComplexType, 4> eval_DE(std::shared_ptr<mf::MF> mf,
                                    const nda::MemoryArrayOfRank<4> auto &D_skij,
