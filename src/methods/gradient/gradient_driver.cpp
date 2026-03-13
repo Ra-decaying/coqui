@@ -29,7 +29,6 @@
 #include "methods/ERI/thc_reader_t.hpp"
 #include "methods/gradient/gradient_common.h"
 #include "methods/HF/hf_gradient_t.h"
-#include "methods/HF/hf_grand_potential.h"
 #include "methods/SCF/simple_dyson.h"
 
 
@@ -110,7 +109,6 @@ void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const
   if (solver_type == "hf_gradient") {
     hf_gradient_t hf_gradient(mf);
     grad_2e = hf_gradient.evaluate(sDm_skij.local(), mb_eri_t.hf_eri->get());
-    eval_hf_grand_potential(sDm_skij.local(), dyson.sS_skij().local(), mf, 0.0, FT.beta(), mu);
   }
   Timer.stop("TWO_ELECTRON");
 

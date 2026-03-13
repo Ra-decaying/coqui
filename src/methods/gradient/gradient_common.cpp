@@ -107,7 +107,6 @@ nda::array<ComplexType, 4> eval_DE(std::shared_ptr<mf::MF> mf,
   FT.tau_to_beta(omega_mu_G_tskij, DE_beta_skij);
 
   DE_skij = -1 * DE_beta_skij;
-  std::cout << DE_skij << std::endl;
 
   return DE_skij;
 }
