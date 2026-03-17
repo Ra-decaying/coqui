@@ -156,7 +156,7 @@ double eval_corr_energy(comm_t& comm, const imag_axes_ft::IAFT &FT,
   return e_corr.real();
 }
 
-// JHL: This function only works for GW
+// JHL: This function only works for HF and GW
 template<typename comm_t, typename X_t, typename Xt_t>
 double eval_grand_potential(comm_t& comm, const mf::MF &mf, const imag_axes_ft::IAFT &FT,
                             const X_t &sF_skij, const X_t &sH0_skij, const X_t &sS_skij,
