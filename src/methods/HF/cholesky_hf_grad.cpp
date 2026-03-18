@@ -29,8 +29,6 @@ namespace methods {
     nda::array<ComplexType, 2> hf_gradient_t::evaluate(const nda::MemoryArrayOfRank<4> auto &D_skij,
                                                        Cholesky_ERI auto &&chol)
     {
-      utils::TimerManager Timer;
-
       // http://patorjk.com/software/taag/#p=display&f=Calvin%20S&t=COQUI%20chol-hf-grad
       app_log(1, "\n"
                  "╔═╗╔═╗╔═╗ ╦ ╦╦  ┌─┐┬ ┬┌─┐┬   ┬ ┬┌─┐  ┌─┐┬─┐┌─┐┌┬┐\n"

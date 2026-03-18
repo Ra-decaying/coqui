@@ -34,11 +34,6 @@ namespace methods {
 
     class hf_gradient_t {
 
-    template<nda::Array Array_base_t>
-    using sArray_t = math::shm::shared_array<Array_base_t>;
-
-    using Array_view_4D_t = nda::array_view<ComplexType, 4>;
-
     public:
 
     hf_gradient_t(std::shared_ptr<mf::MF> MF);
