@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -115,12 +115,12 @@ namespace methods {
        * @return finite-correction for K in the primary basis
        */
       template<nda::MemoryArray AF_t>
-      void HF_K_correction(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij, 
+      void HF_K_correction(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij,
                            const nda::MemoryArrayOfRank<4> auto &S_skij, double madelung);
 
       std::string& div_treatment() { return _div_treatment; }
-      void print_chol_hf_timers(); 
-      void print_thc_hf_timers(); 
+      void print_chol_hf_timers();
+      void print_thc_hf_timers();
 
     private:
       std::string _div_treatment;

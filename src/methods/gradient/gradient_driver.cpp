@@ -28,17 +28,16 @@
 #include "methods/ERI/mb_eri_context.h"
 #include "methods/ERI/thc_reader_t.hpp"
 #include "methods/gradient/gradient_common.h"
-#include "methods/HF/hf_gradient_t.h"
 #include "methods/SCF/simple_dyson.h"
 
 
 namespace methods
 {
 
-template<typename dyson_type, typename eri_t>
-void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const imag_axes_ft::IAFT &FT,
-                   const std::string &solver_type,
-                   const std::string &input_grp, int input_iter)
+template<typename dyson_type, typename eri_t, typename corr_solver_t>
+void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const imag_axes_ft::IAFT &FT,
+                        solvers::mb_solver_t<corr_solver_t> mb_solver, const std::string &solver_type,
+                        const std::string &input_grp, int input_iter)
 {
   utils::TimerManager Timer;
   auto mpi = mb_eri_t.corr_eri->get().mpi();
@@ -60,10 +59,6 @@ void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const
     auto scf_grp = h5::group(file).open_group(input_grp);
     h5::h5_read(scf_grp, "final_iter", input_iter);
   }
-  using namespace chkpt;
-  using namespace solvers;
-  using Array_view_4D_t = nda::array_view<ComplexType, 4>;
-  using Array_view_5D_t = nda::array_view<ComplexType, 5>;
 
   Timer.start("GRAD_TOTAL");
 
@@ -83,9 +78,9 @@ void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const
 
   double mu = 0.0;
   long init_it = 0;
-  init_it = read_scf(mpi->node_comm, sF_skij, sSigma_tskij, mu, mb_state.coqui_prefix, input_grp, input_iter);
+  init_it = chkpt::read_scf(mpi->node_comm, sF_skij, sSigma_tskij, mu, mb_state.coqui_prefix, input_grp, input_iter);
   sG_tskij = read_greens_function(*mpi, mf.get(), mb_state.coqui_prefix+ ".mbpt.h5", input_iter, input_grp);
-  read_dm(mpi->node_comm, mb_state.coqui_prefix, input_iter, sDm_skij);
+  chkpt::read_dm(mpi->node_comm, mb_state.coqui_prefix, input_iter, sDm_skij);
 
   auto grad_1e = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
   auto grad_2e = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
@@ -106,9 +101,17 @@ void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const
   Timer.stop("ONE_ELECTRON");
 
   Timer.start("TWO_ELECTRON");
-  if (solver_type == "hf_gradient") {
-    hf_gradient_t hf_gradient(mf);
-    grad_2e = hf_gradient.evaluate(sDm_skij.local(), mb_eri_t.hf_eri->get());
+  utils::check(solver_type == "hf", " evaluate_gradients: Invalid solver_type: {}", solver_type);
+  if (solver_type == "hf") {
+    if constexpr (std::is_same_v<decltype(mb_eri_t.hf_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
+      if (mb_eri_t.hf_eri != std::nullopt) {
+        grad_2e = mb_solver.hf->eval_grad(sDm_skij.local(), mb_eri_t.hf_eri->get());
+      }
+    } else if constexpr(std::is_same_v<decltype(mb_eri_t.corr_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
+      if (mb_eri_t.corr_eri != std::nullopt) {
+        grad_2e = mb_solver.hf->eval_grad(sDm_skij.local(), mb_eri_t.corr_eri->get());
+      }
+    }
   }
   Timer.stop("TWO_ELECTRON");
 
@@ -135,12 +138,26 @@ void eval_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, const
   app_log(1, "####### Gradient routines end #######\n");
 }
 
-template void eval_gradients(MBState&, simple_dyson&,
-                             mb_eri_t<chol_reader_t, chol_reader_t, chol_reader_t, chol_reader_t>&,
-                             const imag_axes_ft::IAFT&, const std::string&, const std::string&, int);
-
-template void eval_gradients(MBState&, simple_dyson&,
-                             mb_eri_t<chol_reader_t, thc_reader_t, thc_reader_t, chol_reader_t>&,
-                             const imag_axes_ft::IAFT&, const std::string&, const std::string&, int);
+#define MBPT_GRAD_INST(HF, HARTREE, EXCHANGE, CORR)\
+template void evaluate_gradients(MBState&, \
+                                 simple_dyson&, \
+                                 mb_eri_t<HF, HARTREE, EXCHANGE, CORR>&, \
+                                 const imag_axes_ft::IAFT&, \
+                                 solvers::mb_solver_t<solvers::gw_t>, \
+                                 const std::string&, const std::string&, int);
+// All combinations of chol for hf or corr eri slots
+  MBPT_GRAD_INST(chol_reader_t, thc_reader_t, thc_reader_t, thc_reader_t)
+  MBPT_GRAD_INST(chol_reader_t, thc_reader_t, thc_reader_t, chol_reader_t)
+  MBPT_GRAD_INST(chol_reader_t, thc_reader_t, chol_reader_t, thc_reader_t)
+  MBPT_GRAD_INST(chol_reader_t, thc_reader_t, chol_reader_t, chol_reader_t)
+  MBPT_GRAD_INST(chol_reader_t, chol_reader_t, thc_reader_t, thc_reader_t)
+  MBPT_GRAD_INST(chol_reader_t, chol_reader_t, thc_reader_t, chol_reader_t)
+  MBPT_GRAD_INST(chol_reader_t, chol_reader_t, chol_reader_t, thc_reader_t)
+  MBPT_GRAD_INST(chol_reader_t, chol_reader_t, chol_reader_t, chol_reader_t)
+  MBPT_GRAD_INST(thc_reader_t, thc_reader_t, thc_reader_t, chol_reader_t)
+  MBPT_GRAD_INST(thc_reader_t, thc_reader_t, chol_reader_t, chol_reader_t)
+  MBPT_GRAD_INST(thc_reader_t, chol_reader_t, thc_reader_t, chol_reader_t)
+  MBPT_GRAD_INST(thc_reader_t, chol_reader_t, chol_reader_t, chol_reader_t)
+#undef MBPT_GRAD_INST
 
 } // namespace methods

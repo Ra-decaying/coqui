@@ -15,7 +15,6 @@ add_subdirectory(pproc)
 
 SET(SRCS
   MBPT_drivers.cpp
-  MBPT_gradient_drivers.cpp
   )
 
 if(USE_DEVICE_COMPILER)

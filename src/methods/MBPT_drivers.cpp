@@ -41,6 +41,7 @@
 #include "methods/SCF/simple_dyson.h"
 #include "methods/embedding/embed_t.h"
 #include "methods/embedding/embed_eri_t.h"
+#include "methods/gradient/gradient_driver.h"
 #include "numerics/imag_axes_ft/IAFT.hpp"
 #include "numerics/iter_scf/iter_scf_utils.hpp"
 
@@ -52,11 +53,11 @@ namespace methods
 {
 
 // Helper function to prepare checkpoint file for downfold_coulomb
-inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& output, 
+inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& output,
                                  std::string const& greens_func_source, ptree const& pt) {
-  
+
   if (greens_func_source == "mf" and std::filesystem::exists(output+".mbpt.h5")) {
-    
+
     app_log(1, "");
     app_log(1, "╔═════════════════════════════════════════════════════════════╗");
     app_log(1, "║ [ NOTE ]                                                    ║");
@@ -67,23 +68,23 @@ inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& out
     app_log(1, "╚═════════════════════════════════════════════════════════════╝\n");
 
   } else if (greens_func_source == "mf" and not std::filesystem::exists(output+".mbpt.h5")) {
-    
+
     auto beta = io::get_value_with_default<double>(pt,"beta", 1000.0);
     auto wmax = io::get_value_with_default<double>(pt,"wmax", 12.0);
     auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
     imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, iaft_prec, false);
     hamilt::pseudopot psp(*mf);
     write_mf_data(*mf, ft, psp, output);
-  
+
   } else if (greens_func_source == "scf" or greens_func_source == "embed") {
-  
+
     utils::check(std::filesystem::exists(output+".mbpt.h5"),
-                 "MBPT_drivers::ensure_checkpoint: greens_func_source == \"{}\" while the coqui h5, {}.mbpt.h5, does not exist!", 
+                 "MBPT_drivers::ensure_checkpoint: greens_func_source == \"{}\" while the coqui h5, {}.mbpt.h5, does not exist!",
                  greens_func_source, output);
 
   } else {
 
-    utils::check(false, "MBPT_drivers::ensure_checkpoint: invalid greens_func_source = {}. Valid options are \"mf\", \"scf\", and \"embed\".", 
+    utils::check(false, "MBPT_drivers::ensure_checkpoint: invalid greens_func_source = {}. Valid options are \"mf\", \"scf\", and \"embed\".",
                  greens_func_source);
 
   }
@@ -127,6 +128,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   auto restart = io::get_value_with_default<bool>(pt,"restart",false);
   auto greens_func_source = io::get_value_with_default<std::string>(pt,"greens_func_source", "scf");
   auto greens_func_iteration = io::get_value_with_default<long>(pt, "greens_func_iteration", -1);
+  auto eval_grad = io::get_value_with_default<bool>(pt, "eval_grad", false);
 
   auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
   auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
@@ -160,12 +162,19 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
 
   using namespace solvers;
+<<<<<<< HEAD
   hf_t hf(hf_div_treatment);
+=======
+  hf_t hf(string_to_div_enum(hf_div_treatment));
+
+>>>>>>> 286d038 (merge MBPT gradient driver into MBPT driver, HF gradient into HF)
   if(solver_type == "rpa") {
+
     simple_dyson dyson(mf.get(), &ft, mu_tol);
     gw_t gw(&ft, div_treatment, output);
     MBState mb_state(mpi, ft, output);
-    rpa_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf,&gw));
+    rpa_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw));
+
   } else if(solver_type == "hf") {
 
     simple_dyson dyson(mf.get(), &ft, mu_tol);
@@ -178,8 +187,15 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf),
              iter_solver.get(), niter, restart, conv_thr, const_mu,
              greens_func_source, greens_func_iteration);
+    if (eval_grad)  {
+      if constexpr (std::is_same_v<decltype(eri.hf_eri), std::optional<std::reference_wrapper<chol_reader_t>>> or
+                    std::is_same_v<decltype(eri.corr_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
+        evaluate_gradients(mb_state, dyson, eri, ft, mb_solver_t(&hf), solver_type, "scf", -1);
+      }
+    }
 
   } else if(solver_type == "gw") {
+
     auto screen_type = io::get_value_with_default<std::string>(pt,"screen_type", "rpa");
 
     simple_dyson dyson(mf.get(), &ft, mu_tol);
@@ -496,7 +512,7 @@ auto downfold_gloc_with_projector_from_h5(std::shared_ptr<mf::MF> mf, ptree cons
 
 template<typename eri_t>
 std::tuple<nda::array<ComplexType, 4>, nda::array<ComplexType, 5> >
-downfold_coulomb_impl(eri_t &eri, MBState&& mb_state, ptree const& pt, 
+downfold_coulomb_impl(eri_t &eri, MBState&& mb_state, ptree const& pt,
                    std::optional<std::map<std::string, nda::array<ComplexType, 5> > > local_polarizabilities) {
   std::string err = std::string("downfold_coulomb_impl - Incorrect input - ");
   auto greens_func_source = io::tolower_copy(io::get_value<std::string>(pt, "greens_func_source"));
@@ -527,10 +543,10 @@ downfold_coulomb_impl(eri_t &eri, MBState&& mb_state, ptree const& pt,
   embed_eri_t embed_eri(*mf, div_treatment, bare_div_treatment, "default");
   return (output_in_tau)?
     embed_eri.compute_downfolded_coulomb_tensors<true>(
-      eri, mb_state, screen_type, permut_symm, force_real, mb_state.ft, 
+      eri, mb_state, screen_type, permut_symm, force_real, mb_state.ft,
       greens_func_source, greens_func_iteration, write_to_hdf5, q_dependent_output) :
     embed_eri.compute_downfolded_coulomb_tensors<false>(
-      eri, mb_state, screen_type, permut_symm, force_real, mb_state.ft, 
+      eri, mb_state, screen_type, permut_symm, force_real, mb_state.ft,
       greens_func_source, greens_func_iteration, write_to_hdf5, q_dependent_output);
 }
 
@@ -548,7 +564,7 @@ downfold_coulomb_with_projector_from_h5(eri_t &eri, ptree const& pt,
 
   auto mf = eri.MF();
   std::string output = outdir + "/" + prefix;
-  
+
   ensure_checkpoint(mf, output, greens_func_source, pt);
 
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(output+".mbpt.h5", false));
@@ -573,7 +589,7 @@ downfold_coulomb(eri_t &eri, ptree const& pt,
 
   auto mf = eri.MF();
   std::string output = outdir + "/" + prefix;
-  
+
   ensure_checkpoint(mf, output, greens_func_source, pt);
 
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(output+".mbpt.h5", false));
@@ -611,7 +627,7 @@ void downfolding_2e(eri_t &eri, ptree const& pt,
 
   auto mf = eri.MF();
   std::string output = outdir + "/" + prefix;
-  
+
   ensure_checkpoint(mf, output, greens_func_source, pt);
 
   imag_axes_ft::IAFT ft(imag_axes_ft::read_iaft(output+".mbpt.h5", false));

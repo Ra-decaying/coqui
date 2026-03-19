@@ -3,7 +3,6 @@
 
 SET(SRCS
   hf_t.cpp
-  hf_gradient_t.cpp
   thc_hf.cpp
   cholesky_hf.cpp
   cholesky_hf_grad.cpp

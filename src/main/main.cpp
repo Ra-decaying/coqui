@@ -40,7 +40,6 @@
 #include "methods/pproc/pproc_drivers.hpp"
 #include "methods/pproc/hamiltonians.h"
 #include "methods/MBPT_drivers.h"
-#include "methods/MBPT_gradient_drivers.h"
 #include "methods/pproc/wavefunction_utils.h"
 #include "wannier/wan90.h"
 
@@ -320,29 +319,6 @@ void run(mpi3::communicator &comm, InputParser &parser)
         APP_ABORT("main::run: Unrecognized interaction setup for mbpt. "
                   "hf_eri_type = {}, hartree_eri_type = {}, exchange_eri_type = {}, eri_type = {}",
                   hf_eri_type, hartree_eri_type, exchange_eri_type, eri_type);
-      }
-
-    } else if (cname == "hf_gradient") {
-
-      ptree pt = it.second;
-      auto [eri_name, eri_type] = methods::get_eri_block(mpi_context, pt, mf_list,
-                                                         thc_list, chol_list, "interaction");
-      utils::check(eri_name != "" and eri_type != "",
-                   "Error: Failed to find interaction block needed by {}", cname);
-      auto [hf_eri_name, hf_eri_type] = methods::get_eri_block(mpi_context, pt, mf_list,
-                                                               thc_list, chol_list, "interaction_hf");
-      if (hf_eri_name == "" or hf_eri_type == "") {
-        hf_eri_name = eri_name;
-        hf_eri_type = eri_type;
-      }
-      if (hf_eri_type == "cholesky" and eri_type == "cholesky") {
-        auto mf_name = std::get<0>(chol_list[eri_name]);
-        utils::check(mf_name == std::get<0>(chol_list[hf_eri_name]), "{}: mfs of eri and hf_eri are inconsistent!");
-        auto mb_eri_grad = methods::mb_eri_t(*std::get<1>(chol_list[hf_eri_name]), *std::get<1>(chol_list[eri_name]));
-        methods::mbpt_gradient(cname, mb_eri_grad, pt);
-      } else {
-        APP_ABORT("Error: only cholesky version is supported. hf_eri_type = {}, eri_type = {}",
-                  hf_eri_type, eri_type);
       }
 
     } else if (cname == "downfold_1e") {

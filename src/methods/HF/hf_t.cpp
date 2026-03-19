@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -62,7 +62,7 @@ namespace methods {
      * @return finite-correction for K in the primary basis
      */
     template<nda::MemoryArray AF_t>
-    void hf_t::HF_K_correction(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij, 
+    void hf_t::HF_K_correction(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij,
                          const nda::MemoryArrayOfRank<4> auto &S_skij,
                          double madelung) {
 
@@ -129,10 +129,19 @@ namespace methods {
       app_log(2, "    K BLAS:                {0:.3f} sec\n", _Timer.elapsed("K BLAS"));
    }
 
+    void hf_t::print_chol_hf_grad_timers()
+    {
+      app_log(2, "\n  CHOL-HF-GRAD timers");
+      app_log(2, "  --------------");
+      app_log(2, "    Total:                 {0:.3f} sec", _Timer.elapsed("GRAD_TOTAL"));
+      app_log(2, "    Coulomb:               {0:.3f} sec", _Timer.elapsed("GRAD_COULOMB"));
+      app_log(2, "    Exchange:              {0:.3f} sec", _Timer.elapsed("GRAD_EXCHANGE"));
+    }
+
     // instantiate templates
     using Arr4D = nda::array<ComplexType, 4>;
-    using Arrv4D = nda::array_view<ComplexType, 4>; 
-    using Arrv4D2 = nda::array_view<ComplexType, 4, nda::C_layout>; 
+    using Arrv4D = nda::array_view<ComplexType, 4>;
+    using Arrv4D2 = nda::array_view<ComplexType, 4, nda::C_layout>;
     template void hf_t::HF_K_correction(sArray_t<Arr4D> &,Arr4D const&, Arr4D const&, double);
     template void hf_t::HF_K_correction(sArray_t<Arr4D> &,Arrv4D2 const&, Arrv4D2 const&, double);
     template void hf_t::HF_K_correction(sArray_t<Arrv4D> &,Arr4D const&, Arr4D const&, double);

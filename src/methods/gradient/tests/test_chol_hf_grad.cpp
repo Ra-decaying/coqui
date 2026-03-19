@@ -28,7 +28,6 @@
 #include "methods/ERI/eri_utils.hpp"
 #include "methods/gradient/gradient_common.h"
 #include "methods/HF/hf_t.h"
-#include "methods/HF/hf_gradient_t.h"
 #include "methods/SCF/mb_solver_t.h"
 #include "methods/SCF/scf_driver.hpp"
 #include "methods/SCF/simple_dyson.h"
@@ -69,9 +68,8 @@ namespace bdft_tests {
     auto grad_pulay = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
     auto grad_elec = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
     auto grad_total = nda::array<ComplexType, 2>::zeros({mf->number_of_atoms(), 3});
-    solvers::hf_gradient_t hf_grad(mf);
     grad_1e = eval_grad_1e(mf, mb_state.sDm_skij.value().local());
-    grad_2e = hf_grad.eval_grad_2e(mb_state.sDm_skij.value().local(), eri.hf_eri->get());
+    grad_2e = hf.eval_grad_2e(mb_state.sDm_skij.value().local(), eri.hf_eri->get());
     grad_pulay = eval_grad_pulay(mf, mb_state.sDm_skij.value().local(), mb_state.sF_skij.value().local(),
                                  dyson.sS_skij().local(), dyson.sH0_skij().local(), false);
     grad_elec = grad_1e + grad_2e + grad_pulay;
