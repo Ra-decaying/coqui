@@ -31,16 +31,23 @@ import coqui.dmft as coqui_dmft
 Hartree_eV = 27.211386245988
 
 
-def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
-                  inner_num_iter, outer_num_iter, inner_loop_alg=1,
-                  **gw_edmft_params):
+def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e, 
+                  niter, gw_iter_per_loop=1, edmft_iter_per_loop=1, 
+                  inner_loop_alg=1, **gw_edmft_params):
     """
     GW+EDMFT self-consistency loop
     :return:
     """
     coqui_mpi = mf.mpi()
     if coqui_mpi.root():
-        coqui_dmft.print_gw_edmft_banner()
+        # http://patorjk.com/software/taag/#p=display&f=Calvin+S&t=COQUI+GW%2BEDMFT&x=none&v=4&h=4&w=80&we=false
+        print("╔═╗╔═╗╔═╗ ╦ ╦╦  ╔═╗┬ ┬╔═╗┌┬┐┌┬┐┌─┐┌┬┐\n"
+              "║  ║ ║║═╬╗║ ║║  ║ ╦│││║╣  │││││├┤  │ \n"
+              "╚═╝╚═╝╚═╝╚╚═╝╩  ╚═╝└┴┘╚═╝─┴┘┴ ┴└   ┴ \n")
+        print(f"  Total GW+EDMFT cycles (niter)       = {niter}")
+        print(f"  GW iterations per GW+EDMFT cycle    = {gw_iter_per_loop}")
+        print(f"  EDMFT iterations per GW+EDMFT cycle = {edmft_iter_per_loop}")
+        print(f"    - Fix Gloc and Wloc during EDMFT iterations = {inner_loop_alg==2}\n")
 
     # deep copy to avoid any changes in gw_edmft_params affecting outside the function.
     gw_edmft_params = deepcopy(gw_edmft_params)
@@ -90,54 +97,87 @@ def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
     if impurity_params.pop('restart', False):
         dmft_state.load(solver_chkpt_h5)
 
-    for iteration in range(outer_num_iter):
+
+    for iteration in range(niter):
+
+        if gw_params is not None and gw_iter_per_loop >= 1:
+            # update GW solution with fixed impurity self-energies and polarizabilities
+            _gw_loop(
+                mf, thc, proj_info, 
+                dmft_state, coqui_chkpt_h5, 
+                gw_params, embed_params, gw_iter_per_loop
+            )
+
+        if edmft_iter_per_loop >= 1:
+            # Set the Green's function for the non-local RPA polarizability
+            with HDFArchive(coqui_chkpt_h5, 'r') as ar:
+                mbpt_final_iter = ar["scf/final_iter"]
+                try:
+                    gf_for_wloc_source = ar[f"scf/iter{mbpt_final_iter}/greens_func_source"]
+                    gf_for_wloc_iteration = ar[f"scf/iter{mbpt_final_iter}/greens_func_iteration"]
+                except KeyError:
+                    gf_for_wloc_source = ar[f"scf/iter{mbpt_final_iter}/input_grp"]
+                    gf_for_wloc_iteration = ar[f"scf/iter{mbpt_final_iter}/input_iter"]
+            wloc_params["greens_func_source"] = gf_for_wloc_source
+            wloc_params["greens_func_iteration"] = gf_for_wloc_iteration
+            coqui_mpi.barrier()
+
+            # inner EDMFT loop
+            edmft_alg = {1: _edmft_loop, 2: _edmft_loop_fixed_gloc_and_wloc}
+            try:
+                edmft_impl = edmft_alg[inner_loop_alg]
+            except KeyError:
+                raise ValueError(f"Unknown inner_loop_alg={inner_loop_alg!r} (expected 1, or 2)")
+        
+            edmft_impl(
+                mf, thc, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h5, 
+                gloc_params, wloc_params, impurity_params['solver'], embed_params, 
+                iterative_params, edmft_iter_per_loop
+            )
+
+
+def _gw_loop(mf, thc, proj_info, 
+             dmft_state, coqui_chkpt_h5, 
+             gw_params, embed_params, gw_iter_per_loop):
+    if gw_iter_per_loop < 1:
+        return
+
+    coqui_mpi = mf.mpi()
+    for gw_iteration in range(gw_iter_per_loop):
         with HDFArchive(coqui_chkpt_h5, 'r') as ar:
             greens_func_source = "embed" if "embed" in ar.keys() else "scf"
             greens_func_iteration = ar[f"{greens_func_source}/final_iter"]
         coqui_mpi.barrier()
 
         # GW if gw_params presents
-        if gw_params is not None:
-            gw_params["greens_func_source"] = greens_func_source
-            gw_params["greens_func_iteration"] = greens_func_iteration
-            coqui.run_gw(
-                gw_params, h_int = thc, projector_info = proj_info,
-                local_polarizabilities = dmft_state.local_pi_w
-            )
-        coqui_mpi.barrier()
-
-        # Set the Green's function for the non-local RPA polarizability
-        with HDFArchive(coqui_chkpt_h5, 'r') as ar:
-            mbpt_final_iter = ar["scf/final_iter"]
-            try:
-                gf_for_wloc_source = ar[f"scf/iter{mbpt_final_iter}/greens_func_source"]
-                gf_for_wloc_iteration = ar[f"scf/iter{mbpt_final_iter}/greens_func_iteration"]
-            except KeyError:
-                gf_for_wloc_source = ar[f"scf/iter{mbpt_final_iter}/input_grp"]
-                gf_for_wloc_iteration = ar[f"scf/iter{mbpt_final_iter}/input_iter"]
-        wloc_params["greens_func_source"] = gf_for_wloc_source
-        wloc_params["greens_func_iteration"] = gf_for_wloc_iteration
-        coqui_mpi.barrier()
-
-        # inner EDMFT loop
-        edmft_alg = {1: _edmft_loop, 2: _edmft_loop_fixed_gloc_and_wloc}
-        try:
-            edmft_impl = edmft_alg[inner_loop_alg]
-        except KeyError:
-            raise ValueError(f"Unknown inner_loop_alg={inner_loop_alg!r} (expected 1 or 2)")
-        edmft_impl(
-            mf, thc, proj_info, dmft_state, solver_chkpt_h5,
-            gloc_params, wloc_params, impurity_params['solver'], embed_params,
-            iterative_params, inner_num_iter
+        gw_params["greens_func_source"] = greens_func_source
+        gw_params["greens_func_iteration"] = greens_func_iteration
+        coqui.run_gw(
+            gw_params, h_int = thc, projector_info = proj_info,
+            local_polarizabilities = dmft_state.local_pi_w
         )
+        coqui_mpi.barrier()
+
+        # Don't upfold the results if gw_iter_per_loop==1. 
+        # Not sure if this is the best choice, but it allows us to skip one upfolding in the common case of 
+        # doing just one GW iteration per GW+EDMFT loop, which can save some time.
+        if gw_iter_per_loop > 1: 
+            # Updates GW+EDMFT solution with the latest GW results while keeping the impurity solutions fixed.
+            # Upfolding
+            coqui.dmft_embed(
+                mf, embed_params,
+                projector_info = proj_info,
+                local_hf_potentials = dmft_state.local_sigma_infty,
+                local_sigma_dynamic = dmft_state.local_sigma_w
+            )
+            coqui_mpi.barrier()
 
 
-def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
+def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h5, 
                gloc_params, wloc_params, solver_params_list, embed_params,
                iterative_params, num_iter):
 
     coqui_mpi = mf.mpi()
-    coqui_chkpt_h5 = gloc_params['outdir']+"/"+gloc_params['prefix']+".mbpt.h5"
 
     for iteration in range(num_iter):
         with HDFArchive(coqui_chkpt_h5, 'r') as ar:
@@ -293,11 +333,10 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5,
 
 
 def _edmft_loop_fixed_gloc_and_wloc(
-        mf, thc, proj_info, dmft_state, solver_chkpt_h5,
+        mf, thc, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h5, 
         gloc_params, wloc_params, solver_params_list, embed_params,
         iterative_params, num_iter):
     coqui_mpi = mf.mpi()
-    coqui_chkpt_h5 = gloc_params['outdir']+"/"+gloc_params['prefix']+".mbpt.h5"
     with HDFArchive(coqui_chkpt_h5, 'r') as ar:
         greens_func_source = "embed" if "embed" in ar.keys() else "scf"
         greens_func_iteration = ar[f"{greens_func_source}/final_iter"]
