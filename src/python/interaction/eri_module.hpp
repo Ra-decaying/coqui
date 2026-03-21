@@ -32,6 +32,11 @@
 
 namespace coqui_py {
 
+  void run_isdf(const Mf &mf, const std::string &thc_params) {
+    auto parser = InputParser(thc_params);
+    methods::make_isdf(mf.get_mf(), parser.get_root());
+  }
+
   C2PY_IGNORE
   inline decltype(auto) make_thc(const Mf &mf, const std::string &thc_params) {
     auto parser = InputParser(thc_params);

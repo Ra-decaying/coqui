@@ -1,24 +1,3 @@
-/**
- * ==========================================================================
- * CoQuí: Correlated Quantum ínterface
- *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- * ==========================================================================
- */
-
-
 
 // C.f. https://numpy.org/doc/1.21/reference/c-api/array.html#importing-the-api
 #define PY_ARRAY_UNIQUE_SYMBOL _cpp2py_ARRAY_API
@@ -51,16 +30,15 @@ template <> constexpr bool c2py::is_wrapped<coqui_py::CholCoulomb> = true;
 template <>
 inline constexpr auto c2py::tp_name<coqui_py::ThcCoulomb> =
     "eri_module.ThcCoulomb";
-template <>
-inline constexpr const char *c2py::tp_doc<coqui_py::ThcCoulomb> =
-    R"DOC(   )DOC";
-
 static auto init_0 = c2py::dispatcher_c_kw_t{
     c2py::c_constructor<coqui_py::ThcCoulomb, const coqui_py::Mf &,
                         const std::string &>("mf", "thc_params")};
 template <>
 constexpr initproc c2py::tp_init<coqui_py::ThcCoulomb> =
     c2py::pyfkw_constructor<init_0>;
+template <>
+const std::string c2py::tp_ctor_doc<coqui_py::ThcCoulomb> =
+    init_0.doc(R"DOC()DOC");
 // Np
 static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::ThcCoulomb const &self) { return self.Np(); }, "self")};
@@ -110,6 +88,7 @@ static auto const fun_10 = c2py::dispatcher_f_kw_t{c2py::cmethod(
 static auto const fun_11 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::ThcCoulomb const &self) { return self.nspin_in_basis(); },
     "self")};
+
 static const auto doc_d_0 = fun_0.doc(R"DOC()DOC");
 static const auto doc_d_1 = fun_1.doc(R"DOC()DOC");
 static const auto doc_d_2 = fun_2.doc(R"DOC()DOC");
@@ -161,18 +140,20 @@ constinit PyGetSetDef c2py::tp_getset<coqui_py::ThcCoulomb>[] = {
     {nullptr, nullptr, nullptr, nullptr, nullptr}};
 
 template <>
+const std::string c2py::tp_doc<coqui_py::ThcCoulomb> =
+    R"DOC()DOC" + c2py::tp_ctor_doc<coqui_py::ThcCoulomb>;
+template <>
 inline constexpr auto c2py::tp_name<coqui_py::CholCoulomb> =
     "eri_module.CholCoulomb";
-template <>
-inline constexpr const char *c2py::tp_doc<coqui_py::CholCoulomb> =
-    R"DOC(   )DOC";
-
 static auto init_1 = c2py::dispatcher_c_kw_t{
     c2py::c_constructor<coqui_py::CholCoulomb, const coqui_py::Mf &,
                         const std::string &>("mf", "chol_params")};
 template <>
 constexpr initproc c2py::tp_init<coqui_py::CholCoulomb> =
     c2py::pyfkw_constructor<init_1>;
+template <>
+const std::string c2py::tp_ctor_doc<coqui_py::CholCoulomb> =
+    init_1.doc(R"DOC()DOC");
 // mf
 static auto const fun_12 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::CholCoulomb const &self) { return self.mf(); }, "self")};
@@ -180,6 +161,7 @@ static auto const fun_12 = c2py::dispatcher_f_kw_t{c2py::cmethod(
 // mpi
 static auto const fun_13 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::CholCoulomb const &self) { return self.mpi(); }, "self")};
+
 static const auto doc_d_12 = fun_12.doc(R"DOC()DOC");
 static const auto doc_d_13 = fun_13.doc(R"DOC()DOC");
 
@@ -200,11 +182,25 @@ constinit PyGetSetDef c2py::tp_getset<coqui_py::CholCoulomb>[] = {
 
     {nullptr, nullptr, nullptr, nullptr, nullptr}};
 
+template <>
+const std::string c2py::tp_doc<coqui_py::CholCoulomb> =
+    R"DOC()DOC" + c2py::tp_ctor_doc<coqui_py::CholCoulomb>;
+
 // ==================== module functions ====================
 
+// run_isdf
+static auto const fun_14 = c2py::dispatcher_f_kw_t{c2py::cfun(
+    [](const coqui_py::Mf &mf, const std::string &thc_params) {
+      return coqui_py::run_isdf(mf, thc_params);
+    },
+    "mf", "thc_params")};
+
+static const auto doc_d_14 = fun_14.doc(R"DOC()DOC");
 //--------------------- module function table  -----------------------------
 
 static PyMethodDef module_methods[] = {
+    {"run_isdf", (PyCFunction)c2py::pyfkw<fun_14>, METH_VARARGS | METH_KEYWORDS,
+     doc_d_14.c_str()},
     {nullptr, nullptr, 0, nullptr} // Sentinel
 };
 

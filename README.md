@@ -1,28 +1,35 @@
-CoQui: Correlated Quantum Interface
+CoQuí: Correlated Quantum ínterface
 -----------------------------------------------
 **Last Updated:** Sept. 2, 2025
 
-CoQuí, **Cor**related **Qu**antum **í**nterface, is a software project 
+CoQuí (**Cor**related **Qu**antum **í**nterface) is a software project 
 designed for *ab initio* electronic structure beyond density functional 
-theory (DFT). Starting with a single-particle basis 
-set and a mean-field solution, typically DFT or Hartree-Fock, CoQui employs 
-tensor hypercontraction (THC) decomposition to efficiently process two-electron 
-operators. This sophisticated approach enables CoQui to achieve exceptionally 
-low-scaling algorithms in subsequent many-body calculations. 
+theory (DFT). 
+It provides scalable implementations of correlated methods based on 
+the tensor hypercontraction (THC) representation of Coulomb integrals 
+for both molecular and solid-state systems. 
 
-## What does CoQui do?
+CoQuí can be used in **two interfaces**:
+
+1. **Python interface**  
+   Build with `-DCOQUI_PYTHON_SUPPORT=ON`, then import CoQUí as a module 
+   to prepare inputs, launch runs, and post-process results.
+2. **Input-file interface**  
+   Provide an input toml file and run CoQuí from the command line.
+
+## What does CoQuí do?
 CoQui utilizes distributed linear algebra to enable high-performance
 *ab-initio* calculations applicable to:
 - Both k-point (periodic) and molecular systems
 - Generic single-particle basis sets, such as Kohn-Sham (KS) orbitals,
   Gaussian-type orbitals, and their mixtures.
 
-Currently, `CoQui` interfaces with the following backends 
+Currently, CoQuí interfaces with the following backends 
 (see [examples/dft_converter](examples/dft_converter) for input preparation): 
 - [Quantum ESPRESSO](https://www.quantum-espresso.org)
 - [PySCF](https://pyscf.org)
 
-Below are some key features of `CoQui`. For more detailed examples, 
+Below are some key features of CoQuí. For more detailed examples, 
 please visit our [examples](examples/README.md) page.
 #### Compressed Representation for Many-Body Hamiltonians
 - THC representation for two-electron Coulomb integrals 
@@ -46,7 +53,7 @@ please visit our [examples](examples/README.md) page.
 - Local effective low-energy Hamiltonian for further correlated calculations
   [[ref](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.4c00085)]
 
-## Getting started with `CoQui` 
+## Getting started with CoQuí
 ### Prerequisites
 - C++ compiler that supports at least C++20.
 - CMake >= 3.2.0.
@@ -59,7 +66,7 @@ please visit our [examples](examples/README.md) page.
 - FFTW >= 3.2
 
 ### Installation
-`CoQui` uses `CMake` to configure the build process. Follow 
+CoQuí uses `CMake` to configure the build process. Follow 
 the instructions below step-by-step, and replace the placeholders in 
 square brackets (`[]`) with your local settings.
 

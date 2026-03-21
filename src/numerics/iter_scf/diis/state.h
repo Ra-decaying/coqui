@@ -27,15 +27,28 @@ namespace iter_scf {
 /**
  * Representation of a state of an optimization problem
  */
-
 template<typename Vector>
 class opt_state {
-    public:
+public:
+    // default constructor
     opt_state() {}
-    opt_state(Vector& x_) : x(x_) {inited = true;}
+    // construct from l-value Vector reference
+    opt_state(const Vector& x_) : x(x_), inited(true) {}
+    // construct from r-value Vector
+    opt_state(Vector&& x_) noexcept : x(std::move(x_)), inited(true) {}
 
-    void initialize(Vector& x_) {
+    opt_state(const opt_state& other) = default;
+    opt_state(opt_state&& other) noexcept = default;
+    opt_state& operator=(const opt_state& other) = default;
+    opt_state& operator=(opt_state&& other) noexcept = default;
+
+
+    void initialize(const Vector& x_) {
         if(!inited) { x = x_; }
+        inited = true;
+    }
+    void initialize(Vector&& x_) noexcept {
+        if(!inited) { x = std::move(x_); }
         inited = true;
     }
 
@@ -46,12 +59,14 @@ class opt_state {
 
     void set(const Vector x_) {x = x_; inited = true;}
     void set(const Vector& x_) {x = x_; inited = true;}
+    void set(Vector&& x_) noexcept {x = std::move(x_); inited = true;}
 
     void put(const Vector& x_) {x = x_; inited = true;}
+    void put(Vector&& x_) noexcept {x = std::move(x_); inited = true;}
 
     bool is_inited() const {return inited;}
     
-    private:
+private:
     Vector x;
     bool inited = false;
 };

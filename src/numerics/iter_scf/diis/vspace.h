@@ -61,13 +61,19 @@ public:
         return vec;
     };
 
+    /**
+     * Get vector from the vector space by reading it from the h5 file
+     */
     void get_vec(const size_t i, Vector& vec) {
         utils::check(inited, "VSpace is not initialized");
         utils::check(i < _size, "VSpace::get_vec Vector index of the VSpace container {} is out of bounds", _filename);
         vec.read_from_file(_filename, i);
     }
 
-    void add_to_vspace(Vector& a) {
+    /**
+     * Add vector to the vector space by writing it to the h5 file
+     */
+    void add_to_vspace(const Vector& a) {
         utils::check(inited, "VSpace is not initialized");
         a.write_to_file(_filename, _size);
         _size++;

@@ -58,25 +58,22 @@ static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cfun(
 static auto const fun_1 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](std::string src) { return coqui_py::utest_filename(src); }, "src")};
 
-static const auto doc_d_0 = fun_0.doc(R"DOC(
+static const auto doc_d_0 =
+    fun_0.doc(R"DOC(
 Set verbosity levels for CoQui logging output.
 
-.. raw:: html
-
-   <hr>
-
-**Parameters**
-   :mpi_handler:
-      - [INPUT] MPI handler to ensure logging is MPI-aware, i.e. only root prints
-   :output_level:
-      - [INPUT] Level of output verbosity (default: 2)
-   :debug_level:
-      - [INPUT] Level of debug verbosity (default: 0)
-
-   .. raw:: html
-
-      <hr>
-)DOC");
+Parameters
+----------
+mpi_handler : {par_0}
+   - [INPUT] MPI handler to ensure logging is MPI-aware, i.e. only root prints
+output_level : {par_1}
+   - [INPUT] Level of output verbosity (default: 2)
+debug_level : {par_2}
+   - [INPUT] Level of debug verbosity (default: 0)
+)DOC",
+              {{c2py::python_typename<coqui_py::MpiHandler &>()},
+               {c2py::python_typename<int>()},
+               {c2py::python_typename<int>()}});
 static const auto doc_d_1 = fun_1.doc(R"DOC()DOC");
 //--------------------- module function table  -----------------------------
 

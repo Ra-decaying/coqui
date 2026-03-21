@@ -1,0 +1,68 @@
+#
+# A collection of parameters for CoQui GW+EDMFT driver
+#
+[mean_field.qe]
+prefix = "svo"
+outdir = "/mnt/home/cyeh/Projects/coqui/tests/unit_test_files/qe/svo_kp222_nbnd40/out"
+nbnd = 40
+
+[interaction.thc]
+thresh = 1e-5
+ecut = 60
+save = "thc.coulomb.h5"
+
+[gw]
+output = "svo"
+restart = true
+screen_type = "gw_edmft_density"
+niter = 1
+div_treatment = "gygi_extrplt"
+[gw.iter_alg]
+alg = "damping"
+mixing = 0.2
+
+[wloc]
+outdir = "./"
+prefix = "svo"
+screen_type = "gw_edmft_density"
+div_treatment = "gygi_extrplt"
+
+[gloc]
+outdir = "./"
+prefix = "svo"
+
+[dmft_embed]
+outdir = "./"
+prefix = "svo"
+corr_only = true
+
+[impurity]
+chkpt_h5 = "svo.dmft.h5"   # checkpoint h5 for dmft results
+restart  = true
+dlr_wmax = 5
+dlr_eps  = 1e-10
+
+[[impurity.solver]]
+init_weiss_type = 'dc'
+degenerate_blk = [[0,1,2,3,4,5]]    
+n_iw = 3000
+n_tau = 96001
+length_cycle = 60
+n_warmup_cycles = 5000
+n_cycles = 2000000
+measure_pert_order = true
+perform_tail_fit = true
+fit_max_moment = 12
+fit_min_w = 1.8
+fit_max_w = 4.5
+
+[impurity.solver.chemical_potential] 
+verbosity       = true
+tolerance       = 0.1 
+length_cycle    = 40
+n_warmup_cycles = 1000
+n_cycles        = 100000
+
+[impurity.iter_alg]
+alg = "damping"
+mixing = 0.2

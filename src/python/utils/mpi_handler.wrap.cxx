@@ -1,24 +1,3 @@
-/**
- * ==========================================================================
- * CoQuí: Correlated Quantum ínterface
- *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- * ==========================================================================
- */
-
-
 
 // C.f. https://numpy.org/doc/1.21/reference/c-api/array.html#importing-the-api
 #define PY_ARRAY_UNIQUE_SYMBOL _cpp2py_ARRAY_API
@@ -50,16 +29,14 @@ template <> constexpr bool c2py::is_wrapped<coqui_py::MpiHandler> = true;
 template <>
 inline constexpr auto c2py::tp_name<coqui_py::MpiHandler> =
     "mpi_handler.MpiHandler";
-template <>
-inline constexpr const char *c2py::tp_doc<coqui_py::MpiHandler> =
-    R"DOC(   The MpiHandler class encapsulates the state of a MPI environment used by CoQui. It manages key information such as the total number of processors, node distribution, and provides access to global, internode, and intranode communicators.
-   This class also offers a minimal interface for performing basic MPI operations. It must be constructed and passed to any CoQuí routines that involve MPI parallelization. Even in serial mode (i.e., when using a single process), this class is required to ensure a consistent interface across all workflows.)DOC";
-
 static auto init_0 =
     c2py::dispatcher_c_kw_t{c2py::c_constructor<coqui_py::MpiHandler>()};
 template <>
 constexpr initproc c2py::tp_init<coqui_py::MpiHandler> =
     c2py::pyfkw_constructor<init_0>;
+template <>
+const std::string c2py::tp_ctor_doc<coqui_py::MpiHandler> =
+    init_0.doc(R"DOC()DOC");
 // barrier
 static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::MpiHandler const &self) { return self.barrier(); }, "self")};
@@ -105,83 +82,65 @@ static auto const fun_8 = c2py::dispatcher_f_kw_t{c2py::cmethod(
 // root
 static auto const fun_9 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](coqui_py::MpiHandler const &self) { return self.root(); }, "self")};
+
 static const auto doc_d_0 = fun_0.doc(R"DOC(
 MPI barrier for the global communicator.
-
-.. raw:: html
-
-   <hr>
 )DOC");
 static const auto doc_d_1 = fun_1.doc(R"DOC(
-**Returns**
+Returns
+-------
+{ret_0}
    the rank of the current process in the global communicator.
-
-   .. raw:: html
-
-      <hr>
-)DOC");
+)DOC",
+                                      {}, {c2py::python_typename<int>()});
 static const auto doc_d_2 = fun_2.doc(R"DOC(
-**Returns**
+Returns
+-------
+{ret_0}
    the size of the global communicator, i.e., the total number of processes.
-
-   .. raw:: html
-
-      <hr>
-)DOC");
+)DOC",
+                                      {}, {c2py::python_typename<int>()});
 static const auto doc_d_3 = fun_3.doc(R"DOC(
 MPI barrier for the internode communicator.
-
-.. raw:: html
-
-   <hr>
 )DOC");
 static const auto doc_d_4 = fun_4.doc(R"DOC(
-**Returns**
+Returns
+-------
+{ret_0}
    the rank of the current process in the internode communicator.
-
-   .. raw:: html
-
-      <hr>
-)DOC");
+)DOC",
+                                      {}, {c2py::python_typename<int>()});
 static const auto doc_d_5 = fun_5.doc(R"DOC(
-**Returns**
+Returns
+-------
+{ret_0}
    the size of the internode communicator, i.e., the number of nodes.
-
-   .. raw:: html
-
-      <hr>
-)DOC");
+)DOC",
+                                      {}, {c2py::python_typename<int>()});
 static const auto doc_d_6 = fun_6.doc(R"DOC(
 MPI barrier for the intranode communicator.
-
-.. raw:: html
-
-   <hr>
 )DOC");
 static const auto doc_d_7 = fun_7.doc(R"DOC(
-**Returns**
+Returns
+-------
+{ret_0}
    the rank of the current process in the intranode communicator.
-
-   .. raw:: html
-
-      <hr>
-)DOC");
+)DOC",
+                                      {}, {c2py::python_typename<int>()});
 static const auto doc_d_8 = fun_8.doc(R"DOC(
-**Returns**
+Returns
+-------
+{ret_0}
    the size of the intranode communicator, i.e., the number of processes within a node.
-
-   .. raw:: html
-
-      <hr>
-)DOC");
+)DOC",
+                                      {}, {c2py::python_typename<int>()});
 static const auto doc_d_9 = fun_9.doc(R"DOC(
-**Returns**
+Returns
+-------
+{ret_0}
    true if the current process is the root, false otherwise.
-
-   .. raw:: html
-
-      <hr>
-)DOC");
+)DOC",
+                                      {}, {c2py::python_typename<bool>()});
 
 // ----- Method table ----
 template <>
@@ -215,6 +174,20 @@ template <>
 constinit PyGetSetDef c2py::tp_getset<coqui_py::MpiHandler>[] = {
 
     {nullptr, nullptr, nullptr, nullptr, nullptr}};
+
+template <>
+const std::string c2py::tp_doc<coqui_py::MpiHandler> =
+    R"DOC(mpi handler class
+
+The MpiHandler class encapsulates the state of a MPI environment used by CoQui.
+It manages key information such as the total number of processors, node distribution,
+and provides access to global, internode, and intranode communicators.
+
+This class also offers a minimal interface for performing basic MPI operations.
+It must be constructed and passed to any CoQuí routines that involve MPI parallelization.
+Even in serial mode (i.e., when using a single process), this class is required to ensure
+a consistent interface across all workflows.)DOC" +
+    std::string{"\n\n----------\n\n"} + c2py::tp_ctor_doc<coqui_py::MpiHandler>;
 
 // ==================== module functions ====================
 

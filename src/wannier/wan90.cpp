@@ -55,9 +55,9 @@ namespace wannier {
  */
 void to_wannier90(mf::MF &mf, ptree &pt)
 {
-  app_log(2, "*************************************************");
-  app_log(2, "                Wannier90 Converter              "); 
-  app_log(2, "*************************************************");
+  app_log(1, "*************************************************");
+  app_log(1, "                Wannier90 Converter              "); 
+  app_log(1, "*************************************************\n");
 
   auto prefix = io::get_value<std::string>(pt,"prefix");
   // options
@@ -95,18 +95,12 @@ void to_wannier90(mf::MF &mf, ptree &pt)
   mpi.comm.barrier();
 }
 
-/**
- * Generate wannier90 data files from MF object 
- * @param context - [INPUT]
- * @param mf - [INPUT] mean-field instance for all the metadata of the system
- * @param pt - [INPUT] property tree with input options 
- */
 void wannier90_library_mode_from_nnkp(mf::MF &mf, ptree &pt)
 {
-  app_log(2, "*************************************************");
-  app_log(2, "       Running Wannier90 in library-mode         "); 
-  app_log(2, "      (assuming win and nnkp files exist)        "); 
-  app_log(2, "*************************************************");
+  app_log(1, "*************************************************");
+  app_log(1, "       Running Wannier90 in library-mode         "); 
+  app_log(1, "      (assuming win and nnkp files exist)        "); 
+  app_log(1, "*************************************************\n");
 
   auto& mpi = *(mf.mpi());
   auto prefix = io::get_value<std::string>(pt,"prefix");
@@ -157,22 +151,17 @@ void wannier90_library_mode_from_nnkp(mf::MF &mf, ptree &pt)
     // write to file
   }
 
-  app_log(2, "*************************************************");
-  app_log(2, "                Done with Wannier90              "); 
-  app_log(2, "*************************************************");
+  app_log(1, "");
+  app_log(1, "*************************************************");
+  app_log(1, "                Done with Wannier90              "); 
+  app_log(1, "*************************************************\n");
 }
 
-/**
- * Generate wannier90 data files from MF object 
- * @param context - [INPUT]
- * @param mf - [INPUT] mean-field instance for all the metadata of the system
- * @param pt - [INPUT] property tree with input options 
- */
 void wannier90_library_mode(mf::MF &mf, ptree &pt)
 {
   app_log(1, "*************************************************");
   app_log(1, "       Running Wannier90 in library-mode         ");
-  app_log(1, "*************************************************");
+  app_log(1, "*************************************************\n");
 
   auto& mpi = *(mf.mpi());
   auto prefix = io::get_value<std::string>(pt,"prefix");
@@ -181,7 +170,7 @@ void wannier90_library_mode(mf::MF &mf, ptree &pt)
                "Wannier90 win file not found:{}",prefix+".win");
 
   /*
-   * 1.Read nnkp file 
+   * 1. Read nnkp file 
    * 2. Generate mmn, amn and eig files.
    * 3. run wannier90 wannierization
    * 
@@ -193,6 +182,7 @@ void wannier90_library_mode(mf::MF &mf, ptree &pt)
 
   // write files 
 
+  app_log(1, "");
   app_log(1, "*************************************************");
   app_log(1, "                Done with Wannier90              ");
   app_log(1, "*************************************************");
@@ -201,9 +191,9 @@ void wannier90_library_mode(mf::MF &mf, ptree &pt)
 
 void append_wannier90_win(mf::MF &mf, ptree &pt)
 {
-  app_log(2, "*************************************************");
-  app_log(2, "        Modifying Wannier90's *.win file         ");
-  app_log(2, "*************************************************");
+  app_log(1, "*************************************************");
+  app_log(1, "        Modifying Wannier90's *.win file         ");
+  app_log(1, "*************************************************\n");
 
   auto& mpi = *(mf.mpi());
   if(mpi.comm.root()) {
@@ -279,12 +269,39 @@ void append_wannier90_win(mf::MF &mf, ptree &pt)
            <<std::setw(18) <<mf.lattv(2,2) <<"\n";
         out<<"end unit_cell_cart\n\n";
       }
-    
-      out.close();
     }
-
   }
   mpi.comm.barrier();
+
+  app_log(1, "");
+  app_log(1, "*************************************************");
+  app_log(1, "      Done appending Wannier90's *.win file      ");
+  app_log(1, "*************************************************");
+}
+
+/**
+ * Read Wannier90 standalone mode outputs and generate MLWF HDF5 file
+ */
+void mlwf_h5_from_wannier90_output(mf::MF &mf, ptree &pt)
+{
+  app_log(1, "*************************************************************");
+  app_log(1, "   Reading Wannier90 Standalone Output & Generating HDF5   ");
+  app_log(1, "*************************************************************\n");
+
+  auto &mpi = *(mf.mpi());
+  auto prefix = io::get_value<std::string>(pt, "prefix");
+
+  utils::check(std::filesystem::exists(prefix + ".win"),
+               "wan90.cpp::mlwf_h5_from_wannier90_output: Win file not found: {}.win",
+               prefix);
+
+  detail::mlwf_h5_from_wannier90_output_impl(mpi, mf, pt);
+  mpi.comm.barrier();
+
+  app_log(1, "");
+  app_log(1, "*************************************************************");
+  app_log(1, "     Wannier90 Standalone Output Successfully Processed     ");
+  app_log(1, "*************************************************************");
 }
 
 }

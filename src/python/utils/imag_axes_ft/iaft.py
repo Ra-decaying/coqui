@@ -66,8 +66,9 @@ class IAFT(object):
     IR basis and sparse sampling points on-the-fly.
 
     Dependency:
-        sparse-ir with xprec supports (https://sparse-ir.readthedocs.io/en/latest/)
-        To install sparse-ir with xprec supports: "pip install sparse-ir[xprec]".
+        Requires sparse-ir (https://sparse-ir.readthedocs.io/en/latest/) version 1.1.7 with xprec support.
+        To install: "pip install sparse-ir[xprec]==1.1.7".
+        Note: Versions 2.0 and above of sparse-ir have not yet been tested with this code and may not be compatible.
 
     Attributes:
     beta: float
@@ -114,18 +115,18 @@ class IAFT(object):
         self.prec  = set_precision(prec)
         self.statisics = {'f', 'b'}
 
-        self.bases = sparse_ir.FiniteTempBasisSet(beta=self.beta, wmax=self.wmax, eps=self.prec)
-        self.tau_mesh_f = self.bases.smpl_tau_f.sampling_points
-        self.tau_mesh_b = self.bases.smpl_tau_b.sampling_points
-        self._wn_mesh_f = self.bases.smpl_wn_f.sampling_points
-        self._wn_mesh_b = self.bases.smpl_wn_b.sampling_points
+        self._bases = sparse_ir.FiniteTempBasisSet(beta=self.beta, wmax=self.wmax, eps=self.prec)
+        self.tau_mesh_f = self._bases.smpl_tau_f.sampling_points
+        self.tau_mesh_b = self._bases.smpl_tau_b.sampling_points
+        self._wn_mesh_f = self._bases.smpl_wn_f.sampling_points
+        self._wn_mesh_b = self._bases.smpl_wn_b.sampling_points
         self.nt_f, self.nw_f = self.tau_mesh_f.shape[0], self._wn_mesh_f.shape[0]
         self.nt_b, self.nw_b = self.tau_mesh_b.shape[0], self._wn_mesh_b.shape[0]
 
-        Ttl_ff = self.bases.basis_f.u(self.tau_mesh_f).T
-        Twl_ff = self.bases.basis_f.uhat(self._wn_mesh_f).T
-        Ttl_bb = self.bases.basis_b.u(self.tau_mesh_b).T
-        Twl_bb = self.bases.basis_b.uhat(self._wn_mesh_b).T
+        Ttl_ff = self._bases.basis_f.u(self.tau_mesh_f).T
+        Twl_ff = self._bases.basis_f.uhat(self._wn_mesh_f).T
+        Ttl_bb = self._bases.basis_b.u(self.tau_mesh_b).T
+        Twl_bb = self._bases.basis_b.uhat(self._wn_mesh_b).T
 
         self.Tlt_ff = np.linalg.pinv(Ttl_ff)
         self.Tlt_bb = np.linalg.pinv(Ttl_bb)
@@ -141,6 +142,30 @@ class IAFT(object):
         if verbose:
             print(self)
             sys.stdout.flush()
+
+    @classmethod
+    def from_coqui_chkpt(cls, chkpt_h5, verbose: bool = True):
+        from h5 import HDFArchive
+        with HDFArchive(chkpt_h5, 'r') as ar:
+            iaft_grp = ar['imaginary_fourier_transform']
+            beta = iaft_grp['beta']
+            prec = iaft_grp['prec']
+
+            if 'wmax' in iaft_grp:
+                wmax = iaft_grp['wmax']
+            else:
+                ir_lambda = iaft_grp['lambda']
+                wmax = ir_lambda / beta
+
+        return cls(beta, wmax, prec, verbose)
+
+    def save(self, h5_grp):
+        if 'imaginary_fourier_transform' in h5_grp:
+            return
+        h5_grp.create_group('imaginary_fourier_transform')
+        h5_grp['imaginary_fourier_transform']['beta'] = self.beta
+        h5_grp['imaginary_fourier_transform']['wmax'] = self.wmax
+        h5_grp['imaginary_fourier_transform']['prec'] = self.prec
 
     def __str__(self):
         return ("Mesh details on the imaginary axis\n" \
@@ -369,7 +394,7 @@ class IAFT(object):
             raise ValueError(
                 "w_interpolate: Number of w points are inconsistent: {} and {}".format(Ow.shape[0], Tlw.shape[1]))
 
-        Twl_interp = self.bases.basis_f.uhat(wn_indices).T if stats == 'f' else self.bases.basis_b.uhat(wn_indices).T
+        Twl_interp = self._bases.basis_f.uhat(wn_indices).T if stats == 'f' else self._bases.basis_b.uhat(wn_indices).T
         Tww = np.dot(Twl_interp, Tlw)
 
         Ow_shape = Ow.shape
@@ -445,7 +470,7 @@ class IAFT(object):
                 imw = self.nw_b // 2 - n
                 Tlw_pos[l, n] = Tlw[l, iw] if iw == imw else Tlw[l, iw] + Tlw[l, imw]
 
-        Twl_interp = self.bases.basis_b.uhat(wn_indices).T
+        Twl_interp = self._bases.basis_b.uhat(wn_indices).T
         Tww = np.dot(Twl_interp, Tlw_pos)
 
         Ow_shape = Ow.shape
@@ -479,7 +504,7 @@ class IAFT(object):
             raise ValueError(
                 "t_interpolate: Number of tau points are inconsistent: {} and {}".format(Ot.shape[0], Tlt.shape[1]))
 
-        Ttl_interp = self.bases.basis_f.u(tau_mesh_interp).T if stats == 'f' else self.bases.basis_b.u(tau_mesh_interp).T
+        Ttl_interp = self._bases.basis_f.u(tau_mesh_interp).T if stats == 'f' else self._bases.basis_b.u(tau_mesh_interp).T
         Ttt = np.dot(Ttl_interp, Tlt)
 
         Ot_shape = Ot.shape
@@ -541,7 +566,7 @@ class IAFT(object):
                 imt = self.nt_b - it - 1
                 Tlt_pos[l, it] = Tlt[l, it] if it == imt else Tlt[l, it] + Tlt[l, imt]
 
-        Ttl_interp = self.bases.basis_b.u(tau_mesh_interp).T
+        Ttl_interp = self._bases.basis_b.u(tau_mesh_interp).T
         Ttt = np.dot(Ttl_interp, Tlt_pos)
 
         Ot_shape = Ot.shape

@@ -292,21 +292,21 @@ double solve_iterative(utils::mpi_context_t<comm_t> &context, iter_scf::iter_scf
  */
 template<typename comm_t, typename X_t, typename Xt_t>
 auto solve_iterative(utils::mpi_context_t<comm_t> &context, iter_scf::iter_scf_t& iter_solver,
-                     long it, std::string h5_prefix, X_t &sF_skij, Xt_t &sSigma_tskij,
-                     const imag_axes_ft::IAFT *FT, bool restart,
+                     long iteration, std::string h5_prefix, X_t &sF_skij, Xt_t &sSigma_tskij,
+                     const imag_axes_ft::IAFT *FT,
                      std::array<std::string,3> dataset={"scf", "F_skij", "Sigma_tskij"})
   -> std::tuple<double, double>;
 
 template<typename MPI_Context_t, typename X_t, typename Xt_t>
 auto damping_impl(MPI_Context_t &context, iter_scf::iter_scf_t& iter_solver,
-                  long it, std::string h5_prefix, X_t &sF_skij, Xt_t &sSigma_tskij,
+                  long iteration, std::string h5_prefix, X_t &sF_skij, Xt_t &sSigma_tskij,
                   std::array<std::string,3> datasets={"scf", "F_skij", "Sigma_tskij"})
 -> std::tuple<double, double>;
 
 template<typename MPI_Context_t, typename X_t, typename Xt_t>
 auto diis_impl(MPI_Context_t &context, iter_scf::iter_scf_t& iter_solver,
-               long it, std::string h5_prefix, X_t &sF_skij, Xt_t &sSigma_tskij,
-               const imag_axes_ft::IAFT *FT, bool restart,
+               long iteration, std::string h5_prefix, X_t &sF_skij, Xt_t &sSigma_tskij,
+               const imag_axes_ft::IAFT *FT,
                std::array<std::string,3> datasets={"scf", "F_skij", "Sigma_tskij"})
 -> std::tuple<double, double>;
 
@@ -333,7 +333,7 @@ void write_mf_data(mf::MF &mf, const imag_axes_ft::IAFT &ft, hamilt::pseudopot &
  */
 template<typename MPI_Context_t>
 auto read_greens_function(MPI_Context_t &context, mf::MF *mf,
-                          std::string filename, long scf_iter, std::string scf_grp = "scf")
+                          std::string filename, long scf_iter=-1, std::string scf_grp = "scf")
 -> sArray_t<Array_view_5D_t>;
 
 }

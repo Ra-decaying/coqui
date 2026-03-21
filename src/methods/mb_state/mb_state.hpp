@@ -62,7 +62,7 @@ public:
   MBState(std::shared_ptr<mpi_context_t> mpi_in, imag_axes_ft::IAFT &ft_in,
           std::string prefix, bool restart_from_checkpoint=false);
 
-  // mbpt embedding constructors
+  // embedding constructors with MLWFs projector provided either directly or via hdf5 file
   MBState(imag_axes_ft::IAFT &ft_in, std::string prefix,
           std::shared_ptr<mf::MF> &mf, std::string C_file, bool translate_home_cell=false,
           bool restart_from_checkpoint=false);
@@ -78,10 +78,14 @@ public:
 
   ~MBState(){}
 
+  // TODO Function to read MBPT data
+
+  void set_zero_local_polarizabilities();
   bool read_local_polarizabilities(long weiss_b_iter=-1);
   void set_local_polarizabilities(std::map<std::string, nda::array<ComplexType, 5>> local_polarizabilities);
   void set_local_hf_potentials(std::map<std::string, nda::array<ComplexType, 4>> local_hf_potentials);
   void set_local_selfenergies(std::map<std::string, nda::array<ComplexType, 5>> local_selfenergies);
+  bool has_local_selfenergies();
 
 public:
   std::shared_ptr<mpi_context_t> mpi;
