@@ -129,15 +129,6 @@ namespace methods {
       app_log(2, "    K BLAS:                {0:.3f} sec\n", _Timer.elapsed("K BLAS"));
    }
 
-    void hf_t::print_chol_hf_grad_timers()
-    {
-      app_log(2, "\n  CHOL-HF-GRAD timers");
-      app_log(2, "  --------------");
-      app_log(2, "    Total:                 {0:.3f} sec", _Timer.elapsed("GRAD_TOTAL"));
-      app_log(2, "    Coulomb:               {0:.3f} sec", _Timer.elapsed("GRAD_COULOMB"));
-      app_log(2, "    Exchange:              {0:.3f} sec", _Timer.elapsed("GRAD_EXCHANGE"));
-    }
-
     // instantiate templates
     using Arr4D = nda::array<ComplexType, 4>;
     using Arrv4D = nda::array_view<ComplexType, 4>;
@@ -150,4 +141,3 @@ namespace methods {
 
   }
 } // methods
-

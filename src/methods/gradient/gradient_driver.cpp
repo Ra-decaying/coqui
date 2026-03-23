@@ -28,6 +28,8 @@
 #include "methods/ERI/mb_eri_context.h"
 #include "methods/ERI/thc_reader_t.hpp"
 #include "methods/gradient/gradient_common.h"
+#include "methods/GW/gw_gradient_t.h"
+#include "methods/HF/hf_gradient_t.h"
 #include "methods/SCF/simple_dyson.h"
 
 
@@ -107,17 +109,20 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
   if (solver_type == "hf") {
     if constexpr (std::is_same_v<decltype(mb_eri_t.hf_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
       if (mb_eri_t.hf_eri != std::nullopt) {
-        grad_2e = mb_solver.hf->eval_grad(sDm_skij.local(), mb_eri_t.hf_eri->get());
+        solvers::hf_gradient_t hf_grad(mf);
+        grad_2e = hf_grad.evaluate(sDm_skij.local(), mb_eri_t.hf_eri->get());
       }
     } else if constexpr(std::is_same_v<decltype(mb_eri_t.corr_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
       if (mb_eri_t.corr_eri != std::nullopt) {
-        grad_2e = mb_solver.hf->eval_grad(sDm_skij.local(), mb_eri_t.corr_eri->get());
+        solvers::hf_gradient_t hf_grad(mf);
+        grad_2e = hf_grad.evaluate(sDm_skij.local(), mb_eri_t.corr_eri->get());
       }
     }
   } else if (solver_type == "gw") {
     if constexpr (std::is_same_v<decltype(mb_eri_t.corr_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
       if constexpr (std::is_same_v<corr_solver_t, solvers::gw_t>) {
-        grad_2e = mb_solver.corr->eval_grad(sG_tskij.local(), mb_eri_t.corr_eri->get());
+        solvers::gw_gradient_t gw_grad(mf, &FT);
+        grad_2e = gw_grad.evaluate(sG_tskij.local(), mb_eri_t.corr_eri->get());
       }
     }
   }

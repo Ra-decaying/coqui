@@ -119,6 +119,7 @@ namespace methods {
                            const nda::MemoryArrayOfRank<4> auto &S_skij, double madelung);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
       std::string& div_treatment() { return _div_treatment; }
 =======
       /**
@@ -189,6 +190,8 @@ namespace methods {
                                      const nda::MemoryArrayOfRank<4> auto &Dm_skij,
                                      Cholesky_ERI auto &&chol);
 
+=======
+>>>>>>> 9b21da0 (rebirth of hf_gradient and gw_gradient)
       div_treatment_e& div_treatmemnt() { return _div_treatment; }
 >>>>>>> 8577851 (merge gw_gradient into gw)
       void print_chol_hf_timers();
