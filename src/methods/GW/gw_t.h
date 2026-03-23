@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -150,13 +150,41 @@ namespace methods {
                           int batch_size = -1,
                           bool print_mpi = false);
 
+
+      /**
+       * Evaluate Chol-GW gradients
+       * @param G_tskij  - [INPUT] Green's function in primary basis: (nts, ns, nkpts_ibz, nbnd, nbnd)
+       * @param chol     - [INPUT] Cholesky ERI object
+       * @return - Gradients for all atoms on all directions
+      */
+      nda::array<ComplexType, 2> eval_grad(const nda::MemoryArrayOfRank<5> auto &G_tskij, Cholesky_ERI auto &&chol);
+
+      /**
+       * Evaluate Chol-GW gradients by two-electron term
+       * @param G_tskij  - [INPUT] Green's function in primary basis: (nts, ns, nkpts_ibz, nbnd, nbnd)
+       * @param chol     - [INPUT] Cholesky ERI object
+       * @return - Gradients for all atoms on all directions
+      */
+      nda::array<ComplexType, 2> eval_grad_2e(const nda::MemoryArrayOfRank<5> auto &G_tskij, Cholesky_ERI auto && chol);
+
+      /**
+       * Evaluate Chol-GW gradients by two-electron term
+       * @param iatom      - index of atom
+       * @param idirection - index of direction
+       * @param chol       - [INPUT] Cholesky ERI object
+       * @return - Gradient for one atom one direction
+      */
+      ComplexType eval_grad_2e(int iatom, int idirection, Cholesky_ERI auto && chol);
+
       void print_thc_gw_timers();
- 
-      void print_thc_rpa_timers(); 
 
-      void print_chol_gw_timers(); 
+      void print_thc_rpa_timers();
 
-      void print_rpa_gw_timers(); 
+      void print_chol_gw_timers();
+
+      void print_rpa_gw_timers();
+
+      void print_chol_gw_grad_timers();
 
       //void set_MF(mf::MF *MF) { _MF = MF; }
 

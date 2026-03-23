@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -354,23 +354,23 @@ namespace methods {
               // X_Pib = L_Pia * Gt_ab
               L_Pia = chol.V(iq, is, ik)(all, i_range, all);
               nda::blas::gemm(L_Pi_a, Gt_ab, X_Pi_b);
-              
+
               // Y_Qib = Pt_PQ * X_Pib
               nda::blas::gemm(PtF_QP, X_P_ib, Y_Q_ib);
-              
+
               // Y2_ibQ = Y_Qib
               Y2_ib_Q = nda::transpose(Y_Q_ib);
-              
+
               // Sigma_ij = Y2_ibQ * L_jbQ_conj
               auto Sigma_ij = sSigma_tskij.local()(it, is ,ik, i_range, all);
               // FIXME remove 1/nkpts
               nda::blas::gemm(ComplexType(-1.0/nkpts), Y2_i_bQ, L_bQ_j_conj, ComplexType(1.0), Sigma_ij);
-            } 
-          } 
-        } 
-      } 
+            }
+          }
+        }
+      }
       sSigma_tskij.win().fence();
-    } 
+    }
 
     // instantiations
     using Arr3 = nda::array<ComplexType, 3>;

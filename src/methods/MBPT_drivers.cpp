@@ -187,7 +187,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf),
              iter_solver.get(), niter, restart, conv_thr, const_mu,
              greens_func_source, greens_func_iteration);
-    if (eval_grad)  {
+    if (eval_grad) {
       if constexpr (std::is_same_v<decltype(eri.hf_eri), std::optional<std::reference_wrapper<chol_reader_t>>> or
                     std::is_same_v<decltype(eri.corr_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
         evaluate_gradients(mb_state, dyson, eri, ft, mb_solver_t(&hf), solver_type, "scf", -1);
@@ -234,6 +234,11 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw, &scr_eri),
                iter_solver.get(), niter, restart, conv_thr, const_mu,
                greens_func_source, greens_func_iteration);
+      if (eval_grad) {
+        if constexpr (std::is_same_v<decltype(eri.corr_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
+          evaluate_gradients(mb_state, dyson, eri, ft,  mb_solver_t(&hf, &gw, &scr_eri), solver_type, "scf", -1);
+        }
+      }
 
       auto dump_w_to_h5 = io::get_value_with_default<bool>(pt,"dump_w_to_h5", false);
       if (dump_w_to_h5) {

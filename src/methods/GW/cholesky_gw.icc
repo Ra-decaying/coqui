@@ -28,7 +28,7 @@ namespace methods {
       auto I = nda::eye<ComplexType>(Np);
       nda::matrix<ComplexType> X(Np, Np);
       nda::matrix<ComplexType> Y(Np, Np);
-      _Timer.start("ALLOC");
+      _Timer.stop("ALLOC");
 
       _Timer.start("IMAG_FT");
       sP0_wPQ.win().fence();

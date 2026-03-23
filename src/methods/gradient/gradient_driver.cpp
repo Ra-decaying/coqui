@@ -101,7 +101,9 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
   Timer.stop("ONE_ELECTRON");
 
   Timer.start("TWO_ELECTRON");
-  utils::check(solver_type == "hf", " evaluate_gradients: Invalid solver_type: {}", solver_type);
+  utils::check(solver_type == "hf" or
+               solver_type == "gw",
+               " evaluate_gradients: Invalid solver_type: {}", solver_type);
   if (solver_type == "hf") {
     if constexpr (std::is_same_v<decltype(mb_eri_t.hf_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
       if (mb_eri_t.hf_eri != std::nullopt) {
@@ -110,6 +112,12 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
     } else if constexpr(std::is_same_v<decltype(mb_eri_t.corr_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
       if (mb_eri_t.corr_eri != std::nullopt) {
         grad_2e = mb_solver.hf->eval_grad(sDm_skij.local(), mb_eri_t.corr_eri->get());
+      }
+    }
+  } else if (solver_type == "gw") {
+    if constexpr (std::is_same_v<decltype(mb_eri_t.corr_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
+      if constexpr (std::is_same_v<corr_solver_t, solvers::gw_t>) {
+        grad_2e = mb_solver.corr->eval_grad(sG_tskij.local(), mb_eri_t.corr_eri->get());
       }
     }
   }

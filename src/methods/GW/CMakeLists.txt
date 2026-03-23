@@ -3,7 +3,6 @@
 
 SET(SRCS
   gw_t.cpp
-  gw_gradient_t.cpp
   cholesky_rpa.cpp
   cholesky_gw.cpp
   cholesky_gw_grad.cpp

@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -124,6 +124,13 @@ namespace methods {
       app_log(2, "    Evaluate_RPA:          {0:.3f} sec", _Timer.elapsed("EVALUATE_RPA"));
       app_log(2, "    Imaginary FT:          {0:.3f} sec", _Timer.elapsed("IMAG_FT"));
       app_log(2, "    Chol-ERI reader:       {0:.3f} sec\n", _Timer.elapsed("ERI_READER"));
+    }
+
+    void gw_t::print_chol_gw_grad_timers() {
+      app_log(2, "\n  CHOL-GW-GRAD timers");
+      app_log(2, "  --------------");
+      app_log(2, "    Total:                 {0:.3f} sec", _Timer.elapsed("GRAD_TOTAL"));
+      app_log(2, "    Evaluate_P0:           {0:.3f} sec", _Timer.elapsed("GRAD_EVALUATE_P0"));
     }
 
   } // solvers

@@ -232,13 +232,10 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
 
   } else if (std::is_same_v<corr_solver_t, solvers::gw_t> and mb_solver.corr != nullptr) {
 
-    double e_rpa = [&]() {
-      if constexpr (requires { mb_solver.corr->rpa_energy(sG_tskij.local(), mb_eri.corr_eri->get()); }) {
-        return mb_solver.corr->rpa_energy(sG_tskij.local(), mb_eri.corr_eri->get());
-      } else {
-        return 0.0;
-      }
-    }();
+    double e_rpa = 0.0;
+    if constexpr (requires { mb_solver.corr->rpa_energy(sG_tskij.local(), mb_eri.corr_eri->get()); }) {
+      e_rpa = mb_solver.corr->rpa_energy(sG_tskij.local(), mb_eri.corr_eri->get());
+    }
     eval_grand_potential(mpi->comm, *mf, FT, sF_skij, dyson.sH0_skij(), dyson.sS_skij(),
                          sG_tskij, sSigma_tskij, energies, e_rpa, mu, false);
 
