@@ -126,13 +126,5 @@ namespace methods {
       app_log(2, "    Chol-ERI reader:       {0:.3f} sec\n", _Timer.elapsed("ERI_READER"));
     }
 
-    void gw_t::print_chol_gw_grad_timers() {
-      app_log(2, "\n  CHOL-GW-GRAD timers");
-      app_log(2, "  --------------");
-      app_log(2, "    Total:                 {0:.3f} sec", _Timer.elapsed("GRAD_TOTAL"));
-      app_log(2, "    Evaluate_P0:           {0:.3f} sec", _Timer.elapsed("GRAD_EVALUATE_P0"));
-    }
-
   } // solvers
 } // methods
-
