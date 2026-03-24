@@ -37,6 +37,8 @@ namespace methods {
 
     template<nda::Array Array_base_t>
     using sArray_t = math::shm::shared_array<Array_base_t>;
+    template<int N>
+    using shape_t = std::array<long,N>;
 
     public:
 
@@ -51,6 +53,15 @@ namespace methods {
                                             Cholesky_ERI auto && chol);
 
     ComplexType eval_grad_2e(int iatom, int idirection, Cholesky_ERI auto && chol);
+
+    template<nda::MemoryArray Array_3D_t>
+    void eval_P0(size_t iq, const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                 sArray_t<Array_3D_t> &sP0_tPQ, Cholesky_ERI auto &chol,
+                 int batch_size, bool print_mpi);
+
+    template<nda::MemoryArray Array_3D_t>
+    void eval_dyson_P(sArray_t<Array_3D_t> &sP0_tPQ, sArray_t<Array_3D_t> &sP0_wPQ);
+
 
     void print_chol_gw_grad_timers();
 
