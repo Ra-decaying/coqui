@@ -31,13 +31,12 @@
 #include "mean_field/MF.hpp"
 #include "numerics/imag_axes_ft/IAFT.hpp"
 #include "methods/ERI/detail/concepts.hpp"
-#include "methods/ERI/div_treatment_e.hpp"
 #include "methods/GW/gw_t.h"
 
 namespace methods {
   namespace solvers {
 
-    gw_t::gw_t(const imag_axes_ft::IAFT *ft, div_treatment_e div, std::string output):
+    gw_t::gw_t(const imag_axes_ft::IAFT *ft, std::string div, std::string output):
        _ft(ft),
        _div_treatment(div),
        _output(output),

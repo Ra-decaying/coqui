@@ -38,7 +38,6 @@
 #include "numerics/imag_axes_ft/iaft_utils.hpp"
 #include "methods/mb_state/mb_state.hpp"
 #include "methods/ERI/detail/concepts.hpp"
-#include "methods/ERI/div_treatment_e.hpp"
 
 namespace methods {
 namespace solvers {
@@ -85,7 +84,7 @@ namespace solvers {
     scr_coulomb_t(
         const imag_axes_ft::IAFT *ft,
         std::string screen_type,
-        div_treatment_e div = gygi);
+      std::string div = "gygi");
 
     scr_coulomb_t(scr_coulomb_t const&) = default;
     scr_coulomb_t(scr_coulomb_t &&) = default;
@@ -259,7 +258,7 @@ namespace solvers {
 
     std::string _screen_type = "";
 
-    div_treatment_e _div_treatment;
+    std::string _div_treatment;
     utils::TimerManager _Timer;
 
     // optional container for screened interaction
@@ -268,7 +267,7 @@ namespace solvers {
     std::optional<nda::array<ComplexType, 1> > _eps_inv_head;
 
   public:
-    div_treatment_e div_treatment() const { return _div_treatment; }
+    std::string div_treatment() const { return _div_treatment; }
     std::string& screen_type() { return _screen_type; };
     std::string screen_type() const { return _screen_type; };
 

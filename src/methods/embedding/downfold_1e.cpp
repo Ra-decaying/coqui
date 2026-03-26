@@ -147,7 +147,7 @@ namespace methods {
   template<THC_ERI thc_t>
   void embed_t::hf_downfolding(std::string outdir, std::string prefix,
                       thc_t& eri, imag_axes_ft::IAFT &ft,
-                      bool force_real, div_treatment_e hf_div_treatment) {
+                      bool force_real, std::string hf_div_treatment) {
 
     prefix = outdir + "/" + prefix;
     downfold_hf_impl(prefix, eri, ft, force_real, hf_div_treatment);
@@ -869,7 +869,7 @@ namespace methods {
                                  thc_t& eri,
                                  imag_axes_ft::IAFT &ft,
                                  bool force_real,
-                                 div_treatment_e hf_div_treatment) {
+                                 std::string hf_div_treatment) {
     using math::shm::make_shared_array;
     decltype(nda::range::all) all;
 
@@ -1492,6 +1492,6 @@ namespace methods {
 namespace methods {
 
 template void embed_t::hf_downfolding(std::string, std::string,
-    thc_reader_t&, imag_axes_ft::IAFT&, bool, div_treatment_e);
+  thc_reader_t&, imag_axes_ft::IAFT&, bool, std::string);
 
 }

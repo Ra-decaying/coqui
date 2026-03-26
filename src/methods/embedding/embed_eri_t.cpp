@@ -612,8 +612,8 @@ namespace methods {
 
       _Timer.start("DF_DOWNFOLD");
       auto dV_qPQ = eri.dZ({1, 1, mpi->comm.size()});
-      app_log(1, "Treatment of long-wavelength divergence in V (bare): {}", div_enum_to_string(_bare_div_treatment));
-      auto div_factor = ( _bare_div_treatment == ignore_g0 ? ComplexType(0.0) : ComplexType(1.0) );
+      app_log(1, "Treatment of long-wavelength divergence in V (bare): {}", _bare_div_treatment);
+      auto div_factor = ( _bare_div_treatment == "ignore_g0") ? ComplexType(0.0) : ComplexType(1.0);
       auto V_nab = ( factorization_type=="cholesky" ? 
                      downfold_cholesky(eri, proj_boson, dV_qPQ, div_factor, thresh) :
                      downfold_cholesky_high_memory(eri, proj_boson, dV_qPQ, div_factor, thresh) );
@@ -1536,10 +1536,10 @@ namespace methods {
       dV_qPQ.local() += dW_wqPQ.local()(0,nda::ellipsis{});
     }
     dW_wqPQ.reset();
-    app_log(1, "Treatment of long-wavelength divergence in V (bare): {}", div_enum_to_string(_bare_div_treatment));
-    app_log(1, "Treatment of long-wavelength divergence in W: {}", div_enum_to_string(_div_treatment));
-    auto div_factor = ( _bare_div_treatment == ignore_g0 ? ComplexType(0.0) : ComplexType(1.0) );
-    div_factor += ( _div_treatment == ignore_g0 ? ComplexType(0.0) : eps_inv_head_w(0) );
+    app_log(1, "Treatment of long-wavelength divergence in V (bare): {}", _bare_div_treatment);
+    app_log(1, "Treatment of long-wavelength divergence in W: {}", _div_treatment);
+    auto div_factor = ( _bare_div_treatment == "ignore_g0" )? ComplexType(0.0) : ComplexType(1.0);
+    div_factor += ( _div_treatment == "ignore_g0" ) ? ComplexType(0.0) : eps_inv_head_w(0);
     auto W_nab = ( factorization_type=="cholesky" ?
                    downfold_cholesky(thc, mb_state.proj_boson.value(), dV_qPQ, div_factor, thresh) :
                    downfold_cholesky_high_memory(thc, mb_state.proj_boson.value(), dV_qPQ, div_factor, thresh) );
@@ -2206,7 +2206,7 @@ namespace methods {
   template<THC_ERI thc_t, nda::ArrayOfRank<5> B_t>
   void embed_eri_t::V_div_correction(nda::array<ComplexType, 4> &V_cdab,
                                 const B_t &B_qIPab, thc_t &thc) {
-    auto div_string = div_enum_to_string(_bare_div_treatment);
+    auto div_string = _bare_div_treatment;
     if (div_string == "ignore_g0") {
       app_log(1, "No finite-size correction for the long-wavelength divergence in "
                  "the local bare V. ");
@@ -2214,7 +2214,7 @@ namespace methods {
     }
     app_log(1, "  Treatment of long-wavelength divergence in bare V: {}\n"
                "    - madelung = {}\n",
-            div_enum_to_string(_bare_div_treatment), _MF->madelung());
+          _bare_div_treatment, _MF->madelung());
     auto [nqpts, nImps, NP, nImpOrbs, nImpOrbs2] = B_qIPab.shape();
     nda::array<ComplexType, 2> BB_ab(nImpOrbs, nImpOrbs);
     nda::array<ComplexType, 2> BB_cd_conj(nImpOrbs, nImpOrbs);
@@ -2235,11 +2235,10 @@ namespace methods {
                                 nda::array<ComplexType, 5> &W_wcdab,
                                 const nda::array<ComplexType, 5> &B_qIPab,
                                 const nda::array<ComplexType, 1> &eps_inv_head) {
-    app_log(1, "  Treatment of long-wavelength divergence in W: {}", div_enum_to_string(_div_treatment));
-    auto div_string = div_enum_to_string(_div_treatment);
-    if (div_string == "ignore_g0") {
+    app_log(1, "  Treatment of long-wavelength divergence in W: {}", _div_treatment);
+    if (_div_treatment == "ignore_g0") {
       return;
-    } else if (div_string.find("gygi") != std::string::npos) {
+    } else if (_div_treatment.find("gygi") != std::string::npos) {
       app_log(1, "    - madelung = {}", _MF->madelung());
 
       auto [nqpts, nImps, NP, nImpOrbs, nImpOrbs2] = B_qIPab.shape();
@@ -2261,7 +2260,7 @@ namespace methods {
             _MF->madelung() * eps_inv_head(n) * nda::blas::outer_product(BB_cd_conj_1D, BB_ab_1D);
       }
     } else {
-      utils::check(false, "Unsupported divergence treatment: {}", div_enum_to_string(_div_treatment));
+      utils::check(false, "Unsupported divergence treatment: {}", _div_treatment);
     }
     app_log(1, "");
   }

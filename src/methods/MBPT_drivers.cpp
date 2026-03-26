@@ -37,7 +37,6 @@
 #include "mean_field/mf_utils.hpp"
 #include "methods/ERI/mb_eri_context.h"
 #include "methods/mb_state/mb_state.hpp"
-#include "methods/ERI/div_treatment_e.hpp"
 #include "methods/SCF/dca_dyson.h"
 #include "methods/SCF/simple_dyson.h"
 #include "methods/embedding/embed_t.h"
@@ -161,11 +160,10 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
 
   using namespace solvers;
-  hf_t hf(string_to_div_enum(hf_div_treatment));
+  hf_t hf(hf_div_treatment);
   if(solver_type == "rpa") {
     simple_dyson dyson(mf.get(), &ft, mu_tol);
-    //solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum(div_treatment));
-    gw_t gw(&ft, string_to_div_enum(div_treatment), output);
+    gw_t gw(&ft, div_treatment, output);
     MBState mb_state(mpi, ft, output);
     rpa_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf,&gw));
   } else if(solver_type == "hf") {
@@ -190,8 +188,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     } else {
       iter_solver = nullptr;
     }
-    solvers::scr_coulomb_t scr_eri(&ft, screen_type, string_to_div_enum(div_treatment));
-    solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
+    solvers::scr_coulomb_t scr_eri(&ft, screen_type, div_treatment);
+    solvers::gw_t gw(&ft, div_treatment, output);
     if (screen_type.substr(0,8)=="gw_edmft") {
 
       auto wannier_file = io::get_value<std::string>(pt,"wannier_file",err+"wannier_file");
@@ -250,7 +248,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     } else {
       iter_solver = nullptr;
     }
-    solvers::gf2_t gf2(mf.get(), &ft, string_to_div_enum(div_treatment),
+    solvers::gf2_t gf2(mf.get(), &ft, div_treatment,
                        gf2_direct_type, gf2_exchange_alg, gf2_exchange_type, output,
                        gf2_save_C, gf2_sosex_save_memory);
     gf2.t_thresh() = t_prescreen_thresh;
@@ -262,7 +260,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
                iter_solver.get(), niter, restart, conv_thr, const_mu,
                greens_func_source, greens_func_iteration);
     } else {
-      solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum(div_treatment));
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", div_treatment);
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gf2, &scr_eri),
                iter_solver.get(), niter, restart, conv_thr, const_mu,
                greens_func_source, greens_func_iteration);
@@ -276,7 +274,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
         "qe" : (mf.mf_type()==mf::pyscf_source)? "pyscf" : "bdft";
     mf::MF dca_mf(mf::make_MF(mpi, dca_pt, mf_type));
     dca_dyson dyson(mpi, &mf, &ft, dca_mf);
-    solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
+    solvers::gw_t gw(&ft, div_treatment, output);
     scf_loop(dyson, eri, ft, mb_solver_t(&hf,&gw), nullptr,
              output, niter, restart, conv_thr, const_mu);*/
 
@@ -306,8 +304,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     } else {
       iter_solver = nullptr;
     }
-    solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum(div_treatment));
-    solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
+    solvers::scr_coulomb_t scr_eri(&ft, "rpa", div_treatment);
+    solvers::gw_t gw(&ft, div_treatment, output);
     MBState mb_state(mpi, ft, output);
     qp_scf_loop<true>(mb_state, eri, ft, qp_context, mb_solver_t(&hf,&gw,&scr_eri), iter_solver.get(),
                       niter, restart, conv_thr);
@@ -328,8 +326,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     } else {
       iter_solver = nullptr;
     }
-    solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum(div_treatment));
-    solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
+    solvers::scr_coulomb_t scr_eri(&ft, "rpa", div_treatment);
+    solvers::gw_t gw(&ft, div_treatment, output);
     MBState mb_state(mpi, ft, output);
     qp_scf_loop<false>(mb_state, eri, ft, qp_context, mb_solver_t(&hf,&gw,&scr_eri), iter_solver.get(),
                        niter, restart, conv_thr);
@@ -399,7 +397,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
   std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
 
   using namespace solvers;
-  hf_t hf(string_to_div_enum(hf_div_treatment));
+  hf_t hf(hf_div_treatment);
   if (solver_type == "gw") {
 
     auto screen_type = io::get_value_with_default<std::string>(pt,"screen_type", "rpa");
@@ -410,8 +408,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
     } else {
       iter_solver = nullptr;
     }
-    solvers::scr_coulomb_t scr_eri(&ft, screen_type, string_to_div_enum(div_treatment));
-    solvers::gw_t gw(&ft, string_to_div_enum(div_treatment), output);
+    solvers::scr_coulomb_t scr_eri(&ft, screen_type, div_treatment);
+    solvers::gw_t gw(&ft, div_treatment, output);
     MBState mb_state(ft, output, mf, projector_ksIai, band_window, kpts_crys, trans_home_cell, false);
     if (local_polarizabilities) {
       mb_state.set_local_polarizabilities(std::move(local_polarizabilities.value()));
@@ -526,8 +524,7 @@ downfold_coulomb_impl(eri_t &eri, MBState&& mb_state, ptree const& pt,
     mb_state.set_local_polarizabilities(std::move(local_polarizabilities.value()));
     local_polarizabilities.reset();
   }
-  embed_eri_t embed_eri(*mf, string_to_div_enum(div_treatment),
-              string_to_div_enum(bare_div_treatment), "default");
+  embed_eri_t embed_eri(*mf, div_treatment, bare_div_treatment, "default");
   return (output_in_tau)?
     embed_eri.compute_downfolded_coulomb_tensors<true>(
       eri, mb_state, screen_type, permut_symm, force_real, mb_state.ft, 
@@ -625,8 +622,7 @@ void downfolding_2e(eri_t &eri, ptree const& pt,
     local_polarizabilities.reset();
   }
 
-  embed_eri_t embed_eri(*mf, string_to_div_enum(div_treatment),
-                        string_to_div_enum(bare_div_treatment), "default");
+  embed_eri_t embed_eri(*mf, div_treatment, bare_div_treatment, "default");
 
   if (screen_type.substr(0, 8) == "gw_edmft") {
     embed_eri.downfolding_edmft(eri, mb_state, pt, screen_type);
@@ -695,8 +691,7 @@ void hf_downfold(eri_t &eri, ptree const& pt) {
   MBState mb_state(ft, output, mf, wannier_file, trans_home_cell, false);
 
   // Two-body Hamiltonian
-  embed_eri_t embed_eri(*mf, ignore_g0,
-                        string_to_div_enum(hf_div_treatment), "model_static");
+  embed_eri_t embed_eri(*mf, "ignore_g0", hf_div_treatment, "model_static");
   embed_eri.downfolding_crpa(eri, mb_state, pt, "bare", factorization_type,
                              io::get_value_with_default<double>(pt, "thresh", 1e-6));
 
@@ -704,7 +699,7 @@ void hf_downfold(eri_t &eri, ptree const& pt) {
   embed_t embed(*mf, wannier_file, trans_home_cell);
   embed.hf_downfolding(outdir, prefix, eri, ft,
                        io::get_value_with_default<bool>(pt, "force_real", true),
-                       string_to_div_enum(hf_div_treatment));
+                       hf_div_treatment);
 
 }
 
@@ -770,8 +765,7 @@ void gw_downfold(eri_t &eri, ptree &pt) {
   MBState mb_state(ft, output, mf, wannier_file, trans_home_cell, false);
 
   // Two-body Hamiltonian
-  embed_eri_t embed_eri(*mf, string_to_div_enum(div_treatment),
-                        string_to_div_enum(hf_div_treatment), "model_static");
+  embed_eri_t embed_eri(*mf, div_treatment, hf_div_treatment, "model_static");
   embed_eri.downfolding_crpa(eri, mb_state, pt, "crpa", factorization_type,
                              io::get_value_with_default<double>(pt, "thresh", 1e-6));
 

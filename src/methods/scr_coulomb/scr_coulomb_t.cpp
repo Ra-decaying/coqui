@@ -32,7 +32,7 @@ namespace solvers {
 
   scr_coulomb_t::scr_coulomb_t(const imag_axes_ft::IAFT *ft,
                                std::string screen_type,
-                               div_treatment_e div):
+                               std::string div):
     _ft(ft), _screen_type(screen_type),
     _div_treatment(div), _Timer() {
 
@@ -73,7 +73,7 @@ namespace solvers {
                "  Divergent treatment at q->0   = {}\n",
             _screen_type, thc.MF()->nbnd(), thc.Np(),
             thc.MF()->nkpts(), thc.MF()->nkpts_ibz(),
-            div_enum_to_string(_div_treatment));
+          _div_treatment);
     _ft->metadata_log();
 
     utils::check(thc.mpi() == mb_state.mpi,

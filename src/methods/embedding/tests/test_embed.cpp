@@ -64,8 +64,8 @@ namespace bdft_tests {
         std::shared_ptr<mf::MF> &mf, std::string wannier_file, std::string dc_type,
         std::array<double, 6> &refs, double eps) {
       solvers::hf_t hf;
-      solvers::gw_t gw(&ft, string_to_div_enum("gygi"), coqui_prefix);
-      solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum("gygi"));
+      solvers::gw_t gw(&ft, "gygi_smallest_q", coqui_prefix);
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", "gygi_smallest_q");
       simple_dyson dyson(mf.get(), &ft);
       thc_reader_t thc(mf, make_thc_reader_ptree(mf->nbnd()*20, "", "incore", "", "bdft",
                                                  1e-10, mf->ecutrho(), 1, 1024));
@@ -81,7 +81,7 @@ namespace bdft_tests {
       pt.put("permut_symm", true);
       pt.put("force_real", true);
       pt.put("greens_func_source", "mf");
-      embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
+      embed_eri_t embed_2e(*mf, "gygi_smallest_q");
       embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa");
 
       // Single-shot GW based on DFT Green's function
@@ -166,8 +166,8 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         std::shared_ptr<mf::MF> &mf, std::string wannier_file, std::string dc_type,
         std::array<double, 12> &refs, double eps) {
       solvers::hf_t hf;
-      solvers::gw_t gw(&ft, string_to_div_enum("gygi"), coqui_prefix);
-      solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum("gygi"));
+      solvers::gw_t gw(&ft, "gygi_smallest_q", coqui_prefix);
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", "gygi_smallest_q");
       simple_dyson dyson(mf.get(), &ft);
       thc_reader_t thc(mf, make_thc_reader_ptree(0, "", "incore", "", "bdft",
                                                  1e-8, mf->ecutrho(), 1, 1024, 10, 0.4));
@@ -182,7 +182,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       pt.put("permut_symm", true);
       pt.put("force_real", true);
       pt.put("greens_func_source", "mf");
-      embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
+      embed_eri_t embed_2e(*mf, "gygi_smallest_q");
       embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa");
 
       [[maybe_unused]] auto [e_hf, e_corr] = scf_loop(mb_state, dyson, eri, ft,
@@ -401,6 +401,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       pt.put("wannier_file", wannier_file);
       pt.put("greens_func_source", "mf");
       pt.put("screen_type", "crpa");
+      pt.put("div_treatment", "gygi_smallest_q");
       pt.put("beta", 1000.0);
       pt.put("wmax", 3.0);
       auto [Vloc, Wloc_w] = downfold_coulomb_with_projector_from_h5(thc, pt);
@@ -470,7 +471,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       pt.put("permut_symm", true);
       pt.put("force_real", true);
       pt.put("greens_func_source", "");
-      embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
+      embed_eri_t embed_2e(*mf, "gygi_smallest_q");
       embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa");
       mpi->comm.barrier();
 
@@ -560,7 +561,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       std::string greens_func_source = "scf";
       long greens_func_iteration = 0;
 
-      embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
+      embed_eri_t embed_2e(*mf, "gygi_smallest_q");
 
       // --- RPA ---
       std::string screen_type_rpa = "rpa";
@@ -657,7 +658,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       pt.put("force_real", true);
       // FIXME ?
       pt.put("greens_func_source", "mf");
-      embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"));
+      embed_eri_t embed_2e(*mf, "gygi_smallest_q");
       embed_2e.downfolding_edmft(thc, mb_state, pt, "gw_edmft");
       mpi->comm.barrier();
 
@@ -728,8 +729,8 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       std::string prefix = "coqui";
       imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::ir_source, "high", true);
       solvers::hf_t hf;
-      solvers::gw_t gw(&ft, string_to_div_enum("gygi"), prefix);
-      solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum("gygi"));
+      solvers::gw_t gw(&ft, "gygi_smallest_q", prefix);
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", "gygi_smallest_q");
       simple_dyson dyson(mf.get(), &ft);
       thc_reader_t thc(mf, make_thc_reader_ptree(mf->nbnd()*20, "", "incore", "", "bdft",
                                                  1e-10, mf->ecutrho(), 1, 1024));
@@ -745,7 +746,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         pt.put("permut_symm", true);
         pt.put("force_real", false);
         pt.put("greens_func_source", "");
-        embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"), string_to_div_enum("gygi"));
+        embed_eri_t embed_2e(*mf, "gygi_smallest_q");
         embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa", "none", 1e-8);
         mpi->comm.barrier();
 
@@ -774,13 +775,12 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         pt.put("permut_symm", true);
         pt.put("force_real", false);
         pt.put("greens_func_source", "");
-        embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"),
-                             string_to_div_enum("gygi"), "model_static");
+        embed_eri_t embed_2e(*mf, "gygi_smallest_q", "gygi", "model_static");
         embed_2e.downfolding_crpa(thc, mb_state, pt, "bare", "none", 1e-8);
         mpi->comm.barrier();
 
         embed_t embed(*mf, wannier_file, true);
-        embed.hf_downfolding("./", prefix + ".bare", thc, ft, false, string_to_div_enum("gygi"));
+        embed.hf_downfolding("./", prefix + ".bare", thc, ft, false, "gygi");
         mpi->comm.barrier();
       }
 
@@ -794,13 +794,12 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         pt.put("permut_symm", true);
         pt.put("force_real", false);
         pt.put("greens_func_source", "");
-        embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"),
-                             string_to_div_enum("gygi"), "model_static");
+        embed_eri_t embed_2e(*mf, "gygi_smallest_q", "gygi", "model_static");
         embed_2e.downfolding_crpa(thc, mb_state, pt, "bare", "cholesky", 1e-8);
         mpi->comm.barrier();
 
         embed_t embed(*mf, wannier_file, true);
-        embed.hf_downfolding("./", prefix + ".bare.chol", thc, ft, false, string_to_div_enum("gygi"));
+        embed.hf_downfolding("./", prefix + ".bare.chol", thc, ft, false, "gygi");
         mpi->comm.barrier();
       }
 
@@ -814,8 +813,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         pt.put("permut_symm", true);
         pt.put("force_real", false);
         pt.put("greens_func_source", "");
-        embed_eri_t embed_2e(*mf, string_to_div_enum("gygi"),
-                             string_to_div_enum("gygi"), "model_static");
+        embed_eri_t embed_2e(*mf, "gygi_smallest_q", "gygi", "model_static");
         embed_2e.downfolding_crpa(thc, mb_state, pt, "crpa", "cholesky", 1e-8);
         mpi->comm.barrier();
 

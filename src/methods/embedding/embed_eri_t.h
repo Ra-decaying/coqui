@@ -39,7 +39,6 @@
 #include "methods/mb_state/mb_state.hpp"
 #include "methods/embedding/permut_symm.hpp"
 #include "methods/ERI/detail/concepts.hpp"
-#include "methods/ERI/div_treatment_e.hpp"
 #include "methods/GW/gw_t.h"
 #include "methods/embedding/dc_utilities.hpp"
 #include "methods/SCF/scf_common.hpp"
@@ -74,21 +73,21 @@ namespace methods {
 
   public:
     embed_eri_t(mf::MF &MF,
-                div_treatment_e div = gygi, div_treatment_e bare_div = gygi,
+                std::string div = "gygi", std::string bare_div = "gygi",
                 std::string output_type = "default"):
     _context(MF.mpi()), _MF(std::addressof(MF)),
     _div_treatment(div), _bare_div_treatment(bare_div), _Timer(),
     _output_type(output_type) {
 
-      if (_MF->nkpts_ibz() == 1 and _div_treatment != ignore_g0) {
+      if (_MF->nkpts_ibz() == 1 and _div_treatment != "ignore_g0") {
         app_log(2, " embed_eri_t: nkpts_ibz == 1 while div_treatment != ignore. Will take div_treatment = ignore_g0 anyway!");
-        _div_treatment = ignore_g0;
+        _div_treatment = "ignore_g0";
       }
 
-      if (_bare_div_treatment!=ignore_g0 and _bare_div_treatment!=gygi) {
+      if (_bare_div_treatment!="ignore_g0" and _bare_div_treatment!="gygi") {
         app_log(2, " embed_eri_t: bare_div_treatment only supports \"ignore_g0\" and \"gygi\". "
                    " coqui will take bare_div_treatment = \"gygi\" instead.");
-        _bare_div_treatment = gygi;
+        _bare_div_treatment = "gygi";
       }
     }
 
@@ -309,15 +308,15 @@ namespace methods {
     std::shared_ptr<mpi_context_t> _context;
     mf::MF* _MF = nullptr;
 
-    div_treatment_e _div_treatment;
-    div_treatment_e _bare_div_treatment;
+    std::string _div_treatment;
+    std::string _bare_div_treatment;
     utils::TimerManager _Timer;
 
     std::string _output_type = "default";
 
   public:
     mf::MF* MF() const { return _MF; }
-    const div_treatment_e& div_treatment() const { return _div_treatment; }
+    const std::string& div_treatment() const { return _div_treatment; }
 
   }; // embed_eri_t
 } // methods

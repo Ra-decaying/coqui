@@ -57,7 +57,7 @@ namespace bdft_tests {
     auto eval_thc_hf = [&](std::shared_ptr<mf::MF> &mf) {
       thc_reader_t thc(mf, methods::make_thc_reader_ptree(0.0, "", "incore", "", "bdft", 1e-5,
                                                       0.4*mf->ecutrho()));
-      solvers::hf_t hf(methods::ignore_g0);
+      solvers::hf_t hf("ignore_g0");
 
       long nspin = mf->nspin();
       long nkpts_ibz = mf->nkpts_ibz();

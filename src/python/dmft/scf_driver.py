@@ -31,7 +31,7 @@ import coqui.dmft as coqui_dmft
 Hartree_eV = 27.211386245988
 
 
-def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e, 
+def gw_edmft_loop(mf, thc, proj_info, embedding_1e, 
                   niter, gw_iter_per_loop=1, edmft_iter_per_loop=1, 
                   inner_loop_alg=1, **gw_edmft_params):
     """
@@ -48,6 +48,11 @@ def gw_edmft_loop(mf, thc, proj_info, embedding_1e, embedding_2e,
         print(f"  GW iterations per GW+EDMFT cycle    = {gw_iter_per_loop}")
         print(f"  EDMFT iterations per GW+EDMFT cycle = {edmft_iter_per_loop}")
         print(f"    - Fix Gloc and Wloc during EDMFT iterations = {inner_loop_alg==2}\n")
+
+    embedding_2e = embedding_1e.make_2particle.make_spinless
+    if coqui_mpi.root():
+        print(embedding_1e.description(True))
+        print(embedding_2e.description(True))
 
     # deep copy to avoid any changes in gw_edmft_params affecting outside the function.
     gw_edmft_params = deepcopy(gw_edmft_params)
