@@ -265,41 +265,30 @@ def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
         mpi.report(f"  --> Flattening {target_name} at w=0.")
         zero_index = np.where(iw_mesh_b == 0.0)[0][0]
         A_iw[zero_index] = A_iw[zero_index + 1]
-
-    elif w0_regularization == "linear_extrapolate":
-
-        # For metallic case, set A(iw=0) by linear extrapolation using A(iw1) and A(iw2)
-        mpi.report(f"  --> Extrapolating {target_name} at w=0 using linear extrapolation at iw1 and iw2.")
-        zero_index = np.where(iw_mesh_b == 0.0)[0][0]
-        if zero_index + 2 >= iw_mesh_b.shape[0]:
+    
+    elif w0_regularization[:18] == "extrapolate_order_":
+   
+        try:
+            order = int(w0_regularization[18:])
+        except ValueError:
             raise ValueError(
-                f"linear_extrapolate requires at least 2 positive Matsubara points after w=0 for {target_name}."
+                f"Invalid extrapolate_order value: {w0_regularization[18:]}. Must be an integer."
             )
-        
-        x_data = np.abs(iw_mesh_b[zero_index + 1:zero_index + 3])
-        y_data = A_iw[zero_index + 1:zero_index + 3]
-        A_iw[zero_index] = poly_lstsq_extrapolate(x_data, y_data, fit_order=1, x_target=0.0)
-        #slope = (A_iw[zero_index + 1] - A_iw[zero_index + 2]) / (np.abs(iw_mesh_b[zero_index + 1]) - np.abs(iw_mesh_b[zero_index + 2]))
-        #A_iw[zero_index] = A_iw[zero_index + 1] - slope * np.abs(iw_mesh_b[zero_index + 1])
-
-    elif w0_regularization == "quadratic_extrapolate":
-
-        # Set A(iw=0) by quadratic extrapolation using A(iw1), A(iw2), and A(iw3)
-        mpi.report(f"  --> Extrapolating {target_name} at w=0 using quadratic extrapolation at iw1, iw2, and iw3.")
+        mpi.report(f"  --> Extrapolating {target_name} at w = 0 as an O(w²) polynomial of order {order}.")
         zero_index = np.where(iw_mesh_b == 0.0)[0][0]
-        if zero_index + 3 >= iw_mesh_b.shape[0]:
+        if zero_index + order >= iw_mesh_b.shape[0]:
             raise ValueError(
-                f"quadratic_extrapolate requires at least 3 positive Matsubara points after w=0 for {target_name}."
+                f"extrapolate_order_{order} requires at least {order} positive Matsubara points after w=0 for {target_name}."
             )
 
-        x_data = np.abs(iw_mesh_b[zero_index + 1:zero_index + 4])
-        y_data = A_iw[zero_index + 1:zero_index + 4]
-        A_iw[zero_index] = poly_lstsq_extrapolate(x_data, y_data, fit_order=2, x_target=0.0)
+        x_data = np.array([np.abs(iw)**2 for iw in iw_mesh_b[zero_index + 1:zero_index + 2 + order]])
+        y_data = A_iw[zero_index + 1:zero_index + 2 + order]
+        A_iw[zero_index] = poly_lstsq_extrapolate(x_data, y_data, fit_order=order, x_target=0.0)
 
     else:
         raise ValueError(
             f"Invalid w0_regularization option: {w0_regularization}. "
-            "Use 'flatten', 'linear_extrapolate', or 'quadratic_extrapolate'."
+            "Use 'flatten' or 'extrapolate_order_<n>'."
         )
 
     return A_iw
