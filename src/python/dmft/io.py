@@ -17,12 +17,128 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==========================================================================
 """
-
+from copy import deepcopy
 import triqs.utility.mpi as mpi
 from h5 import HDFArchive
 import numpy as np
 
-from triqs.gf import Gf, make_gf_dlr, BlockGf, Block2Gf, MeshImFreq, MeshDLRImFreq
+
+def convert_gw_edmft_params(params_dict):
+    params = deepcopy(params_dict)
+
+    # Check if 'gw_edmft' key exists in params (new format)
+    if 'gw_edmft' not in params:
+       return params
+
+    # Extract the gw_edmft group
+    gw_edmft_group = params.pop('gw_edmft')
+
+    # Copy top-level gw_edmft settings
+    gw_edmft_params = {}
+    niter = gw_edmft_group.get('niter')
+    gw_iter_per_loop = gw_edmft_group.get('gw_iter_per_loop', 1)
+    edmft_iter_per_loop = gw_edmft_group.get('edmft_iter_per_loop', 1)
+    if niter is None:
+        raise KeyError("Missing 'niter' parameter to specify the total number of GW+EDMFT cycles.")
+    if not isinstance(niter, int) or niter <= 0:
+        raise ValueError("'niter' must be a positive integer.")
+    if not isinstance(gw_iter_per_loop, int) or gw_iter_per_loop < 0:
+        raise ValueError("'gw_iter_per_loop' must be a non-negative integer.")
+    if not isinstance(edmft_iter_per_loop, int) or edmft_iter_per_loop < 0:
+        raise ValueError("'edmft_iter_per_loop' must be a non-negative integer.")
+    if edmft_iter_per_loop == 0 and gw_iter_per_loop == 1:
+        # Current GW+EDMFT SC logic does not upfold the GW solution and write new `embed` data 
+        # if `gw_iter_per_loop` is 1 in order to save some memory in the checkpoint hdf5. 
+        # Here, we swap `niter` and `gw_iter_per_loop` to make sure `embed` data is updated in the checkpoint.  
+        gw_iter_per_loop = niter
+        niter = 1
+        if gw_iter_per_loop == 1:
+            raise ValueError("Invalid combination of iteration parameters:\n" \
+            "When fixing the EDMFT part of the workflow by setting `edmft_iter_per_loop` to 0, " \
+            "`gw_iter_per_loop` or `niter` must be greater than 1.")
+    
+    gw_edmft_params['niter'] = niter
+    gw_edmft_params['gw_iter_per_loop'] = gw_iter_per_loop
+    gw_edmft_params['edmft_iter_per_loop'] = edmft_iter_per_loop
+    
+    screen_type = gw_edmft_group.get('screen_type', 'gw_edmft_density')
+    div_treatment = gw_edmft_group.get('div_treatment', 'gygi')
+    outdir = gw_edmft_group.get('outdir', './')
+    prefix = gw_edmft_group.get('prefix', 'coqui')
+    restart = gw_edmft_group.get('restart', False)
+
+    # GW parameters
+    if 'gw' in gw_edmft_group:
+        gw_edmft_params['gw'] = gw_edmft_group.pop('gw')
+        gw_edmft_params['gw']['output'] = outdir+"/"+prefix
+        gw_edmft_params['gw']['restart'] = restart
+        gw_edmft_params['gw']['screen_type'] = screen_type
+        gw_edmft_params['gw']['niter'] = 1
+        gw_edmft_params['gw']['div_treatment'] = div_treatment
+        if 'iter_alg' in gw_edmft_params['gw']:
+            assert gw_edmft_params['gw']['iter_alg']['alg'] == 'damping', (
+                "Only \'damping\' iterative algorithm is supported in the GW part of the GW+EDMFT workflow at the moment."
+            )
+
+    # wloc parameters
+    gw_edmft_params['wloc'] = {'outdir': outdir, 'prefix': prefix, 'screen_type': screen_type, 
+                               'div_treatment': div_treatment, 'output_in_tau': True}
+    # gloc parameters
+    gw_edmft_params['gloc'] = {'outdir': outdir, 'prefix': prefix}
+    # embed parameters
+    gw_edmft_params['dmft_embed'] = {'outdir': outdir, 'prefix': prefix, 'corr_only': gw_edmft_group.get('corr_only', True)}
+
+    # Convert 'edmft' section to 'impurity' (with nested 'impurity' -> 'solver')
+    if 'edmft' not in gw_edmft_group:
+        raise KeyError("Missing 'edmft' section in 'gw_edmft' parameters to specify the EDMFT part of the workflow.")
+    edmft_section = gw_edmft_group.pop('edmft')
+    gw_edmft_params['impurity'] = {'restart': restart}
+  
+    # Convert 'impurity' (new) to 'solver' (old)
+    if 'impurity' in edmft_section:
+        solver_list = edmft_section.pop('impurity')
+        if not isinstance(solver_list, list):
+            solver_list = [solver_list]
+    
+        for solver_params in solver_list:
+            if solver_params.get('degenerate_blk'):
+                solver_params['degenerate_blk'] = [np.array(x) for x in solver_params['degenerate_blk']]
+
+        gw_edmft_params['impurity']['solver'] = solver_list
+
+    # Copy iter_alg if present
+    if 'iter_alg' in edmft_section:
+        assert edmft_section['iter_alg']['alg'] == 'damping', (
+            "Only \'damping\' iterative algorithm is supported in the EDMFT part of the GW+EDMFT workflow at the moment."
+        )
+        gw_edmft_params['impurity']['iter_alg'] = edmft_section.pop('iter_alg')
+
+    # Copy any remaining keys
+    gw_edmft_params['impurity']['chkpt_h5'] = edmft_section.get('chkpt_h5', outdir+"/"+prefix+".mbpt.h5")
+    for key, value in edmft_section.items():
+        gw_edmft_params['impurity'][key] = value
+
+    return gw_edmft_params
+
+
+# Need to be careful with non-ct-qmc solver
+def _normalize_solver_params_list(solver_params_list, comm_size):
+    """
+    Scale Monte-Carlo cycle counts by MPI communicator size.
+    """
+    assert isinstance(solver_params_list, list), "solver_params_list must be a list of dictionaries."
+    normalized_list = []
+    for solver_params in solver_params_list:
+        solver_params_norm = deepcopy(solver_params)
+
+        solver_params_norm['n_cycles'] = int(solver_params_norm['n_cycles']/comm_size)
+        mu_params = solver_params_norm.get('chemical_potential')
+        if mu_params and 'n_cycles' in mu_params.keys():
+            mu_params['n_cycles'] = int(mu_params['n_cycles']/comm_size)
+
+        normalized_list.append(solver_params_norm)
+
+    return normalized_list
 
 
 def print_title_box(name, box_width=19):

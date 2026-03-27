@@ -89,6 +89,7 @@ namespace methods {
         }
 
         if (div_treatment.find("gygi_extrplt") != std::string::npos) {
+          // TODO Deprecated method. Should be removed in the future. 
           utils::check(mf.nkpts_ibz() > 1, "extrapolate_eps_inv_q0: nkpts_ibz <= 1 while div_treatment==gygi_extrplt");
           
           auto q_indices = filter_qpts(mf.Qpts_ibz(), 0.8, 1, two_dimension);
@@ -99,8 +100,12 @@ namespace methods {
             Q_filtered(i) = Q_abs( q_indices[i] );
             eps_inv_filtered(nda::range::all, i) = eps_inv_wq(nda::range::all, q_indices[i] );
           }
-          
-          if ( q_indices.size() < 3) {
+
+          if ( q_indices.empty() ) {
+            // If no q-points passed the filter, fall back to the smallest-|q| point
+            int smallest_idx = find_smallest_qabs(mf.Qpts_ibz(), false);
+            eps_inv_q0_w = eps_inv_wq(nda::range::all, smallest_idx);
+          } else if ( q_indices.size() < 3) {
             // Choose the closest point to the gamma instead
             eps_inv_q0_w = eps_inv_wq(nda::range::all, q_indices[0]);
           } else {
@@ -157,19 +162,20 @@ namespace methods {
             }
           }
 
-          auto closest_indices = find_n_closest_per_direction(mf.Qpts_ibz(), mf.recv(), fit_order+1);
+          auto closest_indices = find_n_closest_per_direction(mf.Qpts_ibz(), mf.lattv(), fit_order+1);
 
           if (two_dimension)
             app_log(2, "\n Polynomial extrapolate head of the inverse of the dielectric function as O(q^2)\n"
-                       " up to order {}using the closest {} points along b1 and b2 directions", fit_order, fit_order+1);
+                       " up to order {} using the closest {} points along +/-b1, and +/-b2 directions", fit_order, fit_order+1);
           else
             app_log(2, "\n Polynomial extrapolate head of the inverse of the dielectric function as O(q^2)\n"
-                       " up to order {} using the closest {} points along b1, b2, and b3 directions", fit_order, fit_order+1);
+                       " up to order {} using the closest {} points along +/-b1, +/-b2, and +/-b3 directions", fit_order, fit_order+1);
           
           int dim = 0;
-          for (int dir = 0; dir < 3; ++dir) {
+          constexpr std::array<const char *, 6> direction_labels = {"+b1", "-b1", "+b2", "-b2", "+b3", "-b3"};
+          for (int dir = 0; dir < 6; ++dir) {
 
-            if (two_dimension and dir == 2) continue; // skip b3 direction for 2D materials
+            if (two_dimension and dir >= 4) continue; // skip b3 directions for 2D materials
 
             nda::array<ComplexType, 1> Q_filtered(closest_indices[dir].size());
             nda::array<ComplexType, 2> eps_inv_filtered(niw, closest_indices[dir].size());
@@ -183,7 +189,7 @@ namespace methods {
               continue; // no point found along this direction, skip extrapolation
             }
             
-            app_log(2, "\n  Found {} points along b{} direction for extrapolation.", closest_indices[dir].size(), dir+1);
+            app_log(2, "\n  Found {} points along {} direction for extrapolation.", closest_indices[dir].size(), direction_labels[dir]);
 
             for (int n = 0; n < niw; ++n) {
               eps_inv_q0_w(n) += extrapolate_to_q0(
@@ -199,7 +205,7 @@ namespace methods {
           eps_inv_q0_w /= static_cast<double>(dim); // average over the number of dimensions extrapolated
 
           if (div_treatment.find("metal") != std::string::npos) {
-            app_log(2, "Enforcing the static limit of the inverse dielectric function to 0 for metallic systems.");
+            app_log(2, "\n Enforcing the static limit of the inverse dielectric function to 0 for metallic systems.\n");
             // for metals, set the static limit to -1 manually, i.e. inverse dielectric function goes to 0 at q=0 and w=0
             eps_inv_q0_w(0) = -1.0;
           }
@@ -291,7 +297,7 @@ namespace methods {
       /**
        * Extract the head (G=G'=0 component) of the inverse symmetric dielectric function at finite q
        * 
-       * Computes \epsilon^{q,-1}_{G=0,G'=0} from the screened interaction W(x,q,P,Q) in the THC product basis.
+       * Computes \epsilon^{q,-1}_{G=0,G'=0} - 1 from the screened interaction W(x,q,P,Q) in the THC product basis.
        * Works for W on both imaginary-time and Matsubara frequency axes.
        * 
        * @param dW_xqPQ    - [INPUT] screened interaction in the THC product basis
@@ -313,6 +319,7 @@ namespace methods {
         auto [nx, nqpts_ibz, NP, NQ] = dW_xqPQ.global_shape();
 
         nda::array<ComplexType, 2> eps_inv_x(nx, nqpts_ibz);
+        eps_inv_x() = 0.0;
         nda::array<ComplexType, 1> Chi_bar_Q_conj(NQ_loc);
         nda::array<ComplexType, 1> buffer_P(NP_loc);
         const double fpi = 4.0*3.14159265358979323846;
@@ -383,36 +390,37 @@ namespace methods {
       }
 
       /**
-       * Find up to n closest points to origin along each Cartesian direction
-       * For a uniform 3D grid centered at origin spanning [-0.5, 0.5] in each direction,
-       * this function finds points with smallest positive coordinate values
-       * along x, y, and z directions. Only searches on the positive side (accounting for symmetry).
+       * Find up to n closest points to origin along each signed Cartesian direction
+       * For a uniform 3D grid centered at origin spanning (-0.5, 0.5] in each direction,
+       * this function finds points with smallest coordinate magnitudes along
+       * +b1, -b1, +b2, -b2, +b3, and -b3 directions.
        * @param Qpts      - [INPUT] array of q-points (shape: [nqpts, 3])
-       * @param recv      - [INPUT] reciprocal lattice vectors (shape: [3, 3])
+       * @param lattv     - [INPUT] lattice vectors (shape: [3, 3])
        * @param n         - [INPUT] number of closest points (at maximum) to return per direction
        * @param tolerance - [INPUT] threshold to consider a coordinate as zero (default: 1e-10)
-       * @return array of 3 vectors containing indices for x, y, z directions respectively
+       * @return array of 6 vectors containing indices for +b1, -b1, +b2, -b2, +b3, -b3 directions respectively
        */
-      template<nda::ArrayOfRank<2> Array_2D_t, nda::ArrayOfRank<2> Array_2D_recv_t>
-      static std::array<std::vector<int>, 3> find_n_closest_per_direction(
-        Array_2D_t &&Qpts, Array_2D_recv_t &&recv, int n, double tolerance=1e-10) {
+      template<nda::ArrayOfRank<2> Array_2D_t, nda::ArrayOfRank<2> Array_2D_latt_t>
+      static std::array<std::vector<int>, 6> find_n_closest_per_direction(
+        Array_2D_t &&Qpts, Array_2D_latt_t &&lattv, int n, double tolerance=1e-10) {
 
         utils::check(n > 0, "g0_div_utils.hpp::find_n_closest_per_direction: n must be positive");
 
-        if (Qpts.shape(0) == 1) return {{{0}, {0}, {0}}};
+        if (Qpts.shape(0) == 1) return {{{0}, {0}, {0}, {0}, {0}, {0}}};
         
-        // Convert to crystal coordinates using the reciprocal lattice vectors
+        // Convert to crystal coordinates using the lattice vectors
         nda::array<double, 2> Qpts_crys(Qpts.shape(0), 3);
         for (int iq = 0; iq < Qpts.shape(0); ++iq) {
-          nda::blas::gemv(1.0, recv, Qpts(iq,nda::range::all), 0.0, Qpts_crys(iq,nda::range::all));
+          double tpiinv = 1.0 / (2.0 * 3.14159265358979); 
+          nda::blas::gemv(tpiinv, lattv, Qpts(iq,nda::range::all), 0.0, Qpts_crys(iq,nda::range::all));
         }
         
-        std::array<std::vector<int>, 3> result_indices;
+        std::array<std::vector<int>, 6> result_indices;
         
-        // For each direction (x=0, y=1, z=2)
+        // For each Cartesian axis, collect the closest points on the positive and negative sides separately.
         for (int dir = 0; dir < 3; ++dir) {
-          // Collect all positive values in this direction with their indices
-          std::vector<std::pair<double, int>> coord_idx_pairs;
+          std::vector<std::pair<double, int>> positive_coord_idx_pairs;
+          std::vector<std::pair<double, int>> negative_coord_idx_pairs;
           
           for (int i = 0; i < Qpts_crys.shape(0); ++i) {
             double coord = Qpts_crys(i, dir);
@@ -426,19 +434,29 @@ namespace methods {
               }
             }
             
-            // Only consider positive coordinates with other dimensions zero
-            if (coord > tolerance && other_dims_zero) {
-              coord_idx_pairs.push_back({coord, i});
+            if (!other_dims_zero) continue;
+
+            // treat -0.5 as 0.5 due to periodicity
+            if (std::abs(coord + 0.5) < 1e-6) coord = std::abs(coord);
+
+            if (coord > tolerance) {
+              positive_coord_idx_pairs.push_back({coord, i});
+            } else if (coord < -tolerance) {
+              negative_coord_idx_pairs.push_back({std::abs(coord), i});
             }
           }
           
-          // Sort by coordinate value
-          std::sort(coord_idx_pairs.begin(), coord_idx_pairs.end());
-          
-          // Collect the n smallest (or fewer if not enough points)
-          int count = std::min(n, static_cast<int>(coord_idx_pairs.size()));
-          for (int j = 0; j < count; ++j) {
-            result_indices[dir].push_back(coord_idx_pairs[j].second);
+          std::sort(positive_coord_idx_pairs.begin(), positive_coord_idx_pairs.end());
+          std::sort(negative_coord_idx_pairs.begin(), negative_coord_idx_pairs.end());
+
+          int positive_count = std::min(n, static_cast<int>(positive_coord_idx_pairs.size()));
+          for (int j = 0; j < positive_count; ++j) {
+            result_indices[2 * dir].push_back(positive_coord_idx_pairs[j].second);
+          }
+
+          int negative_count = std::min(n, static_cast<int>(negative_coord_idx_pairs.size()));
+          for (int j = 0; j < negative_count; ++j) {
+            result_indices[2 * dir + 1].push_back(negative_coord_idx_pairs[j].second);
           }
         }
         

@@ -1,68 +1,97 @@
+################################################################################
+# GW+EDMFT example input
 #
-# A collection of parameters for CoQui GW+EDMFT driver
-#
+# This file is organized in execution order:
+#   1) mean-field input
+#   2) interaction/THC setup
+#   3) GW+EDMFT parameters, including GW and impurity solver controls
+################################################################################
+
+# -----------------------------------------------------------------------------
+# Mean-field source (Quantum ESPRESSO)
+# -----------------------------------------------------------------------------
 [mean_field.qe]
 prefix = "svo"
 outdir = "/mnt/home/cyeh/Projects/coqui/tests/unit_test_files/qe/svo_kp222_nbnd40/out"
 nbnd = 40
 
+# -----------------------------------------------------------------------------
+# Interaction (THC Coulomb)
+# -----------------------------------------------------------------------------
 [interaction.thc]
 thresh = 1e-5
 ecut = 60
 save = "thc.coulomb.h5"
 
-[gw]
-output = "svo"
+# -----------------------------------------------------------------------------
+# GW+EDMFT
+# -----------------------------------------------------------------------------
+[gw_edmft]
 restart = true
-screen_type = "gw_edmft_density"
-niter = 1
-div_treatment = "gygi_extrplt"
-[gw.iter_alg]
+outdir = "./"
+prefix = "svo"
+
+niter = 1               # Number of GW+EDMFT cycles
+gw_iter_per_loop = 1    # Number of GW updates per outer cycle
+edmft_iter_per_loop = 1 # Number of EDMFT updates per outer cycle
+
+screen_type = "gw_edmft_density"     # Screening model: gw_edmft or rpa
+div_treatment = "gygi_metal_order_3" # q->0 divergence treatment
+
+corr_only = true # Embed only the dynamic self-energy part
+
+# GW loop mixing
+[gw_edmft.gw.iter_alg]
 alg = "damping"
-mixing = 0.2
+mixing = 0.15
 
-[wloc]
-outdir = "./"
-prefix = "svo"
-screen_type = "gw_edmft_density"
-div_treatment = "gygi_extrplt"
+# -----------------------------------------------------------------------------
+# EDMFT controls
+# -----------------------------------------------------------------------------
+[gw_edmft.edmft]
+chkpt_h5 = "svo.dmft.h5" # Default would be: {outdir}/{prefix}.mbpt.h5
+dlr_wmax = 5              # DLR frequency cutoff for EDMFT subspaces
+dlr_eps = 1e-10           # DLR target precision for EDMFT subspaces
 
-[gloc]
-outdir = "./"
-prefix = "svo"
+# EDFMT loop mixing
+[gw_edmft.edmft.iter_alg]
+alg = "damping"
+mixing = 0.15
 
-[dmft_embed]
-outdir = "./"
-prefix = "svo"
-corr_only = true
+# -----------------------------------------------------------------------------
+# Impurity solver block
+# Add multiple [[gw_edmft.edmft.impurity]] sections for multiple impurities.
+# -----------------------------------------------------------------------------
+[[gw_edmft.edmft.impurity]]
+screen_j = false                  # Add screening contribution to J
+init_imp_results = "dc"           # Initial impurity self-energy/polarization: dc or zero
+degenerate_blk = [[0, 1, 2, 3, 4, 5]]
 
-[impurity]
-chkpt_h5 = "svo.dmft.h5"   # checkpoint h5 for dmft results
-restart  = true
-dlr_wmax = 5
-dlr_eps  = 1e-10
-
-[[impurity.solver]]
-init_weiss_type = 'dc'
-degenerate_blk = [[0,1,2,3,4,5]]    
 n_iw = 3000
 n_tau = 96001
 length_cycle = 60
-n_warmup_cycles = 5000
+n_warmup_cycles = 6000
 n_cycles = 2000000
+
 measure_pert_order = true
 perform_tail_fit = true
+analytic_hf = true
 fit_max_moment = 12
 fit_min_w = 1.8
 fit_max_w = 4.5
 
-[impurity.solver.chemical_potential] 
-verbosity       = true
-tolerance       = 0.1 
-length_cycle    = 40
+# Impurity chemical potential solver
+[gw_edmft.edmft.impurity.chemical_potential]
+verbosity = true
+tolerance = 0.1
+length_cycle = 60
 n_warmup_cycles = 1000
-n_cycles        = 100000
+n_cycles = 100000
 
-[impurity.iter_alg]
-alg = "damping"
-mixing = 0.2
+# Optional regularization / causality projection controls
+[gw_edmft.edmft.impurity.causal_projection]
+exclude_w0 = false
+w0_treatment_for_pi = "extrapolate_order_2"
+# w0_treatment_for_w = "flatten"
+# w0_treatment_for_weiss = "flatten"
+nbath_per_orbital = -1

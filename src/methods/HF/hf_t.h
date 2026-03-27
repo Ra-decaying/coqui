@@ -118,7 +118,7 @@ namespace methods {
       void HF_K_correction(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij, 
                            const nda::MemoryArrayOfRank<4> auto &S_skij, double madelung);
 
-      std::string& div_treatmemnt() { return _div_treatment; }
+      std::string& div_treatment() { return _div_treatment; }
       void print_chol_hf_timers(); 
       void print_thc_hf_timers(); 
 

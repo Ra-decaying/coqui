@@ -257,7 +257,7 @@ def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
     Returns:
         numpy.ndarray: The modified bosonic Green's function with regularized iw = 0 component.
     """
-    mpi.report(f"Applying {w0_regularization} w=0 regularization for {target_name} before causal projection:")
+    mpi.report(f"Applying w=0 regularization for {target_name} before causal projection:")
     
     if w0_regularization == "flatten":
         
@@ -276,9 +276,10 @@ def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
             )
         mpi.report(f"  --> Extrapolating {target_name} at w = 0 as an O(w²) polynomial of order {order}.")
         zero_index = np.where(iw_mesh_b == 0.0)[0][0]
-        if zero_index + order >= iw_mesh_b.shape[0]:
+        available_points = iw_mesh_b[zero_index+1:].shape[0]
+        if order+1 > available_points:
             raise ValueError(
-                f"extrapolate_order_{order} requires at least {order} positive Matsubara points after w=0 for {target_name}."
+                f"extrapolate_order_{order} requires at least {order+1} positive Matsubara points after w=0 for {target_name}."
             )
 
         x_data = np.array([np.abs(iw)**2 for iw in iw_mesh_b[zero_index + 1:zero_index + 2 + order]])

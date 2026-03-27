@@ -172,6 +172,7 @@ class DMFTState(object):
                 self.embedding['2e'] == other.embedding['2e']
         )
 
+    # TODO make_dmft_state without an existing coqui_h5. Directly take the IR parameters as input. 
     @classmethod
     def make_dmft_state(cls, coqui_h5, embedding_1e, embedding_2e,
                         wmax_imp=None, prec_imp=None, spin_average=False,
@@ -295,7 +296,7 @@ class DMFTState(object):
 
     def damp_impurity_results(self, solver_chkpt, mixing=0.7, *, impurity_indices=None, 
                               mix_in_first_iter=False):
-        assert self.iteration >= 0, "damp_impurity_results: Iteration must be greater than 0"
+        assert self.iteration >= 0, "damp_impurity_results: Current iteration must be a non-negative integer."
 
         if impurity_indices is not None:
             assert isinstance(impurity_indices, list), "impurity_indices should be a list of integers."

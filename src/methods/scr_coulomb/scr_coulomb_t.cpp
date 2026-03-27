@@ -345,12 +345,12 @@ namespace solvers {
 
       if (!mb_state.sPi_imp_wabcd or !mb_state.sPi_dc_wabcd) {
         app_log(1, "");
-        app_log(1, "╔══════════════════════════════════════════════════════════╗");
-        app_log(1, "║ [ NOTE ]                                                 ║");
-        app_log(1, "║ Screening type is set to \"edmft\", but no local           ║");
-        app_log(1, "║ polarization corrections were found or provided.         ║");
-        app_log(1, "║ CoQui will proceed assuming zero correction.             ║");
-        app_log(1, "╚══════════════════════════════════════════════════════════╝\n");
+        app_log(1, "╔══════════════════════════════════════════════════════╗");
+        app_log(1, "║ [ NOTE ]                                             ║");
+        app_log(1, "║ Screening type is set to \"edmft\", but local        ║");
+        app_log(1, "║ polarization corrections were not found or provided. ║");
+        app_log(1, "║ CoQui will proceed assuming zero correction.         ║");
+        app_log(1, "╚══════════════════════════════════════════════════════╝\n");
 
       } else {
         auto &proj_boson = mb_state.proj_boson.value();

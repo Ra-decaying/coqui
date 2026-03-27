@@ -255,7 +255,7 @@ namespace methods {
     public:
       long& iter() { return _iter; }
       std::string& output() { return _output; }
-      std::string& div_treatmemnt() { return _div_treatment; }
+      std::string& div_treatment() { return _div_treatment; }
 
     };
   } // solvers

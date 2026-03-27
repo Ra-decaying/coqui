@@ -27,18 +27,24 @@ import triqs_modest as modest
 import coqui
 from coqui.utils.imag_axes_ft import IAFT
 import coqui.dmft as coqui_dmft
+from coqui.dmft.io import convert_gw_edmft_params, _normalize_solver_params_list
 
 Hartree_eV = 27.211386245988
 
 
-def gw_edmft_loop(mf, thc, proj_info, embedding_1e, 
-                  niter, gw_iter_per_loop=1, edmft_iter_per_loop=1, 
-                  inner_loop_alg=1, **gw_edmft_params):
+def run_gw_edmft(mf, thc, proj_info, embedding_1e, inner_loop_alg=1, **gw_edmft_params):
     """
     GW+EDMFT self-consistency loop
     :return:
     """
     coqui_mpi = mf.mpi()
+
+    # Convert to the internal format
+    gw_edmft_params = convert_gw_edmft_params(gw_edmft_params)
+    niter, gw_iter_per_loop, edmft_iter_per_loop = (
+        gw_edmft_params.pop('niter'), gw_edmft_params.pop('gw_iter_per_loop'), gw_edmft_params.pop('edmft_iter_per_loop')
+    )
+
     if coqui_mpi.root():
         # http://patorjk.com/software/taag/#p=display&f=Calvin+S&t=COQUI+GW%2BEDMFT&x=none&v=4&h=4&w=80&we=false
         print("╔═╗╔═╗╔═╗ ╦ ╦╦  ╔═╗┬ ┬╔═╗┌┬┐┌┬┐┌─┐┌┬┐\n"
@@ -54,8 +60,6 @@ def gw_edmft_loop(mf, thc, proj_info, embedding_1e,
         print(embedding_1e.description(True))
         print(embedding_2e.description(True))
 
-    # deep copy to avoid any changes in gw_edmft_params affecting outside the function.
-    gw_edmft_params = deepcopy(gw_edmft_params)
     try:
         gw_params        = gw_edmft_params.pop('gw', None)
         wloc_params      = gw_edmft_params.pop('wloc')
@@ -64,28 +68,12 @@ def gw_edmft_loop(mf, thc, proj_info, embedding_1e,
         impurity_params  = gw_edmft_params.pop('impurity')
         iterative_params = impurity_params.pop('iter_alg', None)
     except KeyError as e:
-        raise KeyError(f"gw_edmft_loop: Missing required gw_edmft_params key: {e.args[0]}")
+        raise KeyError(f"run_gw_edmft: Missing required gw_edmft_params key: {e.args[0]}")
 
-    if isinstance(impurity_params['solver'], dict):
-        impurity_params['solver'] = [impurity_params['solver']]
-    assert isinstance(impurity_params['solver'], list), (
-        "impurity parameters should be a list of params - one for each impurity"
+    # Scale Monte-Carlo cycle counts by MPI communicator size.
+    impurity_params['solver'] = _normalize_solver_params_list(
+        impurity_params['solver'], coqui_mpi.comm_size()
     )
-    for solver_params in impurity_params['solver']:
-        solver_params['n_cycles'] = int(solver_params['n_cycles']/coqui_mpi.comm_size())
-        mu_params = solver_params.get('chemical_potential')
-        if mu_params and 'n_cycles' in mu_params.keys():
-            mu_params['n_cycles'] = int(mu_params['n_cycles']/coqui_mpi.comm_size())
-
-    if iterative_params is not None:
-        assert iterative_params['alg'] == 'damping', (
-            "Only \'damping\' iterative algorithm is supported in GW+EDMFT at the moment."
-        )
-
-    if gw_params:
-        assert gw_params['screen_type'] == wloc_params['screen_type']
-
-    wloc_params['output_in_tau'] = True
 
     coqui_chkpt_h5 = embed_params['outdir']+"/"+embed_params['prefix']+".mbpt.h5"
     solver_chkpt_h5 = impurity_params.pop('chkpt_h5', coqui_chkpt_h5)
@@ -165,7 +153,7 @@ def _gw_loop(mf, thc, proj_info,
 
         # Don't upfold the results if gw_iter_per_loop==1. 
         # Not sure if this is the best choice, but it allows us to skip one upfolding in the common case of 
-        # doing just one GW iteration per GW+EDMFT loop, which can save some time.
+        # doing just one GW iteration per GW+EDMFT loop, which can save some disk space in the checkpoint h5.
         if gw_iter_per_loop > 1: 
             # Updates GW+EDMFT solution with the latest GW results while keeping the impurity solutions fixed.
             # Upfolding
@@ -277,19 +265,19 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h5,
             )
 
             # Analyze block symmetry
-            if solver_params.get('degenerate_blk'):
-                solver_params['degenerate_blk'] = [np.array(x) for x in solver_params["degenerate_blk"]]
-            elif solver_params.get('degenerate_blk_thresh'):
+            if solver_params.get('degenerate_blk') is None and solver_params.get('degenerate_blk_thresh'):
                 if coqui_mpi.root():
                     print("Analyzing block symmetries via the hybridization function...\n")
+                # Cache the result so subsequent EDMFT iterations skip re-analysis
                 solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
                     delta_iw, threshold=solver_params['degenerate_blk_thresh']
                 )
-            if solver_params.get('degenerate_blk'):
-                coqui_dmft.print_degenerate_blks(solver_params['degenerate_blk'], Res['gf_struct'])
-                delta_iw   = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
-                h0         = coqui_dmft.symmetrize_h0_op(h0, solver_params['degenerate_blk'], Res['gf_struct'])
-                u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, solver_params['degenerate_blk'], Res['gf_struct'])
+            degenerate_blk = solver_params.get('degenerate_blk')
+            if degenerate_blk is not None:
+                coqui_dmft.print_degenerate_blks(degenerate_blk, Res['gf_struct'])
+                delta_iw   = modest.symmetrize(delta_iw, degenerate_blk)
+                h0         = coqui_dmft.symmetrize_h0_op(h0, degenerate_blk, Res['gf_struct'])
+                u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, degenerate_blk, Res['gf_struct'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
             Res.update(
@@ -433,18 +421,19 @@ def _edmft_loop_fixed_gloc_and_wloc(
             )
 
             # Analyze block symmetry
-            if solver_params.get('degenerate_blk') is None:
+            if solver_params.get('degenerate_blk') is None and solver_params.get('degenerate_blk_thresh'):
                 if coqui_mpi.root():
                     print("Analyzing block symmetries via the hybridization function...\n")
+                # Cache the result so subsequent EDMFT iterations skip re-analysis 
                 solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
                     delta_iw, threshold=solver_params['degenerate_blk_thresh']
                 )
-            else:
-                solver_params['degenerate_blk'] = [np.array(x) for x in solver_params["degenerate_blk"]]
-            coqui_dmft.print_degenerate_blks(solver_params['degenerate_blk'], Res['gf_struct'])
-            delta_iw   = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
-            h0         = coqui_dmft.symmetrize_h0_op(h0, solver_params['degenerate_blk'], Res['gf_struct'])
-            u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, solver_params['degenerate_blk'], Res['gf_struct'])
+            degenerate_blk = solver_params.get('degenerate_blk') 
+            if degenerate_blk is not None:
+                coqui_dmft.print_degenerate_blks(degenerate_blk, Res['gf_struct'])
+                delta_iw   = modest.symmetrize(delta_iw, degenerate_blk)
+                h0         = coqui_dmft.symmetrize_h0_op(h0, degenerate_blk, Res['gf_struct'])
+                u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, degenerate_blk, Res['gf_struct'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
             Res.update(
@@ -601,13 +590,12 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
 
 def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, **params):
 
+    params = convert_gw_edmft_params(params)
     imp_params = params.pop('impurity')
-    solver_params_list = imp_params['solver']
-    for solver_params in solver_params_list:
-        solver_params['n_cycles'] = int(solver_params['n_cycles']/coqui_mpi.comm_size())
-        mu_params = solver_params.get('chemical_potential')
-        if mu_params and 'n_cycles' in mu_params.keys():
-            mu_params['n_cycles'] = int(mu_params['n_cycles']/coqui_mpi.comm_size())
+    # Scale Monte-Carlo cycle counts by MPI communicator size.
+    solver_params_list = _normalize_solver_params_list(
+        imp_params['solver'], coqui_mpi.comm_size()
+    )
 
     ir_kernel = IAFT.from_coqui_chkpt(imp_params['chkpt_h5'], verbose=coqui_mpi.root())
     wmax_imp, prec_imp = imp_params.pop('dlr_wmax', ir_kernel.wmax), imp_params.pop('dlr_eps', ir_kernel.prec)
@@ -659,19 +647,18 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
         )
 
         # Analyze block symmetry
-        if solver_params.get('degenerate_blk'):
-            solver_params['degenerate_blk'] = [np.array(x) for x in solver_params["degenerate_blk"]]
-        elif solver_params.get('degenerate_blk_thresh'):
+        if solver_params.get('degenerate_blk') is None and solver_params.get('degenerate_blk_thresh'):
             if coqui_mpi.root():
                 print("Analyzing block symmetries via the hybridization function...\n")
             solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
                 delta_iw, threshold=solver_params['degenerate_blk_thresh']
             )
-        if solver_params.get('degenerate_blk'):
-            coqui_dmft.print_degenerate_blks(solver_params['degenerate_blk'], Input['gf_struct'])
-            delta_iw   = modest.symmetrize(delta_iw, solver_params['degenerate_blk'])
-            h0         = coqui_dmft.symmetrize_h0_op(h0, solver_params['degenerate_blk'], Input['gf_struct'])
-            u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, solver_params['degenerate_blk'], Input['gf_struct'])
+        degenerate_blk = solver_params.get('degenerate_blk')
+        if degenerate_blk is not None:
+            coqui_dmft.print_degenerate_blks(degenerate_blk, Input['gf_struct'])
+            delta_iw   = modest.symmetrize(delta_iw, degenerate_blk)
+            h0         = coqui_dmft.symmetrize_h0_op(h0, degenerate_blk, Input['gf_struct'])
+            u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, degenerate_blk, Input['gf_struct'])
 
         # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
         Res = _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int, Input['density'], **solver_params)
