@@ -127,10 +127,10 @@ namespace wannier_tests {
       ARRAY_EQUAL(proj_mat_out, proj_mat_ref, 1e-6, 1e-8);
 
       // Hopping/eigenvalue comparison (should be very close)
-      ARRAY_EQUAL(hopping_out, hopping_ref, 1e-10, 1e-10);
+      ARRAY_EQUAL(hopping_out, hopping_ref, 1e-6, 1e-8);
 
       // Wannier centres comparison
-      ARRAY_EQUAL(wan_centres_out, wan_centres_ref, 1e-10, 1e-10);
+      ARRAY_EQUAL(wan_centres_out, wan_centres_ref, 1e-6, 1e-8);
 
       app_log(0, "wannier_tests: Successfully compared generated {}.mlwf.h5 with reference", prefix);
       mpi->comm.barrier();

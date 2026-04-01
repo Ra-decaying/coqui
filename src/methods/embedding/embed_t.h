@@ -36,7 +36,6 @@
 
 #include "utilities/mpi_context.h"
 #include "mean_field/MF.hpp"
-#include "methods/ERI/div_treatment_e.hpp"
 #include "methods/SCF/mb_solver_t.h"
 #include "methods/mb_state/mb_state.hpp"
 #include "numerics/imag_axes_ft/iaft_utils.hpp"
@@ -107,7 +106,7 @@ namespace methods {
     template<THC_ERI thc_t>
     void hf_downfolding(std::string outdir, std::string prefix,
                         thc_t& eri, imag_axes_ft::IAFT &ft,
-                        bool force_real, div_treatment_e hf_div_treatment=gygi);
+                        bool force_real, std::string hf_div_treatment="gygi");
 
 
     void add_Vhf_correction(MBState &mb_state);
@@ -202,7 +201,7 @@ namespace methods {
     template<THC_ERI thc_t>
     void downfold_hf_impl(std::string prefix,
                           thc_t& eri, imag_axes_ft::IAFT &ft,
-                          bool force_real, div_treatment_e hf_div_treatment=gygi);
+                          bool force_real, std::string hf_div_treatment="gygi");
 
     auto double_counting_hf_bare(h5::group &gh5_dc, h5::group &gh5_V, 
                                  long dc_iter, std::string dc_src_grp,

@@ -219,7 +219,7 @@ namespace methods {
     } else {
       utils::check(false, "embed_eri_t.cpp::compute_downfolded_coulomb_tensors_impl: downfold_2e logic fail: the input dataset {} does not exist!", greens_func_source);
     }
-    app_log(2, "Dataset check complete: input dataset {}/iter{} exists and is valid.\n", greens_func_source, greens_func_iteration);
+    app_log(2, "Dataset check complete: input dataset {}/iter{} is valid.\n", greens_func_source, greens_func_iteration);
 
     auto mpi = eri.mpi();
     const auto &proj_boson = mb_state.proj_boson.value();
@@ -237,7 +237,7 @@ namespace methods {
     if (write_to_hdf5) {
       app_log(1, "    - Output HDF5 group                       = {}/iter{}/downfolded_model", greens_func_source, greens_func_iteration);
       if (q_dependent_output)
-        app_log(1, "      Stored Q-dependent result               = {}", q_dependent_output);
+        app_log(1, "      Stored q-dependent result               = {}", q_dependent_output);
     }
     if (!proj_boson.C_file().empty())
       app_log(1, "  - Transformation matrices                   = {}", proj_boson.C_file());
@@ -277,15 +277,14 @@ namespace methods {
     // Enforce permutation symmetries if needed
     int nts_half = (ft.nt_b() % 2 == 0) ? ft.nt_b() / 2 : ft.nt_b() / 2 + 1;
     nda::array<ComplexType, 5> U_tabcd(nts_half, nImpOrbs, nImpOrbs, nImpOrbs, nImpOrbs);
+    ft.w_to_tau_PHsym(U_wabcd, U_tabcd);
     if (permut_symm != "none") {
       _Timer.start("DF_SYMM");
       apply_permut_symm(V_abcd, permut_symm, "bare interactions");
-      ft.w_to_tau_PHsym(U_wabcd, U_tabcd);
       apply_permut_symm(U_tabcd, permut_symm, "screened interactions");
       ft.tau_to_w_PHsym(U_tabcd, U_wabcd);
       _Timer.stop("DF_SYMM");
     }
-    ft.w_to_tau_PHsym(U_wabcd, U_tabcd);
     ft.check_leakage_PHsym(U_tabcd, imag_axes_ft::boson, std::addressof(mpi->comm), "Local screened interaction");
 
     // Print summary
@@ -613,8 +612,8 @@ namespace methods {
 
       _Timer.start("DF_DOWNFOLD");
       auto dV_qPQ = eri.dZ({1, 1, mpi->comm.size()});
-      app_log(1, "Treatment of long-wavelength divergence in V (bare): {}", div_enum_to_string(_bare_div_treatment));
-      auto div_factor = ( _bare_div_treatment == ignore_g0 ? ComplexType(0.0) : ComplexType(1.0) );
+      app_log(1, "Treatment of long-wavelength divergence in V (bare): {}", _bare_div_treatment);
+      auto div_factor = ( _bare_div_treatment == "ignore_g0") ? ComplexType(0.0) : ComplexType(1.0);
       auto V_nab = ( factorization_type=="cholesky" ? 
                      downfold_cholesky(eri, proj_boson, dV_qPQ, div_factor, thresh) :
                      downfold_cholesky_high_memory(eri, proj_boson, dV_qPQ, div_factor, thresh) );
@@ -1537,10 +1536,10 @@ namespace methods {
       dV_qPQ.local() += dW_wqPQ.local()(0,nda::ellipsis{});
     }
     dW_wqPQ.reset();
-    app_log(1, "Treatment of long-wavelength divergence in V (bare): {}", div_enum_to_string(_bare_div_treatment));
-    app_log(1, "Treatment of long-wavelength divergence in W: {}", div_enum_to_string(_div_treatment));
-    auto div_factor = ( _bare_div_treatment == ignore_g0 ? ComplexType(0.0) : ComplexType(1.0) );
-    div_factor += ( _div_treatment == ignore_g0 ? ComplexType(0.0) : eps_inv_head_w(0) );
+    app_log(1, "Treatment of long-wavelength divergence in V (bare): {}", _bare_div_treatment);
+    app_log(1, "Treatment of long-wavelength divergence in W: {}", _div_treatment);
+    auto div_factor = ( _bare_div_treatment == "ignore_g0" )? ComplexType(0.0) : ComplexType(1.0);
+    div_factor += ( _div_treatment == "ignore_g0" ) ? ComplexType(0.0) : eps_inv_head_w(0);
     auto W_nab = ( factorization_type=="cholesky" ?
                    downfold_cholesky(thc, mb_state.proj_boson.value(), dV_qPQ, div_factor, thresh) :
                    downfold_cholesky_high_memory(thc, mb_state.proj_boson.value(), dV_qPQ, div_factor, thresh) );
@@ -2207,14 +2206,15 @@ namespace methods {
   template<THC_ERI thc_t, nda::ArrayOfRank<5> B_t>
   void embed_eri_t::V_div_correction(nda::array<ComplexType, 4> &V_cdab,
                                 const B_t &B_qIPab, thc_t &thc) {
-    if (_bare_div_treatment == ignore_g0) {
+    auto div_string = _bare_div_treatment;
+    if (div_string == "ignore_g0") {
       app_log(1, "No finite-size correction for the long-wavelength divergence in "
                  "the local bare V. ");
       return;
     }
     app_log(1, "  Treatment of long-wavelength divergence in bare V: {}\n"
                "    - madelung = {}\n",
-            div_enum_to_string(_bare_div_treatment), _MF->madelung());
+          _bare_div_treatment, _MF->madelung());
     auto [nqpts, nImps, NP, nImpOrbs, nImpOrbs2] = B_qIPab.shape();
     nda::array<ComplexType, 2> BB_ab(nImpOrbs, nImpOrbs);
     nda::array<ComplexType, 2> BB_cd_conj(nImpOrbs, nImpOrbs);
@@ -2235,10 +2235,10 @@ namespace methods {
                                 nda::array<ComplexType, 5> &W_wcdab,
                                 const nda::array<ComplexType, 5> &B_qIPab,
                                 const nda::array<ComplexType, 1> &eps_inv_head) {
-    app_log(1, "  Treatment of long-wavelength divergence in W: {}", div_enum_to_string(_div_treatment));
-    if (_div_treatment == ignore_g0) {
+    app_log(1, "  Treatment of long-wavelength divergence in W: {}", _div_treatment);
+    if (_div_treatment == "ignore_g0") {
       return;
-    } else if (_div_treatment == gygi or _div_treatment == gygi_extrplt or _div_treatment==gygi_extrplt_2d) {
+    } else if (_div_treatment.find("gygi") != std::string::npos) {
       app_log(1, "    - madelung = {}", _MF->madelung());
 
       auto [nqpts, nImps, NP, nImpOrbs, nImpOrbs2] = B_qIPab.shape();
@@ -2260,7 +2260,7 @@ namespace methods {
             _MF->madelung() * eps_inv_head(n) * nda::blas::outer_product(BB_cd_conj_1D, BB_ab_1D);
       }
     } else {
-      utils::check(false, "Unsupported divergence treatment: {}", div_enum_to_string(_div_treatment));
+      utils::check(false, "Unsupported divergence treatment: {}", _div_treatment);
     }
     app_log(1, "");
   }

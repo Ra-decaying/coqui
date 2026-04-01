@@ -271,18 +271,18 @@ def extract_h0_and_delta(g_weiss_wsab, ir_kernel, high_freq_multiplier=10):
 
     return t_sIab_estimate, delta_estimate
 
-
-def init_weiss_fields_w(*, ir_kernel, local_gf, init_weiss_type="dc", density_only=False):
+# TODO merge call compute_weiss_fields_w internally to avoid code duplication
+def init_weiss_fields_w(*, ir_kernel, local_gf, init_imp_results="dc", density_only=False):
     # checking inputs
     missing = {"Gloc_t", "Wloc_t", "Vloc"} - local_gf.keys()
     if missing:
         raise ValueError(f"Missing keys in local_gf: {missing}")
 
-    if init_weiss_type not in {"dc", "zero"}:
-        raise ValueError(f"init_weiss_type must be 'dc' or 'zero', got {init_weiss_type}")
+    if init_imp_results not in {"dc", "zero"}:
+        raise ValueError(f"init_imp_results must be 'dc' or 'zero', got {init_imp_results}")
 
     # bosonic first
-    if init_weiss_type == "dc":
+    if init_imp_results == "dc":
         mpi.report("Evaluate the bosonic Weiss field at the RPA level.")
         pi_imp_w = ir_kernel.tau_to_w_phsym(eval_pi_rpa(local_gf["Gloc_t"], density_only=density_only), stats='b')
         if len(pi_imp_w.shape) == 3:
@@ -302,7 +302,7 @@ def init_weiss_fields_w(*, ir_kernel, local_gf, init_weiss_type="dc", density_on
     mpi.barrier()
 
     # fermionic
-    if init_weiss_type == "dc":
+    if init_imp_results == "dc":
         mpi.report("Evaluate the fermionic Weiss field using the local GW self-energy.")
         vhf_imp = eval_hf_dc(
             -ir_kernel.tau_interpolate(local_gf["Gloc_t"], [ir_kernel.beta], stats='f')[0],
@@ -407,8 +407,10 @@ def compute_weiss_boson_w(V_abcd, W_wabcd, Pi_wabcd):
     U_pb = np.zeros(Wfull_pb.shape, dtype=Wfull_pb.dtype)
     for n, W in enumerate(Wfull_pb):
         X = np.eye(nbnd2) + Pi_pb[n] @ W
-        X_inv = np.linalg.solve(X, np.eye(nbnd2))
-        U_pb[n] = W @ X_inv
+        cond = np.linalg.cond(X)
+        if cond > 20: 
+            mpi.report(f"WARNING: Large condition number for [I + Pi(w)*W(w)] = {cond} at n = {n}.")    
+        U_pb[n] = W @ np.linalg.pinv(X)
 
     return U_pb.reshape(W_wabcd.shape) - V_abcd
 

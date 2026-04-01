@@ -118,7 +118,7 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
     # U(iw) in density-density basis
     D0_iijj = D0_iw[:n_orb, n_orb:2*n_orb]
     # screening J if non-zero
-    D0_ijij = D0_iijj - D0_iw[:n_orb, 0:n_orb]
+    D0_ijij = D0_iijj - D0_iw[:n_orb, :n_orb]
 
     # Vijkl is the full 4-index tensor without the block structure in TRIQS's notation
     Vijkl = extract_u_tensor_from_h_int(h_int=solver.h_int, gf_struct=solver.gf_struct, return_4idx=True)
@@ -344,6 +344,7 @@ def extract_u_tensor_from_h_int(h_int, gf_struct, return_4idx=False):
     """
     from triqs.operators.util.extractors import extract_U_dict2, dict_to_matrix
 
+    # extract the density-density Coulomb matrix U_dd
     U_dd = dict_to_matrix(extract_U_dict2(h_int), gf_struct=gf_struct)
     if not return_4idx:
         return U_dd

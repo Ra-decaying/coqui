@@ -32,7 +32,7 @@ namespace solvers {
 
   scr_coulomb_t::scr_coulomb_t(const imag_axes_ft::IAFT *ft,
                                std::string screen_type,
-                               div_treatment_e div):
+                               std::string div):
     _ft(ft), _screen_type(screen_type),
     _div_treatment(div), _Timer() {
 
@@ -73,7 +73,7 @@ namespace solvers {
                "  Divergent treatment at q->0   = {}\n",
             _screen_type, thc.MF()->nbnd(), thc.Np(),
             thc.MF()->nkpts(), thc.MF()->nkpts_ibz(),
-            div_enum_to_string(_div_treatment));
+          _div_treatment);
     _ft->metadata_log();
 
     utils::check(thc.mpi() == mb_state.mpi,
@@ -306,9 +306,9 @@ namespace solvers {
       app_log(1, "");
       app_log(1, "╔══════════════════════════════════════════════════════════╗");
       app_log(1, "║ [ NOTE ]                                                 ║");
-      app_log(1, "║ Screening type is set to non-\"edmft\" type, but local     ║");
-      app_log(1, "║ polarizabilities were found or provided. The calculation ║");
-      app_log(1, "║ will simply ignoring the polarizability correction.      ║");
+      app_log(1, "║ Screening type is set to \"non-edmft\" type, but local     ║");
+      app_log(1, "║ polarization corrections were found or provided.         ║");
+      app_log(1, "║ CoQui will ignore the corrections.                       ║");
       app_log(1, "╚══════════════════════════════════════════════════════════╝\n");
     }
     utils::check(mb_state.sG_tskij.has_value(),
@@ -345,12 +345,12 @@ namespace solvers {
 
       if (!mb_state.sPi_imp_wabcd or !mb_state.sPi_dc_wabcd) {
         app_log(1, "");
-        app_log(1, "╔══════════════════════════════════════════════════════════╗");
-        app_log(1, "║ [ NOTE ]                                                 ║");
-        app_log(1, "║ Screening type is set to \"edmft\", but no local           ║");
-        app_log(1, "║ polarizabilities were found or provided. The calculation ║");
-        app_log(1, "║ will proceed assuming zero polarizability correction.    ║");
-        app_log(1, "╚══════════════════════════════════════════════════════════╝\n");
+        app_log(1, "╔══════════════════════════════════════════════════════╗");
+        app_log(1, "║ [ NOTE ]                                             ║");
+        app_log(1, "║ Screening type is set to \"edmft\", but local        ║");
+        app_log(1, "║ polarization corrections were not found or provided. ║");
+        app_log(1, "║ CoQui will proceed assuming zero correction.         ║");
+        app_log(1, "╚══════════════════════════════════════════════════════╝\n");
 
       } else {
         auto &proj_boson = mb_state.proj_boson.value();

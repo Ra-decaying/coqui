@@ -51,8 +51,8 @@ namespace bdft_tests {
 
     auto solve_thc_g0w0 = [&](std::shared_ptr<mf::MF> &mf) {
       solvers::hf_t hf;
-      solvers::gw_t gw(&ft, string_to_div_enum("ignore_g0"), output);
-      solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum("ignore_g0"));
+      solvers::gw_t gw(&ft, "ignore_g0", output);
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", "ignore_g0");
 
       thc_reader_t thc(mf, make_thc_reader_ptree(mf->nbnd()*24, "", "incore", "", "bdft",
                                                  1e-10, mf->ecutrho(), 1, 1024));
@@ -127,8 +127,8 @@ namespace bdft_tests {
       std::string output = "coqui";
 
       solvers::hf_t hf;
-      solvers::gw_t gw(&ft, string_to_div_enum("ignore_g0"), output);
-      solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum("ignore_g0"));
+      solvers::gw_t gw(&ft, "ignore_g0", output);
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", "ignore_g0");
       simple_dyson dyson(mf.get(), &ft);
       MBState mb_state(mpi_context, ft, output);
 
@@ -196,7 +196,7 @@ namespace bdft_tests {
       imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::ir_source);
 
       solvers::hf_t hf;
-      solvers::gw_t gw(&ft);
+      solvers::gw_t gw(&ft, "gygi_smallest_q");
 
       /**
        * Reference value is obtained from Chol-RPA with ERIs converge to 1e-10.
@@ -237,7 +237,7 @@ namespace bdft_tests {
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, mf::pyscf_source));
     imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_source);
     solvers::hf_t hf;
-    solvers::gw_t gw(&ft, string_to_div_enum("ignore_g0"), output);
+    solvers::gw_t gw(&ft, "ignore_g0", output);
 
     /**
      * Reference value is obtained from Chol-GW with ERIs converge to 1e-10.
@@ -250,7 +250,7 @@ namespace bdft_tests {
                                                  1e-10, mf->ecutrho(), 1, 1024));
       auto eri = mb_eri_t(thc, thc);
       iter_scf::iter_scf_t iter_sol("damping");
-      solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum("ignore_g0"));
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", "ignore_g0");
       auto [e_hf, e_corr] = scf_loop(mb_state, dyson, eri, ft,
                                      solvers::mb_solver_t(&hf,&gw,&scr_eri), &iter_sol,
                                      1, false, 1e-9, true);
@@ -267,7 +267,7 @@ namespace bdft_tests {
       thc_reader_t thc(mf, "outcore", "./thc_eri.h5");
       auto eri = mb_eri_t(thc, thc);
       iter_scf::iter_scf_t iter_sol("damping");
-      solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum("ignore_g0"));
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", "ignore_g0");
       auto [e_hf, e_corr] = scf_loop(mb_state, dyson, eri, ft,
                                      solvers::mb_solver_t(&hf,&gw,&scr_eri), &iter_sol,
                                      1, false, 1e-9, true);
@@ -293,7 +293,7 @@ namespace bdft_tests {
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, mf::pyscf_source));
     imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_source);
     solvers::hf_t hf;
-    solvers::gw_t gw(&ft);
+    solvers::gw_t gw(&ft, "gygi_smallest_q");
     solvers::mb_solver_t mb_solver(&hf, &gw);
 
     { // incore thc-rpa
@@ -331,8 +331,8 @@ namespace bdft_tests {
 
     auto solve_gdf_thc_gw = [&](std::shared_ptr<mf::MF> &mf, std::string gdf_dir) {
       solvers::hf_t hf;
-      solvers::gw_t gw(&ft, string_to_div_enum("ignore_g0"), output);
-      solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum("ignore_g0"));
+      solvers::gw_t gw(&ft, "ignore_g0", output);
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", "ignore_g0");
       /**
        * References are obtained from the same GDF-THC-GW with alpha=12
        * The accuracy is roughly 1e-4 at Np=280 (alpha~11.67) for this system.

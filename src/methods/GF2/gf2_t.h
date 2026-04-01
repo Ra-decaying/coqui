@@ -36,7 +36,6 @@
 #include "numerics/imag_axes_ft/IAFT.hpp"
 #include "methods/scr_coulomb/scr_coulomb_t.h"
 #include "methods/ERI/detail/concepts.hpp"
-#include "methods/ERI/div_treatment_e.hpp"
 
 #define W_GATHER_OLD 0 // a switch to the old version for debugging
 
@@ -83,7 +82,7 @@ namespace methods {
 
     public:
       gf2_t(mf::MF *MF, imag_axes_ft::IAFT *ft,
-           div_treatment_e div = gygi, 
+           std::string div = "gygi", 
            std::string direct_type="gf2",
            std::string exchange_alg="orb",
            std::string exchange_type="gf2",
@@ -116,7 +115,7 @@ namespace methods {
       // accessor functions
       long& iter(); 
       std::string output() const;
-      div_treatment_e gw_div_treatment() const;
+      std::string gw_div_treatment() const;
       double& t_thresh(); 
 
       std::string direct_type() const; 
@@ -722,7 +721,7 @@ namespace methods {
       mf::MF *_MF = nullptr;
       imag_axes_ft::IAFT* _ft = nullptr;
 
-      div_treatment_e _div_treatment = div_treatment_e::ignore_g0;
+      std::string _div_treatment = "ignore_g0";
       double _t_thresh = 0.0; // it prescreening threshold
       std::string _direct_type = "gf2";
       std::string _exchange_type = "gf2";

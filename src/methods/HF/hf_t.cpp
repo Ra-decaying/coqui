@@ -30,7 +30,6 @@
 
 #include "mean_field/MF.hpp"
 #include "methods/ERI/detail/concepts.hpp"
-#include "methods/ERI/div_treatment_e.hpp"
 
 #include "methods/HF/hf_t.h"
 
@@ -49,11 +48,11 @@ namespace methods {
      *   myhf.evaluate(F_chol, Dm, cholesky_eri); // Cholesky-HF
      *
      */
-    hf_t::hf_t(div_treatment_e div): _div_treatment(div), _Timer() {
-      if (_div_treatment!=ignore_g0 and _div_treatment!=gygi) {
+    hf_t::hf_t(std::string div): _div_treatment(div), _Timer() {
+      if (_div_treatment!="ignore_g0" and _div_treatment!="gygi") {
         app_log(2, " hf_t: div_treatment only supports \"ignore_g0\" and \"gygi\". "
                    " coqui will take div_treatment = \"gygi\" instead.");
-        _div_treatment = gygi;
+        _div_treatment = "gygi";
       }
     }
 
@@ -67,12 +66,12 @@ namespace methods {
                          const nda::MemoryArrayOfRank<4> auto &S_skij,
                          double madelung) {
 
-      if (_div_treatment == ignore_g0) {
+      if (_div_treatment == "ignore_g0") {
         app_log(1, "No finite-size correction to the non-local HF exchange potential.\n");
         return;
       }
       app_log(1, "  Treatment of long-wavelength divergence in the non-local HF exchange potential : {}\n",
-              div_enum_to_string(_div_treatment));
+              _div_treatment);
 
       decltype(nda::range::all) all;
       long ns = Dm_skij.extent(0);

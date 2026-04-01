@@ -51,8 +51,8 @@ namespace bdft_tests {
 
     auto solve_thc_g0w0 = [&](std::shared_ptr<mf::MF> &mf) {
       solvers::hf_t hf;
-      solvers::gw_t gw(&ft, string_to_div_enum("ignore_g0"), output);
-      solvers::scr_coulomb_t scr_eri(&ft, "rpa", string_to_div_enum("ignore_g0"));
+      solvers::gw_t gw(&ft, "ignore_g0", output);
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", "ignore_g0");
 
       chol_reader_t chol(mf, methods::make_chol_reader_ptree(1e-10, mf->ecutrho(), 32, "./"));
       auto eri = mb_eri_t(chol, chol);
@@ -120,7 +120,7 @@ namespace bdft_tests {
     imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_source);
     chol_reader_t chol(mf, methods::make_chol_reader_ptree(1e-10, mf->ecutrho(), 32, "./"));
     auto eri = mb_eri_t(chol, chol);
-    solvers::gw_t gw(std::addressof(ft));
+    solvers::gw_t gw(std::addressof(ft), "gygi_smallest_q");
     solvers::hf_t hf;
     simple_dyson dyson(mf.get(), std::addressof(ft));
     MBState mb_state(mpi_context, ft, "bdft");
@@ -152,7 +152,7 @@ namespace bdft_tests {
     imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_source);
     chol_reader_t chol(mf, methods::make_chol_reader_ptree(1e-10, mf->ecutrho(), 32, "./"));
     auto eri = mb_eri_t(chol, chol);
-    solvers::gw_t gw(std::addressof(ft));
+    solvers::gw_t gw(std::addressof(ft), "gygi_smallest_q");
     solvers::hf_t hf;
     solvers::mb_solver_t mb_solver(&hf, &gw);
     simple_dyson dyson(mf.get(), std::addressof(ft));
@@ -184,7 +184,7 @@ namespace bdft_tests {
     imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_source);
     chol_reader_t chol(mf, methods::make_chol_reader_ptree(1e-10, mf->ecutrho(), 32, "./"));
     auto eri = mb_eri_t(chol, chol);
-    solvers::gw_t gw(std::addressof(ft));
+    solvers::gw_t gw(std::addressof(ft), "gygi_smallest_q");
     solvers::hf_t hf;
     simple_dyson dyson(mf.get(), std::addressof(ft));
     MBState mb_state(mpi_context, ft, "bdft");
@@ -219,7 +219,7 @@ namespace bdft_tests {
     imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_source);
     chol_reader_t chol(mf, methods::make_chol_reader_ptree(1e-10, mf->ecutrho(), 32, "./"));
     auto eri = mb_eri_t(chol, chol);
-    solvers::gw_t gw(std::addressof(ft));
+    solvers::gw_t gw(std::addressof(ft), "gygi_smallest_q");
     solvers::hf_t hf;
     solvers::mb_solver_t mb_solver(&hf, &gw);
     simple_dyson dyson(mf.get(), std::addressof(ft));
@@ -249,7 +249,7 @@ namespace bdft_tests {
 
     chol_reader_t chol(mf, gdf_dir);
     auto eri = mb_eri_t(chol, chol);
-    solvers::gw_t gw(&ft);
+    solvers::gw_t gw(&ft, "gygi_smallest_q");
     solvers::hf_t hf;
     simple_dyson dyson(mf.get(), &ft);
     MBState mb_state(mpi_context, ft, "bdft");

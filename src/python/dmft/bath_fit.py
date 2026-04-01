@@ -189,6 +189,51 @@ def fit_u_weiss(u_weiss_iw, ir_kernel, causal_params):
     return u_iw_fit
 
 
+def poly_lstsq_extrapolate(x_data, y_data, fit_order=1, x_target=0.0):
+    """
+    Fit y(x) with a polynomial of arbitrary order using least squares,
+    then evaluate the fitted polynomial at x_target.
+
+    Parameters:
+        x_data (array-like): 1D sample locations with shape (nsample,).
+        y_data (numpy.ndarray): Sample values with shape (nsample, ...).
+                                The first axis must match x_data length.
+        fit_order (int): Polynomial order.
+        x_target (float): Extrapolation/evaluation point.
+
+    Returns:
+        numpy.ndarray: Extrapolated value at x_target with shape y_data.shape[1:].
+    """
+    x_data = np.asarray(x_data, dtype=np.float64)
+    y_data = np.asarray(y_data)
+
+    if x_data.ndim != 1:
+        raise ValueError("x_data must be a 1D array.")
+    if y_data.ndim < 1:
+        raise ValueError("y_data must have at least 1 dimension.")
+    if y_data.shape[0] != x_data.shape[0]:
+        raise ValueError("y_data.shape[0] must match x_data.shape[0].")
+    if fit_order < 0:
+        raise ValueError("fit_order must be non-negative.")
+    if x_data.shape[0] < fit_order + 1:
+        raise ValueError(
+            f"Need at least fit_order+1={fit_order+1} samples, got {x_data.shape[0]}."
+        )
+
+    # Vandermonde matrix with ascending powers: [1, x, x^2, ...]
+    vandermonde = np.vander(x_data, N=fit_order + 1, increasing=True)
+
+    # Flatten all trailing dimensions, solve independent least-squares fits in batch
+    y_matrix = y_data.reshape(y_data.shape[0], -1)
+    coeffs, *_ = np.linalg.lstsq(vandermonde, y_matrix, rcond=None)
+
+    # Evaluate polynomial at x_target
+    x_powers = np.power(float(x_target), np.arange(fit_order + 1, dtype=np.float64))
+    y_target = (x_powers[:, None] * coeffs).sum(axis=0)
+
+    return y_target.reshape(y_data.shape[1:])
+
+
 def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
     """
     Apply regularization to the zero-frequency component of the bosonic Green's function.
@@ -212,7 +257,7 @@ def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
     Returns:
         numpy.ndarray: The modified bosonic Green's function with regularized iw = 0 component.
     """
-    mpi.report(f"Applying {w0_regularization} w=0 regularization for {target_name} before causal projection:")
+    mpi.report(f"Applying w=0 regularization for {target_name} before causal projection:")
     
     if w0_regularization == "flatten":
         
@@ -220,16 +265,31 @@ def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
         mpi.report(f"  --> Flattening {target_name} at w=0.")
         zero_index = np.where(iw_mesh_b == 0.0)[0][0]
         A_iw[zero_index] = A_iw[zero_index + 1]
-
-    elif w0_regularization == "linear_extrapolate":
-
-        # For metallic case, set A(iw=0) to a small positive value
-        mpi.report(f"  --> Extrapolating {target_name} at w=0 using linear extrapolation at iw1 and iw2.")
+    
+    elif w0_regularization[:18] == "extrapolate_order_":
+   
+        try:
+            order = int(w0_regularization[18:])
+        except ValueError:
+            raise ValueError(
+                f"Invalid extrapolate_order value: {w0_regularization[18:]}. Must be an integer."
+            )
+        mpi.report(f"  --> Extrapolating {target_name} at w = 0 as an O(w²) polynomial of order {order}.")
         zero_index = np.where(iw_mesh_b == 0.0)[0][0]
-        slope = (A_iw[zero_index + 1] - A_iw[zero_index + 2]) / (np.abs(iw_mesh_b[zero_index + 1]) - np.abs(iw_mesh_b[zero_index + 2]))
-        A_iw[zero_index] = A_iw[zero_index + 1] - slope * np.abs(iw_mesh_b[zero_index + 1])
+        available_points = iw_mesh_b[zero_index+1:].shape[0]
+        if order+1 > available_points:
+            raise ValueError(
+                f"extrapolate_order_{order} requires at least {order+1} positive Matsubara points after w=0 for {target_name}."
+            )
+
+        x_data = np.array([np.abs(iw)**2 for iw in iw_mesh_b[zero_index + 1:zero_index + 2 + order]])
+        y_data = A_iw[zero_index + 1:zero_index + 2 + order]
+        A_iw[zero_index] = poly_lstsq_extrapolate(x_data, y_data, fit_order=order, x_target=0.0)
 
     else:
-        raise ValueError(f"Invalid w0_regularization option: {w0_regularization}. Use 'flatten' or 'linear_extrapolate'.")
+        raise ValueError(
+            f"Invalid w0_regularization option: {w0_regularization}. "
+            "Use 'flatten' or 'extrapolate_order_<n>'."
+        )
 
     return A_iw
