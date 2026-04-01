@@ -109,7 +109,6 @@ subroutine wann90_setup(prefix, clen, nb, nw, nat, at_cart, max_sym_str_len, at_
     do i=1,nproj
       call w90_set_option(w90main, 'projections', TRIM(proj_str(i)(1:proj_str_len(i))))
     enddo
-    call w90_set_option(w90main, 'projections', ' ')
   elseif(auto_proj .gt. 0) then
     call w90_set_option(w90main, 'auto_projections', .true.)
   endif
@@ -310,7 +309,6 @@ subroutine wann90_run(prefix, clen, nb, nw, nat, at_cart, max_sym_str_len, at_sy
     do i=1,nproj
       call w90_set_option(w90main, 'projections', TRIM(proj_str(i)(1:proj_str_len(i))))
     enddo
-    call w90_set_option(w90main, 'projections', ' ')
   endif
 
   if(auto_proj .gt. 0) then
