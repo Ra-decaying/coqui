@@ -128,8 +128,21 @@ namespace methods {
 
       utils::TimerManager _Timer;
 
-      using Array_3D_real = nda::array<RealType, 3>;
-      std::optional< sArray_t< Array_3D_real >> real_sV_Qij_opt; // for molecules only!
+      /**
+       * Single k-point (molecular) Coulomb matrix J w/o SOC from Cholesky-type ERIs.
+       * Uses real arithmetic since integrals are real for molecules and Gamma-only cases.
+       */
+      template<nda::MemoryArray AF_t>
+      void add_J_mol(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij,
+                     Cholesky_ERI auto &&chol);
+
+      /**
+       * Single k-point (molecular) exchange matrix K w/o SOC from Cholesky-type ERIs.
+       * Uses real arithmetic since integrals are real for molecules and Gamma-only cases.
+       */
+      template<nda::MemoryArray AF_t>
+      auto add_K_mol(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij,
+                     Cholesky_ERI auto &&chol, const nda::MemoryArrayOfRank<4> auto &S_skij);
 
       /**
        * THC-HF implementation for q-independent interpolating points
