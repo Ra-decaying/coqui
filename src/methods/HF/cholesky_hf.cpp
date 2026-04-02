@@ -54,7 +54,7 @@ namespace methods {
       utils::check(chol.MF()->nkpts() == chol.MF()->nkpts_ibz(), "hf_t::cholesky_hf::evaluate: Symmetry not yet implemented.");
 
       for( auto& v: {"TOTAL", "ALLOC",
-                     "COULOMB", "EXCHANGE"} ) {
+                     "COULOMB", "EXCHANGE", "CHOL", "CHOL J", "CHOL K", "J BLAS", "K BLAS"} ) {
         _Timer.add(v);
       }
 
