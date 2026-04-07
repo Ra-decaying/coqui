@@ -52,12 +52,29 @@ namespace methods {
     nda::array<ComplexType, 2> eval_grad_2e(const nda::MemoryArrayOfRank<5> auto &G_tskij,
                                             Cholesky_ERI auto && chol);
 
-    ComplexType eval_grad_2e(int iatom, int idirection, Cholesky_ERI auto && chol);
+    ComplexType eval_grad_2e(size_t iatom, size_t idirection, Cholesky_ERI auto &&chol);
 
     template<nda::MemoryArray Array_3D_t>
     void eval_P0(size_t iq, const nda::MemoryArrayOfRank<5> auto &G_tskij,
                  sArray_t<Array_3D_t> &sP0_tPQ, Cholesky_ERI auto &chol,
                  int batch_size, bool print_mpi);
+
+    template<nda::MemoryArray Array_3D_t>
+    void eval_intermediate1(size_t iq, size_t iatom, size_t idirection,
+                            const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                            sArray_t<Array_3D_t> &sInter1_tPQ, Cholesky_ERI auto &chol,
+                            int batch_size, bool print_mpi);
+
+    template<nda::MemoryArray Array_3D_t>
+    void eval_intermediate2(size_t iq, size_t iatom, size_t idirection,
+                            const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                            sArray_t<Array_3D_t> &sInter2_tPQ, Cholesky_ERI auto &chol,
+                            int batch_size, bool print_mpi);
+
+    template<nda::MemoryArray Array_4D_t>
+    void eval_2bdmInter(size_t iq, const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                        sArray_t<Array_4D_t> &sInter_tijQ,
+                        Cholesky_ERI auto &chol, int batch_size, bool print_mpi);
 
     template<nda::MemoryArray Array_3D_t>
     void eval_dyson_P(sArray_t<Array_3D_t> &sP0_tPQ, sArray_t<Array_3D_t> &sP0_wPQ);
@@ -73,12 +90,12 @@ namespace methods {
 
     utils::TimerManager _Timer;
 
-    int _natoms = 0;
-    int _nbnd = 0;
-    int _nbnd_aux = 0;
-    int _nspin = 0;
-    int _nkpts = 0;
-    int _npol = 0;
+    size_t _natoms = 0;
+    size_t _nbnd = 0;
+    size_t _nbnd_aux = 0;
+    size_t _nspin = 0;
+    size_t _nkpts = 0;
+    size_t _npol = 0;
 
     nda::array<RealType, 1> _k_weight;
 
