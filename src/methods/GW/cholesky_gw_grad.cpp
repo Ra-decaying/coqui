@@ -78,10 +78,12 @@ namespace methods {
       auto mpi = chol.mpi();
 
       _Timer.start("ALLOC");
+      size_t nt_half = (_ft->nt_f()%2==0)? _ft->nt_f()/2 : _ft->nt_f()/2 + 1;
+      size_t nw_half = (_ft->nw_b()%2==0)? _ft->nw_b()/2 : _ft->nw_b()/2 + 1;
 
-      sArray_t<nda::array_view<ComplexType, 3>> sP0_tPQ(*mpi, {_ft->nt_f(), _nbnd_aux, _nbnd_aux});
-      sArray_t<nda::array_view<ComplexType, 3>> sP0_wPQ(*mpi, {_ft->nw_b(), _nbnd_aux, _nbnd_aux});
-      sArray_t<nda::array_view<ComplexType, 4>> sInter_tijQ_t_f(*mpi, {_ft->nt_f(), _nbnd, _nbnd, _nbnd_aux});
+      sArray_t<nda::array_view<ComplexType, 3>> sP0_tPQ(*mpi, {nt_half, _nbnd_aux, _nbnd_aux});
+      sArray_t<nda::array_view<ComplexType, 3>> sP0_wPQ(*mpi, {nw_half, _nbnd_aux, _nbnd_aux});
+      sArray_t<nda::array_view<ComplexType, 5>> sInter_tsijQ_t_f(*mpi, {_ft->nt_f(), _nspin, _nbnd, _nbnd, _nbnd_aux});
 
       _Timer.stop("ALLOC");
 
@@ -93,41 +95,50 @@ namespace methods {
         eval_P0(iq, G_tskij, sP0_tPQ, chol, nbnd_aux_batch, (iq == 0)? true : false);
         _Timer.stop("EVAL_P0");
 
+        for (size_t it = 0; it < nt_half; it++) {
+            std::cout << "P0 t" << std::endl;
+            std::cout << "t index = " << it << std::endl;
+            std::cout << sP0_tPQ.local()(it, all, all) << std::endl << std::endl;
+        }
+
         std::cout << "heyhey1" << std::endl;
-        eval_2bdm_intermediate(iq, G_tskij, sInter_tijQ_t_f, chol, nbnd_aux_batch, (iq == 0)? true : false);
+        eval_2bdm_intermediate(iq, G_tskij, sInter_tsijQ_t_f, chol, nbnd_aux_batch, (iq == 0)? true : false);
         for (size_t it = 0; it < _ft->nt_f(); it++) {
             for (size_t P = 0; P < _nbnd_aux; P++)
           {
             std::cout << "inter t" << std::endl;
             std::cout << "t index = " << it << std::endl;
             std::cout << "aux index = " << P << std::endl;
-            std::cout << sInter_tijQ_t_f.local()(it, all, all, P) << std::endl << std::endl;
+            std::cout << sInter_tsijQ_t_f.local()(it, 0, all, all, P) << std::endl << std::endl;
           }
         }
 
-        auto inter_2bdm_t_b = nda::array<ComplexType, 4>::zeros({_ft->nt_b(), _nbnd, _nbnd, _nbnd_aux});
-        auto inter_2bdm_w_b = nda::array<ComplexType, 4>::zeros({_ft->nw_b(), _nbnd, _nbnd, _nbnd_aux});
-        _ft->tau_to_tau(sInter_tijQ_t_f.local(), imag_axes_ft::fermi, inter_2bdm_t_b);
+        auto inter_2bdm_t_b = nda::array<ComplexType, 5>::zeros({_ft->nt_b(), _nspin, _nbnd, _nbnd, _nbnd_aux});
+        auto inter_2bdm_w_b = nda::array<ComplexType, 5>::zeros({_ft->nw_b(), _nspin, _nbnd, _nbnd, _nbnd_aux});
+        _ft->tau_to_tau(sInter_tsijQ_t_f.local(), imag_axes_ft::fermi, inter_2bdm_t_b);
         _ft->tau_to_w(inter_2bdm_t_b, inter_2bdm_w_b, imag_axes_ft::boson);
-
-        for (size_t iw = 0; iw < _ft->nw_b(); iw++) {
-          for (size_t P = 0; P < _nbnd_aux; P++)
-          {
-            std::cout << "inter w" << std::endl;
-            std::cout << "w index after flatten = " << iw << std::endl;
-            std::cout << "aux index = " << P << std::endl;
-            std::cout << inter_2bdm_w_b(iw, all, all, P) << std::endl << std::endl;
-          }
-          std::cout << std::endl;
-        }
-
-        std::cout << "heyhey2" << std::endl;
 
         _Timer.start("EVAL_DYSON_P");
         eval_dyson_P(sP0_tPQ, sP0_wPQ);
         _Timer.stop("EVAL_DYSON_P");
 
+        auto P0_wPQ = nda::array<ComplexType, 3>::zeros({_ft->nw_b(), _nbnd_aux, _nbnd_aux});
+        for (size_t n = 0; n < nw_half; ++n) {
+          P0_wPQ(nw_half + n - 1, all, all) = sP0_wPQ.local()(n, all, all);
+          P0_wPQ(nw_half - n - 1, all, all) = nda::conj(sP0_wPQ.local()(n, all, all));
+        }
+
         for (size_t iw = 0; iw < _ft->nw_b(); ++iw) {
+
+          for (size_t P = 0; P < _nbnd_aux; P++)
+          {
+            std::cout << "inter w" << std::endl;
+            std::cout << "w index after flatten = " << iw << std::endl;
+            std::cout << "aux index = " << P << std::endl;
+            std::cout << inter_2bdm_w_b(iw, 0, all, all, P) << std::endl << std::endl;
+          }
+          std::cout << std::endl;
+
           std::cout << "P tilde w" << std::endl;
           std::cout << "w index after flatten = " << iw << std::endl;
           std::cout << sP0_wPQ.local()(iw, all, all) << std::endl << std::endl;
@@ -137,39 +148,49 @@ namespace methods {
         auto tbdm_pqrs = nda::array<ComplexType, 4>::zeros({_nbnd, _nbnd, _nbnd, _nbnd});
         auto tbdm_pq_rs = nda::reshape(tbdm_pqrs, shape_t<2>{_nbnd*_nbnd, _nbnd*_nbnd});
 
-        for (size_t w = 0; w < _ft->nw_b(); ++w) {
-          auto inter_rsQ = nda::array<ComplexType, 3>::zeros({_nbnd, _nbnd, _nbnd_aux});
-          inter_rsQ = inter_2bdm_w_b(w, all, all, all);
-          auto inter_rs_Q = nda::reshape(inter_rsQ, shape_t<2>{_nbnd*_nbnd, _nbnd_aux});
-          auto tmp_rsQ = nda::array<ComplexType, 3>::zeros({_nbnd, _nbnd, _nbnd_aux});
-          auto tmp_rs_Q = nda::reshape(tmp_rsQ, shape_t<2>{_nbnd*_nbnd, _nbnd_aux});
-          auto eye = nda::eye<ComplexType>(_nbnd_aux);
-          auto tmp_PQ = nda::array<ComplexType, 2>::zeros({_nbnd_aux, _nbnd_aux});
-          tmp_PQ = eye + sP0_wPQ.local()(w, all, all);
-          nda::blas::gemm(inter_rs_Q, tmp_PQ, tmp_rs_Q);
-          nda::blas::gemm(-1.0, tmp_rs_Q, nda::transpose(inter_rs_Q), 0.0, tbdm_pq_rs);
-          tbdm_wpqrs(w, all, all, all, all) = tbdm_pqrs;
-        }
+        for (size_t is1 = 0; is1 < _nspin; ++is1) {
+          for (size_t is2 = 0; is2 < _nspin; ++is2) {
 
-        auto tbdm_tpqrs_f = nda::array<ComplexType, 5>::zeros({_ft->nt_f(), _nbnd, _nbnd, _nbnd, _nbnd});
-        _ft->w_to_tau(tbdm_wpqrs, imag_axes_ft::boson, tbdm_tpqrs_f, imag_axes_ft::fermi);
-        auto tbdm_beta = nda::array<ComplexType, 4>::zeros({_nbnd, _nbnd, _nbnd, _nbnd});
-        _ft->tau_to_zero(tbdm_tpqrs_f, tbdm_beta);
+            for (size_t w = 0; w < _ft->nw_b(); ++w) {
+              auto inter_rsQ_1 = nda::array<ComplexType, 3>::zeros({_nbnd, _nbnd, _nbnd_aux});
+              auto inter_rsQ_2 = nda::array<ComplexType, 3>::zeros({_nbnd, _nbnd, _nbnd_aux});
+              inter_rsQ_1 = inter_2bdm_w_b(w, is1, all, all, all);
+              inter_rsQ_2 = inter_2bdm_w_b(w, is2, all, all, all);
+              auto inter_rs_Q_1 = nda::reshape(inter_rsQ_1, shape_t<2>{_nbnd*_nbnd, _nbnd_aux});
+              auto inter_rs_Q_2 = nda::reshape(inter_rsQ_2, shape_t<2>{_nbnd*_nbnd, _nbnd_aux});
+              auto tmp_rsQ = nda::array<ComplexType, 3>::zeros({_nbnd, _nbnd, _nbnd_aux});
+              auto tmp_rs_Q = nda::reshape(tmp_rsQ, shape_t<2>{_nbnd*_nbnd, _nbnd_aux});
+              auto eye = nda::eye<ComplexType>(_nbnd_aux);
+              auto tmp_PQ = nda::array<ComplexType, 2>::zeros({_nbnd_aux, _nbnd_aux});
+              tmp_PQ = eye + P0_wPQ(w, all, all);
+              nda::blas::gemm(inter_rs_Q_2, tmp_PQ, tmp_rs_Q);
+              nda::blas::gemm(-1.0, tmp_rs_Q, nda::transpose(inter_rs_Q_1), 0.0, tbdm_pq_rs);
+              tbdm_wpqrs(w, all, all, all, all) = tbdm_pqrs;
+            }
 
-        for (size_t p = 0; p < _nbnd; ++p) {
-          for (size_t q = 0; q < _nbnd; ++q) {
-            for (size_t r = 0; r < _nbnd; ++r) {
-              for (size_t s = 0; s < _nbnd; ++s) {
-                std::cout << "p = " << p << ", ";
-                std::cout << "q = " << q << ", ";
-                std::cout << "r = " << r << ", ";
-                std::cout << "s = " << s << ", ";
-                std::cout << tbdm_beta(q, s, p, r) << std::endl;
+
+            auto tbdm_tpqrs_f = nda::array<ComplexType, 5>::zeros({_ft->nt_f(), _nbnd, _nbnd, _nbnd, _nbnd});
+            _ft->w_to_tau(tbdm_wpqrs, imag_axes_ft::boson, tbdm_tpqrs_f, imag_axes_ft::fermi);
+            auto tbdm_beta = nda::array<ComplexType, 4>::zeros({_nbnd, _nbnd, _nbnd, _nbnd});
+            _ft->tau_to_zero(tbdm_tpqrs_f, tbdm_beta);
+
+            std::cout << std::endl;
+            std::cout << "spin 1 = " << is1 << ", " << "spin 2 = " << is2 << std::endl;
+            for (size_t p = 0; p < _nbnd; ++p) {
+              for (size_t q = 0; q < _nbnd; ++q) {
+                for (size_t r = 0; r < _nbnd; ++r) {
+                  for (size_t s = 0; s < _nbnd; ++s) {
+                    std::cout << "p = " << p << ", ";
+                    std::cout << "q = " << q << ", ";
+                    std::cout << "r = " << r << ", ";
+                    std::cout << "s = " << s << ", ";
+                    std::cout << tbdm_beta(q, s, p, r) << std::endl;
+                  }
+                }
               }
             }
           }
         }
-
       }
 
     }
@@ -188,7 +209,7 @@ namespace methods {
       utils::check(_nbnd_aux % batch_size == 0, "gw_gradient_t::eval_P0: _nbnd_aux % batch_size != 0");
       size_t n_batch = _nbnd_aux / batch_size;
       auto[dim0_rank, dim0_comm_size, dim1_rank, dim1_comm_size] =
-          utils::setup_two_layer_mpi(sP0_tPQ.communicator(), _ft->nt_f(), n_batch);
+          utils::setup_two_layer_mpi(sP0_tPQ.communicator(), sP0_tPQ.local().shape(0), n_batch);
       if (print_mpi) {
         app_log(2, "    - evaluate_P0: batch size = {}", batch_size);
         app_log(2, "    - MPI processors along nt axis = {}", dim0_comm_size);
@@ -217,7 +238,7 @@ namespace methods {
       double spin_factor = (_nspin == 1)? -2.0/_nkpts : -1.0/_nkpts; // FIXME keep 1/nkpts just for debug
 
       sP0_tPQ.win().fence();
-      for (size_t it = dim0_rank; it < _ft->nt_f(); it += dim0_comm_size) { // MPI
+      for (size_t it = dim0_rank; it < sP0_tPQ.local().shape(0); it += dim0_comm_size) { // MPI
         size_t itt = _ft->nt_f() - it - 1;
         for (size_t is = 0; is < _nspin; ++is) {
           for (size_t ik = 0; ik < _nkpts; ++ik) {
@@ -410,19 +431,19 @@ namespace methods {
       _Timer.stop("COMM");
     }
 
-  template<nda::MemoryArray Array_4D_t>
+  template<nda::MemoryArray Array_5D_t>
   void gw_gradient_t::eval_2bdm_intermediate(size_t iq, const nda::MemoryArrayOfRank<5> auto &G_tskij,
-                                             sArray_t<Array_4D_t> &sInter_tijQ,
+                                             sArray_t<Array_5D_t> &sInter_tsijQ,
                                              Cholesky_ERI auto &chol, int batch_size, bool print_mpi)
     {
       decltype(nda::range::all) all;
-      sInter_tijQ.set_zero();
+      sInter_tsijQ.set_zero();
 
       if (batch_size < 0) batch_size = _nbnd_aux;
       utils::check(_nbnd_aux % batch_size == 0, "gw_gradient_t::eval_2bdm_intermediate: _nbnd_aux % batch_size != 0");
       size_t n_batch = _nbnd_aux / batch_size;
       auto[dim0_rank, dim0_comm_size, dim1_rank, dim1_comm_size] =
-          utils::setup_two_layer_mpi(sInter_tijQ.communicator(), _ft->nt_f(), n_batch);
+          utils::setup_two_layer_mpi(sInter_tsijQ.communicator(), sInter_tsijQ.local().shape(0), n_batch);
       if (print_mpi) {
         app_log(2, "    - evaluate_eval_2bdmInter: batch size = {}", batch_size);
         app_log(2, "    - MPI processors along nt_f axis = {}", dim0_comm_size);
@@ -453,10 +474,10 @@ namespace methods {
 
       _Timer.stop("ALLOC");
 
-      sInter_tijQ.win().fence();
-      for (size_t it = dim0_rank; it < _ft->nt_f(); it += dim0_comm_size) { // MPI
+      sInter_tsijQ.win().fence();
+      for (size_t it = dim0_rank; it < sInter_tsijQ.local().shape(0); it += dim0_comm_size) { // MPI
         size_t itt = _ft->nt_f() - it - 1;
-        for (size_t is = 0; is < 1; ++is) {
+        for (size_t is = 0; is < _nspin; ++is) {
           for (size_t ik = 0; ik < _nkpts; ++ik) {
             long ikmq = chol.MF()->qk_to_k2(iq, ik); // K(ikmq) = K(ik) - Q(iq) + G
             auto L_Pab = chol.V(iq, is, ik);
@@ -474,14 +495,14 @@ namespace methods {
               // Y_dcP = Gt_da * X2_acP
               nda::blas::gemm(Gt_da, X2_a_cP, Y_d_cP);
 
-              sInter_tijQ.local()(it, all, all, P_range) += Y_dcP;
+              sInter_tsijQ.local()(it, is, all, all, P_range) += Y_dcP;
             }
           }
         }
       }
       _Timer.start("COMM");
-      sInter_tijQ.win().fence();
-      sInter_tijQ.all_reduce();
+      sInter_tsijQ.win().fence();
+      sInter_tsijQ.all_reduce();
       _Timer.stop("COMM");
 
     }
@@ -491,7 +512,7 @@ namespace methods {
     void gw_gradient_t::eval_dyson_P(sArray_t<Array_3D_t> &sP0_tPQ, sArray_t<Array_3D_t> &sP0_wPQ)
     {
       size_t Np = sP0_tPQ.local().shape(1);
-      size_t nw = sP0_wPQ.local().shape(0);
+      size_t nw_half = sP0_wPQ.local().shape(0);
       _Timer.start("ALLOC");
       auto I = nda::eye<ComplexType>(Np);
       nda::matrix<ComplexType> X(Np, Np);
@@ -501,7 +522,7 @@ namespace methods {
       _Timer.start("IMAG_FT");
       sP0_wPQ.win().fence();
       if (sP0_wPQ.node_comm()->root())
-        _ft->tau_to_w(sP0_tPQ.local(), sP0_wPQ.local(), imag_axes_ft::boson);
+        _ft->tau_to_w_PHsym(sP0_tPQ.local(), sP0_wPQ.local());
       sP0_wPQ.win().fence();
       _Timer.stop("IMAG_FT");
 
@@ -511,7 +532,7 @@ namespace methods {
       int num_nodes = sP0_wPQ.internode_comm()->size();
       int node_size = sP0_wPQ.node_comm()->size();
       sP0_wPQ.win().fence();
-      for (size_t iw = 0; iw < nw; ++iw) {
+      for (size_t iw = 0; iw < nw_half; ++iw) {
         int iw_node = (iw / node_size) % num_nodes;
         if (iw % comm_size == rank) {
           auto P0w_PQ = sP0_wPQ.local()(iw, nda::ellipsis{});
@@ -534,7 +555,7 @@ namespace methods {
       _Timer.start("IMAG_FT");
       sP0_tPQ.win().fence();
       if (sP0_tPQ.node_comm()->root())
-        _ft->w_to_tau(sP0_wPQ.local(), sP0_tPQ.local(), imag_axes_ft::boson);
+        _ft->w_to_tau_PHsym(sP0_wPQ.local(), sP0_tPQ.local());
       sP0_tPQ.win().fence();
       _Timer.stop("IMAG_FT");
     }
@@ -567,8 +588,8 @@ namespace methods {
     template void gw_gradient_t::eval_P0(size_t, const Arrv5D &, sArray_t<Arrv3D>&, chol_reader_t&, int , bool);
     template void gw_gradient_t::eval_P0(size_t, const Arrv5D2 &, sArray_t<Arrv3D>&, chol_reader_t&, int , bool);
 
-    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D2 &, sArray_t<Arr4D>&, chol_reader_t&, int , bool);
-    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D2 &, sArray_t<Arrv4D>&, chol_reader_t&, int , bool);
+    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D2 &, sArray_t<Arr5D>&, chol_reader_t&, int , bool);
+    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D2 &, sArray_t<Arrv5D>&, chol_reader_t&, int , bool);
 
 
   } // namespace solvers

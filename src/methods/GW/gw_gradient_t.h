@@ -75,9 +75,9 @@ namespace methods {
                             sArray_t<Array_3D_t> &sInter2_tPQ, Cholesky_ERI auto &chol,
                             int batch_size, bool print_mpi);
 
-    template<nda::MemoryArray Array_4D_t>
+    template<nda::MemoryArray Array_5D_t>
     void eval_2bdm_intermediate(size_t iq, const nda::MemoryArrayOfRank<5> auto &G_tskij,
-                                sArray_t<Array_4D_t> &sInter_tijQ,
+                                sArray_t<Array_5D_t> &sInter_tsijQ,
                                 Cholesky_ERI auto &chol, int batch_size, bool print_mpi);
 
     template<nda::MemoryArray Array_3D_t>
