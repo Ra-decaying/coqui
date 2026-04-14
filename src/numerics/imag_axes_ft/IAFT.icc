@@ -260,6 +260,11 @@ void IAFT::tau_to_zero(ndaArray_A &&A_ti, ndaArray_B &&A_zero_i)  const {
 
 template<nda::MemoryArray Array_A, typename comm_t>
 void IAFT::check_leakage(Array_A &&A_ti, stats_e stats, comm_t *comm, std::string A_name) const {
+  if (grid_var.index() == 1) {
+    // leakage checking is not available in DLR basis
+    return;
+  }
+
   auto Abs = nda::map([](ComplexType x) { return std::abs(x); });
 
   long nts  = (stats == fermi)? nt_f() : nt_b();
@@ -304,6 +309,11 @@ void IAFT::check_leakage(Array_A &&A_ti, stats_e stats, comm_t *comm, std::strin
 
 template<nda::MemoryArray Array_A, typename comm_t>
 void IAFT::check_leakage_PHsym(Array_A &&A_ti, stats_e stats, comm_t *comm, std::string A_name) const {
+  if (grid_var.index() == 1) {
+    // leakage checking is not available in DLR basis
+    return;
+  }
+
   auto Abs = nda::map([](ComplexType x) { return std::abs(x); });
 
   long nts  = (stats == fermi)? nt_f() : nt_b();

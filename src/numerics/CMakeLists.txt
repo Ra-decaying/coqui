@@ -12,6 +12,11 @@ target_link_libraries(numerics INTERFACE arch_lib fft_lib nda_c h5_c slate_lapac
 ELSE(ENABLE_SLATE)
 target_link_libraries(numerics INTERFACE arch_lib fft_lib nda_c h5_c device_kernels)
 ENDIF(ENABLE_SLATE)
+
+if(ENABLE_DLR)
+  target_link_libraries(numerics INTERFACE cppdlr::cppdlr_c)
+endif()
+
 install(TARGETS numerics
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 

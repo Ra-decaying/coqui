@@ -34,16 +34,15 @@
 
 #include "iaft_enum_e.hpp"
 #include "ir/ir_driver.hpp"
+#ifdef ENABLE_DLR
+#include "dlr/dlr_driver.hpp"
+#endif
 
 namespace imag_axes_ft {
-
-  // TODO:
-  //   - Interface with dlrlib
 
   /**
    * A generic class for Fourier transform between imaginary axes for different types of grids on imaginary axes.
    * Grid information is provided from the grid driver (grid_var).
-   * Still in the design stage.
    */
   class IAFT {
 
@@ -54,7 +53,11 @@ namespace imag_axes_ft {
     IAFT(): grid_var{} { APP_ABORT(" imag_axes_ft::IAFT(): Empty state is not allowed. \n"); }
     IAFT(double beta, double wmax, source_e source, std::string prec = "high", bool print_meta_log = false) {
       if (source == dlr_source) {
-        APP_ABORT(" imag_axes_ft::IAFT(): DLR interface is not ready yet. \n");
+#ifdef ENABLE_DLR
+        grid_var = dlr::DLR(beta, wmax, prec, print_meta_log);
+#else
+        APP_ABORT(" imag_axes_ft::IAFT(): DLR backend requested but ENABLE_DLR is OFF at build time. \n");
+#endif
       } else if (source == ir_source) {
         grid_var = ir::IR(beta, wmax, prec, print_meta_log);
       } else {
@@ -165,12 +168,20 @@ namespace imag_axes_ft {
     void check_leakage(A_t &&A_ti, stats_e stats, std::string A_name, bool PHsym=false) const;
  
   private:
+#ifdef ENABLE_DLR
+    std::variant<ir::IR, dlr::DLR> grid_var;
+#else
     std::variant<ir::IR> grid_var;
+#endif
 
   public:
     source_e source() const {
       if (grid_var.index() == 0) {
         return ir_source;
+#ifdef ENABLE_DLR
+      } else if (grid_var.index() == 1) {
+        return dlr_source;
+#endif
       } else {
         utils::check(false, "IAFT::source(): This should not trigger");
         return ir_source;

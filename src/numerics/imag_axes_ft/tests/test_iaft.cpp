@@ -26,6 +26,9 @@
 #include "nda/nda.hpp"
 #include "nda/h5.hpp"
 
+#include <cmath>
+
+#include "utilities/mpi_context.h"
 #include "utilities/test_common.hpp"
 #include "numerics/imag_axes_ft/IAFT.hpp"
 
@@ -34,6 +37,64 @@ namespace bdft_tests {
   using utils::ARRAY_EQUAL;
   template<int N>
   using shape_t = std::array<long,N>;
+
+  // Same utility function pattern as cppdlr/test/c++/imfreq_ops.cpp
+  // G_ij(t) = sum_l c_ijl K(t, om_ijl)
+  nda::matrix<ComplexType> gfun(int norb, double beta, double t) {
+    int npeak = 5;
+
+    auto g    = nda::matrix<ComplexType>(norb, norb);
+    g         = ComplexType(0.0, 0.0);
+    auto c    = nda::vector<double>(npeak);
+    double om = 0.0;
+
+    for (int i = 0; i < norb; ++i) {
+      for (int j = 0; j < norb; ++j) {
+        for (int l = 0; l < npeak; ++l) {
+          c(l) = (std::sin(1000.0 * (i + 2 * j + 3 * l + 7)) + 1.0) / 2.0;
+        }
+        c = c / nda::sum(c);
+        
+
+        for (int l = 0; l < npeak; ++l) {
+          om = std::sin(2000.0 * (3 * i + 2 * j + l + 6));
+          auto k_it = (om >= 0.0)? 
+            -std::exp(-(t + 1) * 0.5 * beta * om) / (1.0 + std::exp(-beta * om)) : 
+            -std::exp((-t + 1) * 0.5 * beta * om) / (1.0 + std::exp(beta * om));
+
+          g(i, j) += c(l) * k_it;
+        }
+      }
+    }
+    return g;
+  }
+
+  // Same utility function pattern as cppdlr/test/c++/imfreq_ops.cpp
+  // G_ij(iw_n) = sum_l c_ijl K(iw_n, om_ijl)
+  nda::matrix<ComplexType> gfun(int norb, double beta, int n) {
+    int npeak = 5;
+
+    auto g    = nda::matrix<ComplexType>(norb, norb);
+    g         = ComplexType(0.0, 0.0);
+    auto c    = nda::vector<double>(npeak);
+    double om = 0.0;
+
+    for (int i = 0; i < norb; ++i) {
+      for (int j = 0; j < norb; ++j) {
+        for (int l = 0; l < npeak; ++l) {
+          c(l) = (std::sin(1000.0 * (i + 2 * j + 3 * l + 7)) + 1.0) / 2.0;
+        }
+        c = c / nda::sum(c);
+
+        for (int l = 0; l < npeak; ++l) {
+          om = std::sin(2000.0 * (3 * i + 2 * j + l + 6));
+          auto iw_n = ComplexType(0.0, n * M_PI);
+          g(i, j) += beta * c(l) / (iw_n - beta * om);
+        }
+      }
+    }
+    return g;
+  }
 
   TEST_CASE("iaft_ir_read", "[iaft_ir_read]") {
     double beta = 1000;
@@ -138,4 +199,70 @@ namespace bdft_tests {
       test_iaft(beta, wmax, "medium", 1e-9);
     }
   }
+
+  TEST_CASE("iaft_gfun_tau_w_roundtrip", "[iaft_gfun_tau_w_roundtrip]") {
+    auto& mpi_context = utils::make_unit_test_mpi_context();
+    auto test_gfun_roundtrip = [&](imag_axes_ft::source_e source, double tol) {
+      double beta = 1000.0;
+      double wmax = 1.0;
+      int norb = 2;
+
+      imag_axes_ft::IAFT myft(beta, wmax, source, "high", true);
+
+      auto tau_mesh = myft.tau_mesh();
+      auto wn_mesh = myft.wn_mesh();
+
+      nda::array<ComplexType, 3> G_t_ref(myft.nt_f(), norb, norb);
+      nda::array<ComplexType, 3> G_w_ref(myft.nw_f(), norb, norb);
+
+      for (int it = 0; it < myft.nt_f(); ++it) {
+        G_t_ref(it, nda::range::all, nda::range::all) = gfun(norb, beta, tau_mesh(it));
+      }
+      for (int iw = 0; iw < myft.nw_f(); ++iw) {
+        G_w_ref(iw, nda::range::all, nda::range::all) = gfun(norb, beta, int(wn_mesh(iw)));
+      }
+      myft.check_leakage(G_t_ref, imag_axes_ft::fermi, std::addressof(mpi_context->comm), "G_t_ref");
+
+      // Verify tau -> iw recovers G(iw)
+      {
+        nda::array<ComplexType, 3> G_w(myft.nw_f(), norb, norb);
+        myft.tau_to_w(G_t_ref, G_w, imag_axes_ft::fermi);
+        ARRAY_EQUAL(G_w, G_w_ref, tol);
+      }
+
+      // Verify iw -> tau recovers G(t)
+      {
+        nda::array<ComplexType, 3> G_t(myft.nt_f(), norb, norb);
+        myft.w_to_tau(G_w_ref, G_t, imag_axes_ft::fermi);
+        ARRAY_EQUAL(G_t, G_t_ref, tol);
+      }
+
+      // Verify tau -> tau = beta^- and 0^+
+      {
+        nda::array<ComplexType, 2> Dm_skij(norb, norb);
+        myft.tau_to_beta(G_t_ref, Dm_skij);
+        auto Dm_skij_ref = gfun(norb, beta, 1.0);
+        app_log(2, "Dm_skij_ref(0, 0) = {}", Dm_skij_ref(0, 0));
+        app_log(2, "Dm_skij(0, 0) = {}", Dm_skij(0, 0));
+        ARRAY_EQUAL(Dm_skij, Dm_skij_ref, tol);
+
+        myft.tau_to_zero(G_t_ref, Dm_skij);
+        Dm_skij_ref() = gfun(norb, beta, -1.0);
+        app_log(2, "I - Dm_skij_ref(0, 0) = {}", Dm_skij_ref(0, 0));
+        app_log(2, "I - Dm_skij(0, 0) = {}", Dm_skij(0, 0));
+        ARRAY_EQUAL(Dm_skij, Dm_skij_ref, tol);
+      }
+    };
+
+    SECTION("ir_backend") {
+      test_gfun_roundtrip(imag_axes_ft::ir_source, 1e-10);
+    }
+
+#ifdef ENABLE_DLR
+    SECTION("dlr_backend") {
+      test_gfun_roundtrip(imag_axes_ft::dlr_source, 1e-10);
+    }
+#endif
+  }
+
 } // bdft_tests

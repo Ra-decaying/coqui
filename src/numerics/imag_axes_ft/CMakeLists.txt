@@ -8,6 +8,9 @@ install(FILES ${H5_FILES}
         DESTINATION data/ir)
 
 if (BUILD_UNIT_TESTS)
+  if(ENABLE_DLR)
+    add_subdirectory(dlr/tests)
+  endif(ENABLE_DLR)
   add_subdirectory(ir/tests)
   add_subdirectory(tests)
 endif()
