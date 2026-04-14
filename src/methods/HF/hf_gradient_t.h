@@ -54,6 +54,8 @@ namespace methods {
 
     nda::array<ComplexType, 3> eval_dm_total(const nda::MemoryArrayOfRank<4> auto &D_skij);
 
+    nda::array<ComplexType, 6> eval_2bdm(const nda::MemoryArrayOfRank<4> auto &D_skij);
+
     ComplexType eval_grad_2e(int iatom, int direction, const nda::MemoryArrayOfRank<4> auto &D_skij,
                              Cholesky_ERI auto && chol);
 

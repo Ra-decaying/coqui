@@ -121,8 +121,32 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
   } else if (solver_type == "gw") {
     if constexpr (std::is_same_v<decltype(mb_eri_t.corr_eri), std::optional<std::reference_wrapper<chol_reader_t>>>) {
       if constexpr (std::is_same_v<corr_solver_t, solvers::gw_t>) {
+        solvers::hf_gradient_t hf_grad(mf);
         solvers::gw_gradient_t gw_grad(mf, &FT);
         grad_2e = gw_grad.evaluate(sG_tskij.local(), mb_eri_t.corr_eri->get());
+        auto tbdm = hf_grad.eval_2bdm(sDm_skij.local());
+        tbdm += gw_grad.eval_2bdm(sG_tskij.local(), mb_eri_t.corr_eri->get());
+
+        for (size_t is1 = 0; is1 < 2; ++is1) {
+          for (size_t is2 = 0; is2 < 2; ++is2) {
+            std::cout << std::endl;
+            std::cout << "spin 1 = " << is1 << ", " << "spin 2 = " << is2 << std::endl;
+            for (size_t p = 0; p < 2; ++p) {
+              for (size_t q = 0; q < 2; ++q) {
+                for (size_t r = 0; r < 2; ++r) {
+                  for (size_t s = 0; s < 2; ++s) {
+                    std::cout << "p = " << p << ", ";
+                    std::cout << "q = " << q << ", ";
+                    std::cout << "r = " << r << ", ";
+                    std::cout << "s = " << s << ", ";
+                    std::cout << tbdm(is1, is2, q, s, p, r) << std::endl;
+                  }
+                }
+              }
+            }
+          }
+        }
+
       }
     }
   }
