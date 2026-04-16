@@ -50,20 +50,20 @@ void IAFT::tau_to_w_PHsym(Array_tau_t &&X_ti_pos, Array_w_t &&X_wi_pos) const {
   static_assert(nda::get_rank<Array_tau_t> == nda::get_rank<Array_w_t>,
                 "iaft::tau_to_w_PHsym: incorrect rank of array X_wi and X_ti. ");
 
-  size_t nt = (nt_b()%2==0)? nt_b()/2 : nt_b()/2 + 1;
-  size_t nw = (nw_b()%2==0)? nw_b()/2 : nw_b()/2 + 1;
-  utils::check(X_ti_pos.shape(0) == nt, "iaft::tau_to_w_PHsym: incorrect dimension of nt for X_ti.");
-  utils::check(X_wi_pos.shape(0) == nw, "iaft::tau_to_w_PHsym: incorrect dimension of nw for X_wi.");
+  size_t nt_half = (nt_b()%2==0)? nt_b()/2 : nt_b()/2 + 1;
+  size_t nw_half = (nw_b()%2==0)? nw_b()/2 : nw_b()/2 + 1;
+  utils::check(X_ti_pos.shape(0) == nt_half, "iaft::tau_to_w_PHsym: incorrect dimension of nt for X_ti.");
+  utils::check(X_wi_pos.shape(0) == nw_half, "iaft::tau_to_w_PHsym: incorrect dimension of nw for X_wi.");
 
   long dim1 = std::accumulate(X_ti_pos.shape().begin()+1, X_ti_pos.shape().end(), 1, std::multiplies<>{});
-  auto X_ti_2D  = nda::reshape(X_ti_pos, shape_t<2>{nt, dim1});
-  auto X_wi_2D  = nda::reshape(X_wi_pos, shape_t<2>{nw, dim1});
+  auto X_ti_2D  = nda::reshape(X_ti_pos, shape_t<2>{nt_half, dim1});
+  auto X_wi_2D  = nda::reshape(X_wi_pos, shape_t<2>{nw_half, dim1});
 
   auto Twt = Twt_bb();
-  nda::matrix<ComplexType> Twt_pos(nw, nt);
-  for (long n = 0; n < nw; ++n) {
+  nda::matrix<ComplexType> Twt_pos(nw_half, nt_half);
+  for (long n = 0; n < nw_half; ++n) {
     long iw = nw_b()/2 + n;
-    for (long it = 0; it < nt; ++it) {
+    for (long it = 0; it < nt_half; ++it) {
       long imt = nt_b() - it - 1;
       Twt_pos(n, it) = (it == imt)? Twt(iw, it) : Twt(iw, it) + Twt(iw, imt);
     }

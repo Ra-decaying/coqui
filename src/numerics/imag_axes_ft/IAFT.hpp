@@ -26,6 +26,7 @@
 #include <variant>
 
 #include "configuration.hpp"
+#include "IO/ptree/ptree_utilities.hpp"
 #include "utilities/check.hpp"
 #include "utilities/variant_helpers.hpp"
 #include "nda/nda.hpp"
@@ -51,7 +52,29 @@ namespace imag_axes_ft {
 
   public:
     IAFT(): grid_var{} { APP_ABORT(" imag_axes_ft::IAFT(): Empty state is not allowed. \n"); }
+    // TODO check "iaft" child ptree for IAFT parameters and fall back to the old interface if "iaft" child ptree does not exist.
+    IAFT(ptree const& pt, bool print_meta_log = false) {
+      auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
+      auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
+      auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
+      auto source = string_to_source_enum(io::get_value_with_default<std::string>(pt, "iaft_source", "ir"));
+
+      init_grid_variant(beta, wmax, source, iaft_prec, print_meta_log);
+    } 
+
     IAFT(double beta, double wmax, source_e source, std::string prec = "high", bool print_meta_log = false) {
+      init_grid_variant(beta, wmax, source, prec, print_meta_log);
+    }
+
+    // ir interface
+    explicit IAFT(const ir::IR& IR_ ): grid_var(IR_) {}
+    explicit IAFT(ir::IR&& IR_): grid_var(std::move(IR_)) {}
+    IAFT& operator=(const ir::IR& IR_) { grid_var = IR_; return *this; }
+    IAFT& operator=(ir::IR&& IR_) { grid_var = std::move(IR_); return *this; }
+
+    ~IAFT() {}
+
+    void init_grid_variant(double beta, double wmax, source_e source, std::string prec = "high", bool print_meta_log = false) {
       if (source == dlr_source) {
 #ifdef ENABLE_DLR
         grid_var = dlr::DLR(beta, wmax, prec, print_meta_log);
@@ -64,14 +87,6 @@ namespace imag_axes_ft {
         APP_ABORT(" imag_axes_ft::IAFT(): Invalid value of imag_axes_ft::source_e. \n");
       }
     }
-
-    // ir interface
-    explicit IAFT(const ir::IR& IR_ ): grid_var(IR_) {}
-    explicit IAFT(ir::IR&& IR_): grid_var(std::move(IR_)) {}
-    IAFT& operator=(const ir::IR& IR_) { grid_var = IR_; return *this; }
-    IAFT& operator=(ir::IR&& IR_) { grid_var = std::move(IR_); return *this; }
-
-    ~IAFT() {}
 
     /**
      * Matsubara frequency iw_n = i*n*pi/beta

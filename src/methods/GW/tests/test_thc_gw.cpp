@@ -122,7 +122,8 @@ namespace bdft_tests {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
     auto solve_thc_gw = [&](
-        std::shared_ptr<mf::MF> &mf, double wmax, bool chol_eri_hf=false) {
+      std::shared_ptr<mf::MF> &mf, double wmax, bool chol_eri_hf=false) {
+
       imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::ir_source);
       std::string output = "coqui";
 
@@ -187,6 +188,7 @@ namespace bdft_tests {
       auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "qe_lih222"));
       solve_thc_gw(mf, 1.2, true);
     }
+
   }
 
   TEST_CASE("thc_rpa_qe", "[methods][thc][rpa][qe]") {
@@ -358,4 +360,50 @@ namespace bdft_tests {
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "pyscf_h2o_mol"));
     solve_gdf_thc_gw(mf, gdf_dir);
   }
+
+  TEST_CASE("thc_gw_dlr_vs_ir", "[methods][thc][gw][qe][iaft][dlr][ir]") {
+    auto& mpi_context = utils::make_unit_test_mpi_context();
+
+    auto solve_thc_gw = [&](std::shared_ptr<mf::MF> &mf, double wmax) {
+
+      imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::ir_source);
+      std::string output = "coqui";
+
+      solvers::hf_t hf;
+      solvers::gw_t gw(&ft, "ignore_g0", output);
+      solvers::scr_coulomb_t scr_eri(&ft, "rpa", "ignore_g0");
+      simple_dyson dyson(mf.get(), &ft);
+      MBState mb_state(mpi_context, ft, output);
+
+      /**
+       * Reference value is obtained from Chol-GW with ERIs converge to 1e-10 with IR basis.
+       * The accuracy is roughly 1e-5 at alpha=20 for this system.
+       **/
+      double e_hf;
+      double e_corr;
+      thc_reader_t thc(mf, make_thc_reader_ptree(mf->nbnd() * 20, "", "incore", "", "bdft",
+                                                 1e-10, mf->ecutrho(), 1, 1024));
+      auto eri = mb_eri_t(thc, thc);
+      iter_scf::iter_scf_t iter_sol("damping");
+      std::tie(e_hf, e_corr) = scf_loop(mb_state, dyson, eri, ft,
+                                        solvers::mb_solver_t(&hf,&gw,&scr_eri), &iter_sol,
+                                        1, false, 1e-9, true);
+
+      VALUE_EQUAL(e_hf, -4.224737908935479, 1e-5);
+      VALUE_EQUAL(e_corr, -0.11256940748889475, 1e-5);
+      mpi_context->comm.barrier();
+
+      if (mpi_context->comm.root()) {
+        remove((output+".mbpt.h5").c_str());
+      }
+      mpi_context->comm.barrier();
+    };
+
+    SECTION("sym") {
+      auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "qe_lih222_sym"));
+      solve_thc_gw(mf, 10.0);
+      solve_thc_gw(mf, 100.0);
+    }
+  }
+
 } // bdft_tests

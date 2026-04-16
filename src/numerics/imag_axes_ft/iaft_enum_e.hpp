@@ -22,6 +22,8 @@
 #ifndef COQUI_IAFT_ENUM_E_HPP
 #define COQUI_IAFT_ENUM_E_HPP
 
+#include "utilities/check.hpp"
+
 namespace imag_axes_ft {
   enum stats_e {
     fermi, boson

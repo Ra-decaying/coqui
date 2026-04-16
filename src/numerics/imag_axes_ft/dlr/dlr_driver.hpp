@@ -44,6 +44,34 @@
 namespace imag_axes_ft {
   namespace dlr {
 
+    inline nda::matrix<ComplexType> build_if2it(cppdlr::imfreq_ops const &ifops, cppdlr::imtime_ops const &itops) {
+      auto nw = ifops.get_ifnodes().size();
+      auto dlr_rank = itops.rank();
+
+      auto if2it = nda::matrix<ComplexType>(dlr_rank, nw);
+
+      // Solve cf2if^T C^T = cf2it^T to obtain C = cf2it * cf2if^{-1}
+      
+      // Copy cf2it into output matrix (cast to complex)
+      if2it(nda::range::all, nda::range(dlr_rank)) = itops.get_cf2it();
+
+      if (nw == dlr_rank) {
+        // Square system---use getrs
+        auto lu  = nda::matrix<ComplexType>(ifops.get_if2cf_lu());
+        auto piv = nda::vector<int>(ifops.get_if2cf_piv());
+        nda::lapack::getrs(nda::transpose(lu), nda::transpose(if2it), piv);
+      } else {
+        // Non-square system---use least squares solver
+        auto s       = nda::vector<double>(dlr_rank); // Not needed
+        double rcond = 0;                             // Not needed
+        int rank     = 0;                             // Not needed
+        auto cf2if = nda::matrix<ComplexType>(ifops.get_cf2if());
+        nda::lapack::gelss(nda::transpose(cf2if), nda::transpose(if2it), s, rcond, rank);
+      }
+
+      return if2it;
+    }
+
     struct DLR {
     public:
       DLR() = default;
@@ -88,8 +116,8 @@ namespace imag_axes_ft {
         // Convert to the IR basis notation which lives in [-1, 1] instead...
         for (int i = 0; i < nt_f; ++i) {
           tau_mesh_f(i) = 2.0 * cppdlr::rel2abs(it_ops.get_itnodes(i)) - 1.0;
-          tau_mesh_b(i) = 2.0 * cppdlr::rel2abs(it_ops.get_itnodes(i)) - 1.0;
         }
+        tau_mesh_b() = tau_mesh_f;
 
         // get DLR imaginary frequency objects
         auto if_ops_f = cppdlr::imfreq_ops(lambda, dlr_rf, cppdlr::Fermion, cppdlr::SYM);
