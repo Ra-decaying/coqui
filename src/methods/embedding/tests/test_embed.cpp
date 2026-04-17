@@ -120,7 +120,7 @@ namespace bdft_tests {
       nda::array<ComplexType, 5> Sigma_tsIab(ft.nt_f(), Sigma_dc_wsIab.shape(1),
                                              Sigma_dc_wsIab.shape(2), Sigma_dc_wsIab.shape(3),
                                              Sigma_dc_wsIab.shape(4));
-      ft.w_to_tau(Sigma_dc_wsIab, Sigma_tsIab, imag_axes_ft::fermi);
+      ft.w_to_tau(Sigma_dc_wsIab, Sigma_tsIab, imag_axes_ft::fermion);
       app_log(2, "Sigma_dc_tsIab: {0:.12f}, {1:.12f}, {2:.12f}",
               Sigma_tsIab(ft.nt_f()-1,0,0,0,0).real(), Sigma_tsIab(ft.nt_f()-1,0,0,1,1).real(),
               Sigma_tsIab(ft.nt_f()-1,0,0,0,1).real());

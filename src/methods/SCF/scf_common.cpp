@@ -49,7 +49,7 @@ double compute_Nelec(double mu, const nda::array<ComplexType, 4> &spectra,
     }
   }
 
-  FT.w_to_tau(Xw, Xt, imag_axes_ft::fermi);
+  FT.w_to_tau(Xw, Xt, imag_axes_ft::fermion);
   FT.tau_to_beta(Xt, nelecs);
 
   ComplexType nelec = scl*std::accumulate(nelecs.begin(),nelecs.end(),ComplexType(0.0));
@@ -130,8 +130,8 @@ double eval_corr_energy(comm_t& comm, const imag_axes_ft::IAFT &FT,
   for (size_t i = rank; i < nbnd; i += size) {
     Sigma_tski = Sigma_shm.local()(all, all, all, i, all);
     G_tski = G_shm.local()(all, all, all, all, i);
-    FT.tau_to_w(Sigma_tski, Sigma_wski, imag_axes_ft::fermi);
-    FT.tau_to_w(G_tski, G_wski, imag_axes_ft::fermi);
+    FT.tau_to_w(Sigma_tski, Sigma_wski, imag_axes_ft::fermion);
+    FT.tau_to_w(G_tski, G_wski, imag_axes_ft::fermion);
     for (size_t ws = 0; ws < nw * ns; ++ws) {
       for (size_t ik = 0; ik < nkpts; ++ik ) {
         SigmaG_ws_1D(ws) += k_weight(ik) * nda::blas::dot(Sigma_w_3D(ws, ik, all), G_w_3D(ws, ik, all));
@@ -143,7 +143,7 @@ double eval_corr_energy(comm_t& comm, const imag_axes_ft::IAFT &FT,
 
   nda::array<ComplexType, 2> SigmaG_ts(nts, ns);
   nda::array<ComplexType, 1> SigmaG_beta_s(ns);
-  FT.w_to_tau(SigmaG_ws, SigmaG_ts, imag_axes_ft::fermi);
+  FT.w_to_tau(SigmaG_ws, SigmaG_ts, imag_axes_ft::fermion);
   FT.tau_to_beta(SigmaG_ts, SigmaG_beta_s);
 
   // MAM: need to know npol here, scale only when npol==1 and ns==1

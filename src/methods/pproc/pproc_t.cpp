@@ -183,7 +183,7 @@ namespace methods {
     using local_Array_3D_t = nda::array<ComplexType, 3>;
     using local_Array_4D_t = nda::array<ComplexType, 4>;
     using local_Array_5D_t = nda::array<ComplexType, 5>;
-    utils::check(ac_params.stats == imag_axes_ft::fermi,
+    utils::check(ac_params.stats == imag_axes_ft::fermion,
                  "pproc_t::analyt_cont: continuation for bosonic function is not supported yet!");
 
     long ns = mf.nspin();
@@ -197,7 +197,7 @@ namespace methods {
     utils::check(_context.comm.size() % nkpools == 0, "pproc_t::analyt_cont: comm.size ({}) % nkpools ({}) != 0", _context.comm.size(), nkpools);
 
     auto FT = imag_axes_ft::read_iaft(_scf_output+".mbpt.h5");
-    size_t niw   = (ac_params.stats == imag_axes_ft::fermi)? FT.nw_f() : FT.nw_b();
+    size_t niw   = (ac_params.stats == imag_axes_ft::fermion)? FT.nw_f() : FT.nw_b();
 
     app_log(1, "  Analytical continuation from iw to w");
     app_log(1, "  ------------------------------------");
@@ -221,7 +221,7 @@ namespace methods {
     // Prepare input and output buffer
     auto dA_iw_ski = make_distributed_array<local_Array_4D_t>(_context.comm, pgrid, {niw, ns, nkpts_ibz, nbnds}, {1, 1, 1, 1});
     if(dataset != "DOS" and dataset != "A") { // backward compatibility with "A" name for spectral function
-      size_t ntau  = (ac_params.stats == imag_axes_ft::fermi)? FT.nt_f() : FT.nt_b();
+      size_t ntau  = (ac_params.stats == imag_axes_ft::fermion)? FT.nt_f() : FT.nt_b();
       auto dA_tau_ski = make_distributed_array<local_Array_4D_t>(_context.comm, pgrid, {ntau, ns, nkpts_ibz, nbnds}, {1, 1, 1, 1});
       read_scf_dataset(dataset, dA_tau_ski);
       FT.tau_to_w(dA_tau_ski.local(), dA_iw_ski.local(), ac_params.stats);
@@ -230,7 +230,7 @@ namespace methods {
     else {
       std::string dataset_G = "G_tskij";
       std::string dataset_S = "S_skij";
-      size_t ntau  = (ac_params.stats == imag_axes_ft::fermi)? FT.nt_f() : FT.nt_b();
+      size_t ntau  = (ac_params.stats == imag_axes_ft::fermion)? FT.nt_f() : FT.nt_b();
       auto dG_tau_skij = make_distributed_array<local_Array_5D_t>(_context.comm, {1, 1, nkpools, np/nkpools, 1},
                                                                   {ntau, ns, nkpts_ibz, nbnds, nbnds}, {1, 1, 1, 1, 1});
       auto dS_skij = make_distributed_array<local_Array_4D_t>(_context.comm, {1, nkpools, np/nkpools, 1},
@@ -638,8 +638,8 @@ namespace methods {
       auto eye = nda::eye<ComplexType>(nImpOrbs);
 
       // solve the dyson equation
-      FT.check_leakage(Sigma_tskab_inter, imag_axes_ft::fermi, std::addressof(_context.comm), "Self-energy in Wannier basis");
-      FT.tau_to_w(Sigma_tskab_inter, G_wskab_inter, imag_axes_ft::fermi);
+      FT.check_leakage(Sigma_tskab_inter, imag_axes_ft::fermion, std::addressof(_context.comm), "Self-energy in Wannier basis");
+      FT.tau_to_w(Sigma_tskab_inter, G_wskab_inter, imag_axes_ft::fermion);
       for (size_t nsk=0; nsk<FT.nw_f()*ns*nkpts_interpolate; ++nsk) {
         long n = nsk / (ns * nkpts_interpolate); // nsk = n*ns*nkpts_interpolate + s*nkpts_interpolate + k
         long s = (nsk / nkpts_interpolate) % ns;
@@ -661,8 +661,8 @@ namespace methods {
       }
 
       {
-        FT.w_to_tau(G_wskab_inter, Sigma_tskab_inter, imag_axes_ft::fermi);
-        FT.check_leakage(Sigma_tskab_inter, imag_axes_ft::fermi, std::addressof(_context.comm), "Green's function in Wannier basis");
+        FT.w_to_tau(G_wskab_inter, Sigma_tskab_inter, imag_axes_ft::fermion);
+        FT.check_leakage(Sigma_tskab_inter, imag_axes_ft::fermion, std::addressof(_context.comm), "Green's function in Wannier basis");
       }
 
       if (_context.comm.root()) {
@@ -784,7 +784,7 @@ namespace methods {
     auto niw = FT.nw_f();
     auto G_tskab = nda::reshape(G_tskIab, std::array<long, 5>{nts, ns, nkpts, nbnd, nbnd});
     nda::array<ComplexType, 5> G_wskab(niw, ns, nkpts, nbnd, nbnd);
-    FT.tau_to_w(G_tskab, G_wskab, imag_axes_ft::fermi);
+    FT.tau_to_w(G_tskab, G_wskab, imag_axes_ft::fermion);
 
     // analytical continuation
     int np = _context.comm.size();

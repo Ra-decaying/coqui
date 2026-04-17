@@ -31,15 +31,26 @@ namespace imag_axes_ft {
   IAFT read_iaft(std::string scf_file, bool print_meta_log) {
     double beta;
     double wmax;
-    std::string prec;
     std::string source;
+    std::optional<std::string> prec;
+    std::optional<double> eps;
 
     h5::file file(scf_file, 'r');
     h5::group grp(file);
     auto iaft_grp = grp.open_group("imaginary_fourier_transform");
     h5::h5_read(iaft_grp, "source", source);
-    h5::h5_read(iaft_grp, "prec", prec);
     h5::h5_read(iaft_grp, "beta", beta);
+
+    if (iaft_grp.has_dataset("prec")) {
+      std::string prec_value;
+      h5::h5_read(iaft_grp, "prec", prec_value);
+      prec = prec_value;
+    }
+    if (iaft_grp.has_dataset("eps")) {
+      double eps_value;
+      h5::h5_read(iaft_grp, "eps", eps_value);
+      if (eps_value >= 0.0) eps = eps_value;
+    }
 
     if (iaft_grp.has_dataset("wmax")) {
       h5::h5_read(iaft_grp, "wmax", wmax);
@@ -48,7 +59,25 @@ namespace imag_axes_ft {
       h5::h5_read(iaft_grp, "lambda", lambda);
       wmax = lambda / beta;
     }
-    return IAFT(beta, wmax, string_to_source_enum(source), prec, print_meta_log);
+
+    auto const source_enum = string_to_source_enum(source);
+    if (source_enum == dlr_source) {
+      utils::check(prec.has_value() || eps.has_value(),
+        "iaft_utils.cpp::read_iaft: DLR checkpoint must provide at least one of prec or eps.");
+
+      bool const build_with_eps = eps.has_value() && (!prec.has_value() || *prec == "custom");
+      if (build_with_eps) {
+        return IAFT(beta, wmax, source_enum, *eps, print_meta_log);
+      }
+
+      utils::check(prec.has_value(),
+        "iaft_utils.cpp::read_iaft: DLR checkpoint is missing required IAFT prec metadata.");
+      return IAFT(beta, wmax, source_enum, *prec, print_meta_log);
+    }
+
+    utils::check(prec.has_value(),
+      "iaft_utils.cpp::read_iaft: checkpoint is missing required IAFT prec metadata.");
+    return IAFT(beta, wmax, source_enum, *prec, print_meta_log);
   }
 
   namespace test_utils {
@@ -71,7 +100,7 @@ namespace imag_axes_ft {
        */
       ComplexType kernel_iw(int n, double om, imag_axes_ft::stats_e stat, double beta) {
         auto iw_n = ComplexType(0.0, n * M_PI);
-        if (stat == imag_axes_ft::fermi) {
+        if (stat == imag_axes_ft::fermion) {
           return beta / (iw_n - beta * om);
         } else {
           if (n == 0 and om == 0.0) {

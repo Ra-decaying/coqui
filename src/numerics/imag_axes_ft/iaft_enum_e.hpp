@@ -26,13 +26,13 @@
 
 namespace imag_axes_ft {
   enum stats_e {
-    fermi, boson
+    fermion, boson
   };
 
   inline std::string stats_enum_to_string(int stats_enum) {
     switch(stats_enum) {
-      case stats_e::fermi:
-        return "fermi";
+      case stats_e::fermion:
+        return "fermion";
       case stats_e::boson:
         return "boson";
       default:
@@ -41,13 +41,13 @@ namespace imag_axes_ft {
   }
 
   inline stats_e string_to_stats_enum(std::string stats) {
-    if (stats == "fermi") {
-      return stats_e::fermi;
+    if (stats == "fermion") {
+      return stats_e::fermion;
     } else if (stats == "boson") {
       return stats_e::boson;
     } else {
-      utils::check(false, "Unrecognized stats: {}. Available options: fermi, boson", stats);
-      return stats_e::fermi;
+      utils::check(false, "Unrecognized stats: {}. Available options: fermion, boson", stats);
+      return stats_e::fermion;
     }
   }
 

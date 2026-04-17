@@ -45,7 +45,7 @@ namespace bdft_tests {
       imag_axes_ft::ir::IR myir(beta, wmax);
       imag_axes_ft::IAFT iaft(myir);
     }
-    imag_axes_ft::IAFT iaft(beta, wmax, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT iaft(beta, wmax, imag_axes_ft::ir_source, "high");
 
     REQUIRE(iaft.beta() == beta);
     REQUIRE(iaft.nt_f() == 137);
@@ -96,8 +96,8 @@ namespace bdft_tests {
       {
         nda::array<std::complex<double>, 5> G_tskij(nts, ns, nkpts, nbnd, nbnd);
         nda::array<std::complex<double>, 5> G_wskij(nw, ns, nkpts, nbnd, nbnd);
-        myft.tau_to_w(G_tskij_ref, G_wskij, imag_axes_ft::fermi);
-        myft.w_to_tau(G_wskij_ref, G_tskij, imag_axes_ft::fermi);
+        myft.tau_to_w(G_tskij_ref, G_wskij, imag_axes_ft::fermion);
+        myft.w_to_tau(G_wskij_ref, G_tskij, imag_axes_ft::fermion);
 
         ARRAY_EQUAL(G_tskij, G_tskij_ref, tol);
         ARRAY_EQUAL(G_wskij, G_wskij_ref, tol);
@@ -109,7 +109,7 @@ namespace bdft_tests {
         for (size_t n = 0; n < nw; ++n) {
           nda::array_view<std::complex<double>, 4> Gw_skij({ns, nkpts, nbnd, nbnd},
                                                            G_wskij.data() + n*ns*nkpts*nbnd*nbnd);
-          myft.tau_to_w(G_tskij_ref, G_skij, imag_axes_ft::fermi, n);
+          myft.tau_to_w(G_tskij_ref, G_skij, imag_axes_ft::fermion, n);
           Gw_skij = G_skij;
         }
         ARRAY_EQUAL(G_wskij, G_wskij_ref, tol);
@@ -119,7 +119,7 @@ namespace bdft_tests {
         nda::array<std::complex<double>, 5> G_tskij(nts, ns, nkpts, nbnd, nbnd);
         for (size_t n = 0; n < nw; ++n) {
           auto Gw_skij = G_wskij_ref(n, all, all, all, all);
-          myft.w_to_tau_partial(Gw_skij, G_tskij, imag_axes_ft::fermi, n);
+          myft.w_to_tau_partial(Gw_skij, G_tskij, imag_axes_ft::fermion, n);
         }
         ARRAY_EQUAL(G_tskij, G_tskij_ref, tol);
       }
@@ -149,9 +149,11 @@ namespace bdft_tests {
       int norb = 2;
 
       imag_axes_ft::IAFT myft(beta, wmax, source, "high", true);
+      auto wn_mesh = (stat == imag_axes_ft::fermion)? myft.wn_mesh_f() : myft.wn_mesh_b();
+      auto tau_mesh = (stat == imag_axes_ft::fermion)? myft.tau_mesh_f() : myft.tau_mesh_b();
       
-      auto G_t_ref = imag_axes_ft::test_utils::build_g_tau(myft, norb, beta, stat, ph_sym);
-      auto G_w_ref = imag_axes_ft::test_utils::build_g_iw(myft, norb, beta, stat, ph_sym);
+      auto G_t_ref = imag_axes_ft::test_utils::build_g_tau(tau_mesh, beta, norb, ph_sym);
+      auto G_w_ref = imag_axes_ft::test_utils::build_g_iw(wn_mesh, beta, stat, norb, ph_sym);
 
       // Verify tau -> iw recovers G(iw)
       {
@@ -176,7 +178,7 @@ namespace bdft_tests {
       }
 
       // Verify tau -> tau = beta^- and 0^+
-      if (stat == imag_axes_ft::fermi and !ph_sym) {
+      if (stat == imag_axes_ft::fermion and !ph_sym) {
         nda::array<ComplexType, 2> Dm_skij(norb, norb);
         myft.tau_to_beta(G_t_ref, Dm_skij);
         auto Dm_skij_ref = imag_axes_ft::test_utils::gfun_tau(norb, beta, 1.0);
@@ -189,16 +191,62 @@ namespace bdft_tests {
     };
 
     SECTION("ir_backend") {
-      test_gfun_roundtrip(imag_axes_ft::ir_source, 1e-10, imag_axes_ft::fermi);
+      test_gfun_roundtrip(imag_axes_ft::ir_source, 1e-10, imag_axes_ft::fermion);
       test_gfun_roundtrip(imag_axes_ft::ir_source, 1e-10, imag_axes_ft::boson);
       test_gfun_roundtrip(imag_axes_ft::ir_source, 1e-10, imag_axes_ft::boson, true);
     }
 
 #ifdef ENABLE_DLR
     SECTION("dlr_backend") {
-      test_gfun_roundtrip(imag_axes_ft::dlr_source, 1e-10, imag_axes_ft::fermi);
+      test_gfun_roundtrip(imag_axes_ft::dlr_source, 1e-10, imag_axes_ft::fermion);
       test_gfun_roundtrip(imag_axes_ft::dlr_source, 1e-10, imag_axes_ft::boson);
       test_gfun_roundtrip(imag_axes_ft::dlr_source, 1e-10, imag_axes_ft::boson, true);
+    }
+#endif
+  }
+
+  TEST_CASE("iaft_accuracy_parameter_rules", "[iaft][ir][dlr]") {
+    double beta = 100.0;
+    double wmax = 1.2;
+
+#ifdef ENABLE_DLR
+    SECTION("dlr_accepts_prec") {
+      imag_axes_ft::IAFT iaft(beta, wmax, imag_axes_ft::dlr_source, "medium", false);
+      REQUIRE(iaft.prec() == "medium");
+      REQUIRE(iaft.eps() == Approx(1e-10));
+    }
+
+    SECTION("dlr_accepts_eps") {
+      imag_axes_ft::IAFT iaft(beta, wmax, imag_axes_ft::dlr_source, 1e-12, false);
+      REQUIRE(iaft.prec() == "custom");
+      REQUIRE(iaft.eps() == Approx(1e-12));
+    }
+
+    SECTION("dlr_prefers_prec_when_both_and_prec_not_custom") {
+      ptree pt;
+      pt.put("beta", beta);
+      pt.put("wmax", wmax);
+      pt.put("iaft_basis", "dlr");
+      pt.put("iaft_prec", "medium");
+      pt.put("iaft_eps", 1e-12);
+
+      imag_axes_ft::IAFT iaft(pt, false);
+      REQUIRE(iaft.prec() == "medium");
+      REQUIRE(iaft.eps() == Approx(1e-10));
+    }
+
+    SECTION("dlr_prefers_eps_when_both_and_prec_custom") {
+      // in other words, "custom" is redundant when eps is provided, but we allow it for user clarity
+      ptree pt;
+      pt.put("beta", beta);
+      pt.put("wmax", wmax);
+      pt.put("iaft_basis", "dlr");
+      pt.put("iaft_prec", "custom");
+      pt.put("iaft_eps", 1e-12);
+
+      imag_axes_ft::IAFT iaft(pt, false);
+      REQUIRE(iaft.prec() == "custom");
+      REQUIRE(iaft.eps() == Approx(1e-12));
     }
 #endif
   }

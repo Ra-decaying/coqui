@@ -23,6 +23,7 @@
 #define COQUI_IAFT_HPP
 
 #include <math.h>
+#include <optional>
 #include <variant>
 
 #include "configuration.hpp"
@@ -39,6 +40,10 @@
 #include "dlr/dlr_driver.hpp"
 #endif
 
+#ifndef C2PY_IGNORE
+#define C2PY_IGNORE
+#endif
+
 namespace imag_axes_ft {
 
   /**
@@ -51,42 +56,67 @@ namespace imag_axes_ft {
     using shape_t = std::array<long,N>;
 
   public:
+    C2PY_IGNORE
     IAFT(): grid_var{} { APP_ABORT(" imag_axes_ft::IAFT(): Empty state is not allowed. \n"); }
     // TODO check "iaft" child ptree for IAFT parameters and fall back to the old interface if "iaft" child ptree does not exist.
+    C2PY_IGNORE
     IAFT(ptree const& pt, bool print_meta_log = false) {
-      auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
-      auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
-      auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
-      auto source = string_to_source_enum(io::get_value_with_default<std::string>(pt, "iaft_source", "ir"));
+      
+      const ptree* iaft_pt = nullptr;
 
-      init_grid_variant(beta, wmax, source, iaft_prec, print_meta_log);
+      for (auto const& it : pt) {
+        if (it.first == "iaft") {
+          iaft_pt = &it.second;
+
+          auto eps = read_eps_option(*iaft_pt, "eps");
+          auto prec = read_prec_option(*iaft_pt, "prec", eps.has_value() ? std::nullopt : std::optional<std::string>{"high"});
+
+          init_grid_variant(
+            io::get_value_with_default<double>(pt,"beta",1000.0), 
+            io::get_value_with_default<double>(*iaft_pt,"wmax",12.0), 
+            string_to_source_enum(io::get_value_with_default<std::string>(*iaft_pt, "basis", "ir")), 
+            prec,
+            eps,
+            print_meta_log
+          );
+          break;
+        }
+      }
+
+      if (iaft_pt == nullptr) {
+        // Fall back to the old interface if "iaft" child ptree does not exist.
+        iaft_pt = &pt;
+        auto eps = read_eps_option(*iaft_pt, "iaft_eps");
+        auto prec = read_prec_option(*iaft_pt, "iaft_prec", eps.has_value() ? std::nullopt : std::optional<std::string>{"high"});
+    
+        init_grid_variant(
+          io::get_value_with_default<double>(pt,"beta",1000.0), 
+          io::get_value_with_default<double>(*iaft_pt,"wmax",12.0), 
+          string_to_source_enum(io::get_value_with_default<std::string>(*iaft_pt, "iaft_basis", "ir")), 
+          prec,
+          eps,
+          print_meta_log
+        );
+      }
     } 
 
-    IAFT(double beta, double wmax, source_e source, std::string prec = "high", bool print_meta_log = false) {
-      init_grid_variant(beta, wmax, source, prec, print_meta_log);
+    IAFT(double beta, double wmax, source_e source, std::string prec="high", bool print_meta_log = false) {
+      init_grid_variant(beta, wmax, source, prec, std::nullopt, print_meta_log);
+    }
+
+    IAFT(double beta, double wmax, source_e source, double eps, bool print_meta_log = false) {
+      init_grid_variant(beta, wmax, source, std::nullopt, eps, print_meta_log);
     }
 
     // ir interface
+    C2PY_IGNORE
     explicit IAFT(const ir::IR& IR_ ): grid_var(IR_) {}
+    C2PY_IGNORE
     explicit IAFT(ir::IR&& IR_): grid_var(std::move(IR_)) {}
     IAFT& operator=(const ir::IR& IR_) { grid_var = IR_; return *this; }
     IAFT& operator=(ir::IR&& IR_) { grid_var = std::move(IR_); return *this; }
 
     ~IAFT() {}
-
-    void init_grid_variant(double beta, double wmax, source_e source, std::string prec = "high", bool print_meta_log = false) {
-      if (source == dlr_source) {
-#ifdef ENABLE_DLR
-        grid_var = dlr::DLR(beta, wmax, prec, print_meta_log);
-#else
-        APP_ABORT(" imag_axes_ft::IAFT(): DLR backend requested but ENABLE_DLR is OFF at build time. \n");
-#endif
-      } else if (source == ir_source) {
-        grid_var = ir::IR(beta, wmax, prec, print_meta_log);
-      } else {
-        APP_ABORT(" imag_axes_ft::IAFT(): Invalid value of imag_axes_ft::source_e. \n");
-      }
-    }
 
     /**
      * Matsubara frequency iw_n = i*n*pi/beta
@@ -181,6 +211,81 @@ namespace imag_axes_ft {
  
     template<typename A_t>
     void check_leakage(A_t &&A_ti, stats_e stats, std::string A_name, bool PHsym=false) const;
+
+  private:
+    static std::optional<std::string> read_prec_option(ptree const& pt, std::string const& key,
+                                                       std::optional<std::string> default_value = std::nullopt) {
+      auto val = pt.get_optional<std::string>(key);
+      if (val) return *val;
+      return default_value;
+    }
+
+    static std::optional<double> read_eps_option(ptree const& pt, std::string const& key) {
+      auto val = pt.get_optional<double>(key);
+      if (!val || *val < 0.0) return std::nullopt;
+      return *val;
+    }
+
+    void validate_accuracy_inputs(source_e source,
+                                  std::optional<std::string> const& prec,
+                                  std::optional<double> const& eps) const {
+      if (source == ir_source) {
+        utils::check(!eps.has_value(),
+          "IAFT.hpp::IAFT: IR backend accepts only prec; eps is not supported.");
+        utils::check(prec.has_value(),
+          "IAFT.hpp::IAFT: IR backend requires prec.");
+        return;
+      }
+
+#ifdef ENABLE_DLR
+      if (source == dlr_source) {
+        utils::check(prec.has_value() || eps.has_value(),
+          "IAFT.hpp::IAFT: DLR backend requires at least one of prec or eps.");
+
+        if (prec.has_value()) {
+          utils::check(*prec == "custom" || *prec == "high" || *prec == "medium" || *prec == "low",
+            "IAFT.hpp::IAFT: DLR prec = {} is not acceptable. Acceptable values are \"high\", \"medium\", \"low\", \"custom\".",
+            *prec);
+          if (*prec == "custom") {
+            utils::check(eps.has_value(),
+              "IAFT.hpp::IAFT: DLR with prec=custom requires eps.");
+          }
+        }
+
+        if (eps.has_value()) {
+          utils::check(*eps > 0.0,
+            "IAFT.hpp::IAFT: DLR eps = {} must be positive.", *eps);
+        }
+        return;
+      }
+#endif
+
+      APP_ABORT(" imag_axes_ft::IAFT(): Invalid value of imag_axes_ft::source_e. \n");
+    }
+
+    void init_grid_variant(double beta, double wmax, source_e source,
+                           std::optional<std::string> prec,
+                           std::optional<double> eps,
+                           bool print_meta_log = false) {
+      validate_accuracy_inputs(source, prec, eps);
+
+      if (source == dlr_source) {
+#ifdef ENABLE_DLR
+        bool const build_with_eps = eps.has_value() && (!prec.has_value() || *prec == "custom");
+        if (build_with_eps) {
+          grid_var = dlr::DLR(beta, wmax, *eps, print_meta_log);
+        } else {
+          grid_var = dlr::DLR(beta, wmax, *prec, print_meta_log);
+        }
+#else
+        APP_ABORT(" imag_axes_ft::IAFT(): DLR backend requested but ENABLE_DLR is OFF at build time. \n");
+#endif
+      } else if (source == ir_source) {
+        grid_var = ir::IR(beta, wmax, *prec, print_meta_log);
+      } else {
+        APP_ABORT(" imag_axes_ft::IAFT(): Invalid value of imag_axes_ft::source_e. \n");
+      }
+    }
  
   private:
 #ifdef ENABLE_DLR
@@ -208,6 +313,9 @@ namespace imag_axes_ft {
     std::string prec() const {
       return std::visit( [&](auto&& v) { return v.prec; }, grid_var);
     }
+    double eps() const {
+      return std::visit( [&](auto&& v) { return v.eps; }, grid_var);
+    }
     int nt_f() const {
       return std::visit( [&](auto&& v) { return v.nt_f; }, grid_var);
     }
@@ -232,10 +340,16 @@ namespace imag_axes_ft {
     decltype(auto) wn_mesh() const {
       return std::visit( [&](auto&& v) { return v.wn_mesh_f(); }, grid_var);
     }
+    decltype(auto) wn_mesh_f() const {
+      return std::visit( [&](auto&& v) { return v.wn_mesh_f(); }, grid_var);
+    }
     decltype(auto) wn_mesh_b() const {
       return std::visit( [&](auto&& v) { return v.wn_mesh_b(); }, grid_var);
     }
     decltype(auto) tau_mesh() const {
+      return std::visit( [&](auto&& v) { return v.tau_mesh_f(); }, grid_var);
+    }
+    decltype(auto) tau_mesh_f() const {
       return std::visit( [&](auto&& v) { return v.tau_mesh_f(); }, grid_var);
     }
     decltype(auto) tau_mesh_b() const {
@@ -270,6 +384,12 @@ namespace imag_axes_ft {
     }
     decltype(auto) Tct_bb() const {
       return std::visit( [&](auto&& v) { return v.Tct_bb(); }, grid_var);
+    }
+    decltype(auto) construct_tau_interpolate_matrix(const nda::MemoryArrayOfRank<1> auto &tau_mesh_out, bool ph_sym=false) const {
+      return std::visit( [&](auto&& v) { return v.construct_tau_interpolate_matrix(tau_mesh_out, ph_sym); }, grid_var);
+    }
+    decltype(auto) construct_w_interpolate_matrix(const nda::MemoryArrayOfRank<1> auto &wn_mesh_out, stats_e stats, bool ph_sym=false) const {
+      return std::visit( [&](auto&& v) { return v.construct_w_interpolate_matrix(wn_mesh_out, stats, ph_sym); }, grid_var);
     }
   };
 

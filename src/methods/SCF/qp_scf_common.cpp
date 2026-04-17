@@ -224,7 +224,7 @@ void solve_qp_eqn(sArray_t<Array_view_3D_t> &sE_ska,
         }
       }
     }
-    FT.tau_to_w(dSigma_tska.local(), dSigma_wska.local(), imag_axes_ft::fermi);
+    FT.tau_to_w(dSigma_tska.local(), dSigma_wska.local(), imag_axes_ft::fermion);
   }
 
   // ------ basis transformation from primary to MO basis ------
@@ -352,14 +352,14 @@ void add_evscf_vcorr(MBState &mb_state,
   mb_state.sG_tskij.emplace(make_shared_array<Array_view_5D_t>(*mpi, {nt, ns, nkpts, nbnd, nbnd}));
   {
     update_G(mb_state.sG_tskij.value(), sMO_skia, sE_ska, mu, FT);
-    FT.check_leakage(mb_state.sG_tskij.value(), imag_axes_ft::fermi, "Green's function");
+    FT.check_leakage(mb_state.sG_tskij.value(), imag_axes_ft::fermion, "Green's function");
     ///
     if constexpr (update_W) {
       utils::check(mb_solver.scr_eri!=nullptr, "add_evscf_vcorr: mb_solver.scr_eri == nullptr when update_W is true.");
       mb_solver.scr_eri->update_w(mb_state, eri, mb_solver.corr->iter());
     }
     mb_solver.corr->evaluate(mb_state, eri);
-    FT.check_leakage(mb_state.sSigma_tskij.value(), imag_axes_ft::fermi, "Self-energy");
+    FT.check_leakage(mb_state.sSigma_tskij.value(), imag_axes_ft::fermion, "Self-energy");
     mpi->comm.barrier();
   }
   solve_qp_eqn(sE_ska, mb_state.sSigma_tskij.value(), sHeff_skij, sMO_skia, mu, FT, qp_context);
@@ -453,7 +453,7 @@ auto qp_approx(const sArray_t<Array_view_5D_t> &sSigma_tskij,
         }
       }
     }
-    FT.tau_to_w(dSigma_tskab.local(), dSigma_wskab.local(), imag_axes_ft::fermi);
+    FT.tau_to_w(dSigma_tskab.local(), dSigma_wskab.local(), imag_axes_ft::fermion);
   }
 
   // Static approximation for V_QPGW
@@ -559,13 +559,13 @@ void add_qpscf_vcorr(MBState &mb_state,
   mb_state.sSigma_tskij.emplace(make_shared_array<Array_view_5D_t>(*mpi, {nt, ns, nkpts, nbnd, nbnd}));
   mb_state.sG_tskij.emplace(make_shared_array<Array_view_5D_t>(*mpi, {nt, ns, nkpts, nbnd, nbnd}));
   update_G(mb_state.sG_tskij.value(), sMO_skia, sE_ska, mu, FT);
-  FT.check_leakage(mb_state.sG_tskij.value(), imag_axes_ft::fermi, "Green's function");
+  FT.check_leakage(mb_state.sG_tskij.value(), imag_axes_ft::fermion, "Green's function");
   // screen interaction
   utils::check(mb_solver.scr_eri!=nullptr, "add_qpscf_vcorr: mb_solver.scr_eri == nullptr.");
   mb_solver.scr_eri->update_w(mb_state, eri, mb_solver.corr->iter());
   // evaluate self-energy in the primary basis
   mb_solver.corr->evaluate(mb_state, eri);
-  FT.check_leakage(mb_state.sSigma_tskij.value(), imag_axes_ft::fermi, "Self-energy");
+  FT.check_leakage(mb_state.sSigma_tskij.value(), imag_axes_ft::fermion, "Self-energy");
   mpi->comm.barrier();
 
   auto sVcorr_skij = qp_approx(mb_state.sSigma_tskij.value(),  sMO_skia, sE_ska, mu, FT, qp_context);

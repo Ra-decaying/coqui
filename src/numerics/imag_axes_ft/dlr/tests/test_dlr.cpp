@@ -45,43 +45,23 @@ namespace bdft_tests {
 
       auto dlr_rf = cppdlr::build_dlr_rf(lambda, eps, cppdlr::SYM);
 
-      struct test_mesh_t {
-        int nt_f = 0;
-        int nt_b = 0;
-        int nw_f = 0;
-        int nw_b = 0;
-        nda::array<double, 1> tau_mesh_f;
-        nda::array<double, 1> tau_mesh_b;
-        nda::array<long, 1> wn_mesh_f;
-        nda::array<long, 1> wn_mesh_b;
-      };
-      
       // Get DLR imaginary time object
       auto it_ops = cppdlr::imtime_ops(lambda, dlr_rf, cppdlr::SYM);
       auto nts = it_ops.rank();
+      nda::array<double, 1> tau_mesh(nts);
+      auto dlr_it = cppdlr::rel2abs(it_ops.get_itnodes());
+      for (int it = 0; it < nts; ++it) tau_mesh(it) = 2.0 * dlr_it(it) - 1.0;
 
       // DLR Matsubara frequency object
-      auto if_ops_f = cppdlr::imfreq_ops(lambda, dlr_rf, cppdlr::Fermion, cppdlr::SYM);
-      auto if_ops_b = cppdlr::imfreq_ops(lambda, dlr_rf, cppdlr::Boson, cppdlr::SYM);
-      auto nw_f = if_ops_f.get_ifnodes().size();
-      auto nw_b = if_ops_b.get_ifnodes().size();
+      auto if_ops = cppdlr::imfreq_ops(lambda, dlr_rf, stat, cppdlr::SYM);
+      auto nw = if_ops.get_ifnodes().size();
+      nda::array<long, 1> wn_mesh(nw);
+      long stat_offset = (stat == cppdlr::Fermion) ? 1 : 0;
+      for (int iw = 0; iw < nw; ++iw) wn_mesh(iw) = long(2 * if_ops.get_ifnodes(iw) + stat_offset);
 
-      auto mesh = test_mesh_t{
-        nts, nts, nw_f, nw_b, 
-        nda::array<double, 1>(nts), nda::array<double, 1>(nts), 
-        nda::array<long, 1>(nw_f), nda::array<long, 1>(nw_b)
-      };
-      auto dlr_it = cppdlr::rel2abs(it_ops.get_itnodes());
-      for (int it = 0; it < nts; ++it) mesh.tau_mesh_f(it) = 2.0 * dlr_it(it) - 1.0;
-      mesh.tau_mesh_b() = mesh.tau_mesh_f;
-      for (int iw = 0; iw < nw_f; ++iw) mesh.wn_mesh_f(iw) = long(2 * if_ops_f.get_ifnodes(iw) + 1);
-      for (int iw = 0; iw < nw_b; ++iw) mesh.wn_mesh_b(iw) = long(2 * if_ops_b.get_ifnodes(iw));
-
-      auto const iaft_stat = (stat == cppdlr::Fermion) ? imag_axes_ft::fermi : imag_axes_ft::boson;
-      auto& if_ops = (stat == cppdlr::Fermion) ? if_ops_f : if_ops_b;
-      auto nw = (stat == cppdlr::Fermion) ? nw_f : nw_b;
-      auto G_t_ref = imag_axes_ft::test_utils::build_g_tau(mesh, norb, beta, iaft_stat, ph_sym);
-      auto G_w_ref = imag_axes_ft::test_utils::build_g_iw(mesh, norb, beta, iaft_stat, ph_sym);
+      auto const iaft_stat = (stat == cppdlr::Fermion) ? imag_axes_ft::fermion : imag_axes_ft::boson;
+      auto G_t_ref = imag_axes_ft::test_utils::build_g_tau(tau_mesh, beta, norb, ph_sym);
+      auto G_w_ref = imag_axes_ft::test_utils::build_g_iw(wn_mesh, beta, iaft_stat, norb, ph_sym);
       app_log(2, "G_t_ref(0, 0, 0) = {}", G_t_ref(0, 0, 0));
       app_log(2, "G_w_ref(0, 0, 0) = {}", G_w_ref(0, 0, 0));
 

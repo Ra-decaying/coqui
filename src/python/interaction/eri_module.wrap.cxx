@@ -41,52 +41,84 @@ const std::string c2py::tp_ctor_doc<coqui_py::ThcCoulomb> =
     init_0.doc(R"DOC()DOC");
 // Np
 static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.Np(); }, "self")};
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.Np();
+    },
+    "self")};
 
 // init
 static auto const fun_1 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb &self) { return self.init(); }, "self")};
+    [](coqui_py::ThcCoulomb &self) -> decltype(auto) { return self.init(); },
+    "self")};
 
 // initialized
 static auto const fun_2 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.initialized(); },
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.initialized();
+    },
     "self")};
 
 // mf
 static auto const fun_3 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.mf(); }, "self")};
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.mf();
+    },
+    "self")};
 
 // mpi
 static auto const fun_4 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.mpi(); }, "self")};
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.mpi();
+    },
+    "self")};
 
 // nbnd
 static auto const fun_5 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.nbnd(); }, "self")};
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.nbnd();
+    },
+    "self")};
 
 // nkpts
 static auto const fun_6 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.nkpts(); }, "self")};
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.nkpts();
+    },
+    "self")};
 
 // nkpts_ibz
 static auto const fun_7 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.nkpts_ibz(); }, "self")};
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.nkpts_ibz();
+    },
+    "self")};
 
 // nqpts
 static auto const fun_8 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.nqpts(); }, "self")};
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.nqpts();
+    },
+    "self")};
 
 // nqpts_ibz
 static auto const fun_9 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.nqpts_ibz(); }, "self")};
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.nqpts_ibz();
+    },
+    "self")};
 
 // nspin
 static auto const fun_10 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.nspin(); }, "self")};
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.nspin();
+    },
+    "self")};
 
 // nspin_in_basis
 static auto const fun_11 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::ThcCoulomb const &self) { return self.nspin_in_basis(); },
+    [](coqui_py::ThcCoulomb const &self) -> decltype(auto) {
+      return self.nspin_in_basis();
+    },
     "self")};
 
 static const auto doc_d_0 = fun_0.doc(R"DOC()DOC");
@@ -156,11 +188,17 @@ const std::string c2py::tp_ctor_doc<coqui_py::CholCoulomb> =
     init_1.doc(R"DOC()DOC");
 // mf
 static auto const fun_12 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::CholCoulomb const &self) { return self.mf(); }, "self")};
+    [](coqui_py::CholCoulomb const &self) -> decltype(auto) {
+      return self.mf();
+    },
+    "self")};
 
 // mpi
 static auto const fun_13 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::CholCoulomb const &self) { return self.mpi(); }, "self")};
+    [](coqui_py::CholCoulomb const &self) -> decltype(auto) {
+      return self.mpi();
+    },
+    "self")};
 
 static const auto doc_d_12 = fun_12.doc(R"DOC()DOC");
 static const auto doc_d_13 = fun_13.doc(R"DOC()DOC");

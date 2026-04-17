@@ -37,95 +37,122 @@ template <>
 const std::string c2py::tp_ctor_doc<coqui_py::Mf> = init_0.doc(R"DOC()DOC");
 // ecutrho
 static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.ecutrho(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.ecutrho(); },
+    "self")};
 
 // ecutwfc
 static auto const fun_1 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.ecutwfc(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.ecutwfc(); },
+    "self")};
 
 // fft_grid
 static auto const fun_2 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.fft_grid(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.fft_grid(); },
+    "self")};
 
 // fft_grid_wfc
 static auto const fun_3 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.fft_grid_wfc(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) {
+      return self.fft_grid_wfc();
+    },
+    "self")};
 
 // k_weights
 static auto const fun_4 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.k_weights(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.k_weights(); },
+    "self")};
 
 // kp_grid
 static auto const fun_5 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.kp_grid(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.kp_grid(); },
+    "self")};
 
 // kpts
 static auto const fun_6 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.kpts(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.kpts(); },
+    "self")};
 
 // kpts_ibz
 static auto const fun_7 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.kpts_ibz(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.kpts_ibz(); },
+    "self")};
 
 // mf_type
 static auto const fun_8 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.mf_type(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.mf_type(); },
+    "self")};
 
 // mpi
-static auto const fun_9 = c2py::dispatcher_f_kw_t{
-    c2py::cmethod([](coqui_py::Mf const &self) { return self.mpi(); }, "self")};
+static auto const fun_9 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.mpi(); },
+    "self")};
 
 // nbnd
 static auto const fun_10 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.nbnd(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.nbnd(); },
+    "self")};
 
 // nelec
 static auto const fun_11 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.nelec(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.nelec(); },
+    "self")};
 
 // nkpts
 static auto const fun_12 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.nkpts(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.nkpts(); },
+    "self")};
 
 // nkpts_ibz
 static auto const fun_13 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.nkpts_ibz(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.nkpts_ibz(); },
+    "self")};
 
 // npol
 static auto const fun_14 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.npol(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.npol(); },
+    "self")};
 
 // nqpts
 static auto const fun_15 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.nqpts(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.nqpts(); },
+    "self")};
 
 // nqpts_ibz
 static auto const fun_16 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.nqpts_ibz(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.nqpts_ibz(); },
+    "self")};
 
 // nspin
 static auto const fun_17 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.nspin(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.nspin(); },
+    "self")};
 
 // nuclear_energy
 static auto const fun_18 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.nuclear_energy(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) {
+      return self.nuclear_energy();
+    },
+    "self")};
 
 // outdir
 static auto const fun_19 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.outdir(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.outdir(); },
+    "self")};
 
 // prefix
 static auto const fun_20 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.prefix(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.prefix(); },
+    "self")};
 
 // qpts
 static auto const fun_21 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.qpts(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.qpts(); },
+    "self")};
 
 // qpts_ibz
 static auto const fun_22 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::Mf const &self) { return self.qpts_ibz(); }, "self")};
+    [](coqui_py::Mf const &self) -> decltype(auto) { return self.qpts_ibz(); },
+    "self")};
 
 static const auto doc_d_0 = fun_0.doc(R"DOC()DOC");
 static const auto doc_d_1 = fun_1.doc(R"DOC()DOC");

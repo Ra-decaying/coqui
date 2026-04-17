@@ -58,7 +58,7 @@ auto distributed_tau_to_w(mpi3::communicator& comm,
   auto nw = FT.nw_f();
 
   if (nda::sum(X_tau_shm.local()) != ComplexType(0.0))
-    FT.check_leakage(X_tau_shm, imag_axes_ft::fermi, "self-energy");
+    FT.check_leakage(X_tau_shm, imag_axes_ft::fermion, "self-energy");
 
   int np = comm.size();
   long nkpools = utils::find_proc_grid_max_npools(np, nkpts, 0.2);
@@ -78,7 +78,7 @@ auto distributed_tau_to_w(mpi3::communicator& comm,
     X_t_sub = X_tau_shm.local()(all, all, k_rng, i_rng, j_rng);
 
     auto X_w_loc = dX_wskij.local();
-    FT.tau_to_w(X_t_sub, X_w_loc, imag_axes_ft::fermi);
+    FT.tau_to_w(X_t_sub, X_w_loc, imag_axes_ft::fermion);
   }
 
   auto dX_wskij_out = make_distributed_array<Array_5D_t>(
