@@ -52,28 +52,33 @@ namespace methods {
     nda::array<ComplexType, 2> eval_grad_2e(const nda::MemoryArrayOfRank<5> auto &G_tskij,
                                             Cholesky_ERI auto && chol);
 
-    ComplexType eval_grad_2e(size_t iatom, size_t idirection, Cholesky_ERI auto &&chol);
-
-
     nda::array<ComplexType, 6> eval_2bdm(const nda::MemoryArrayOfRank<5> auto &G_tskij,
                                          Cholesky_ERI auto && chol);
+
+    template<nda::MemoryArray Array_3D_t, nda::MemoryArray Array_4D_t>
+    ComplexType eval_grad_2e(size_t iq, size_t iatom, size_t idirection,
+                             const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                             sArray_t<Array_3D_t> &sP_wPQ,
+                             sArray_t<Array_4D_t> &sInter1_tsPQ,
+                             sArray_t<Array_4D_t> &sInter1_wsPQ,
+                             sArray_t<Array_4D_t> &sInter2_wsPQ,
+                             Cholesky_ERI auto &&chol);
 
     template<nda::MemoryArray Array_3D_t>
     void eval_P0(size_t iq, const nda::MemoryArrayOfRank<5> auto &G_tskij,
                  sArray_t<Array_3D_t> &sP0_tPQ, Cholesky_ERI auto &chol,
                  int batch_size, bool print_mpi);
 
-    template<nda::MemoryArray Array_3D_t>
-    void eval_intermediate1(size_t iq, size_t iatom, size_t idirection,
-                            const nda::MemoryArrayOfRank<5> auto &G_tskij,
-                            sArray_t<Array_3D_t> &sInter1_tPQ, Cholesky_ERI auto &chol,
-                            int batch_size, bool print_mpi);
+    template<nda::MemoryArray Array_4D_t>
+    void eval_grad_intermediate1(size_t iq, size_t iatom, size_t idirection,
+                                 const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                                 sArray_t<Array_4D_t> &sInter1_tsPQ, sArray_t<Array_4D_t> &sInter1_wsPQ,
+                                 Cholesky_ERI auto &chol, int batch_size, bool print_mpi);
 
-    template<nda::MemoryArray Array_3D_t>
-    void eval_intermediate2(size_t iq, size_t iatom, size_t idirection,
-                            const nda::MemoryArrayOfRank<5> auto &G_tskij,
-                            sArray_t<Array_3D_t> &sInter2_tPQ, Cholesky_ERI auto &chol,
-                            int batch_size, bool print_mpi);
+    template<nda::MemoryArray Array_4D_t>
+    void eval_grad_intermediate2(size_t iq, const nda::MemoryArrayOfRank<5> auto &G_tskij,
+                                 sArray_t<Array_4D_t> &sInter2_tsPQ, sArray_t<Array_4D_t> &sInter2_wsPQ,
+                                 Cholesky_ERI auto &chol, int batch_size, bool print_mpi);
 
     template<nda::MemoryArray Array_5D_t>
     void eval_2bdm_intermediate(size_t iq, const nda::MemoryArrayOfRank<5> auto &G_tskij,

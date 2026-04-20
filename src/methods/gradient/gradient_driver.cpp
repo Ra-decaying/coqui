@@ -123,9 +123,22 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
       if constexpr (std::is_same_v<corr_solver_t, solvers::gw_t>) {
         solvers::hf_gradient_t hf_grad(mf);
         solvers::gw_gradient_t gw_grad(mf, &FT);
-        grad_2e = gw_grad.evaluate(sG_tskij.local(), mb_eri_t.corr_eri->get());
+        // grad_2e += hf_grad.evaluate(sDm_skij.local(), mb_eri_t.corr_eri->get());
+        // grad_2e += gw_grad.evaluate(sG_tskij.local(), mb_eri_t.corr_eri->get());
+
+        auto V = mb_eri_t.corr_eri->get().V(0, 0, 0);
+        auto dV = mb_eri_t.corr_eri->get().dV(0, 1, 2, 0, 0);
+        auto V2D = nda::reshape(V, std::array<long, 2>{mf->nbnd_aux(), mf->nbnd()*mf->nbnd()});
+        auto dV2D = nda::reshape(dV, std::array<long, 2>{mf->nbnd_aux(), mf->nbnd()*mf->nbnd()});
+        auto d2e = nda::array<ComplexType, 4>::zeros({2, 2, 2, 2});
+        auto d2e2D = nda::reshape(d2e, std::array<long, 2>{mf->nbnd()*mf->nbnd(), mf->nbnd()*mf->nbnd()});
+
+        nda::blas::gemm(1.0, nda::transpose(V2D), dV2D, 1.0, d2e2D);
+        nda::blas::gemm(1.0, nda::transpose(dV2D), V2D, 1.0, d2e2D);
+
+
         auto tbdm = hf_grad.eval_2bdm(sDm_skij.local());
-        tbdm += gw_grad.eval_2bdm(sG_tskij.local(), mb_eri_t.corr_eri->get());
+        // auto tbdm += gw_grad.eval_2bdm(sG_tskij.local(), mb_eri_t.corr_eri->get());
 
         for (size_t is1 = 0; is1 < 2; ++is1) {
           for (size_t is2 = 0; is2 < 2; ++is2) {
@@ -140,6 +153,7 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
                     std::cout << "r = " << r << ", ";
                     std::cout << "s = " << s << ", ";
                     std::cout << tbdm(is1, is2, q, s, p, r) << std::endl;
+                    grad_2e(1, 2) += 0.5 * tbdm(is1, is2, q, p, s, r) * d2e(p, q, r, s);
                   }
                 }
               }
@@ -155,6 +169,9 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
   grad_elec = grad_1e + grad_2e + grad_pulay;
   grad_total = grad_elec + mf->nuclear_gradient();
   print_mbpt_gradients(mf->nuclear_gradient(), mf, "GRAD_NUC");
+  print_mbpt_gradients(grad_1e, mf, "GRAD_1ELECTRON");
+  print_mbpt_gradients(grad_2e, mf, "GRAD_2ELECTRON");
+  print_mbpt_gradients(grad_pulay, mf, "GRAD_PULAY");
   print_mbpt_gradients(grad_elec, mf, "GRAD_ELEC");
   print_mbpt_gradients(grad_total, mf, "GRAD_TOTAL");
 
