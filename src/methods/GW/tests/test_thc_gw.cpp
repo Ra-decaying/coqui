@@ -46,7 +46,7 @@ namespace bdft_tests {
   TEST_CASE("thc_g0w0_qe_bdft", "[methods][thc][gw][qe][bdft]") {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
-    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_basis);
     std::string output = "coqui";
 
     auto solve_thc_g0w0 = [&](std::shared_ptr<mf::MF> &mf) {
@@ -124,7 +124,7 @@ namespace bdft_tests {
     auto solve_thc_gw = [&](
       std::shared_ptr<mf::MF> &mf, double wmax, bool chol_eri_hf=false) {
 
-      imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::ir_source);
+      imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::ir_basis);
       std::string output = "coqui";
 
       solvers::hf_t hf;
@@ -195,7 +195,7 @@ namespace bdft_tests {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
     auto solve_thc_rpa = [&](std::shared_ptr<mf::MF> &mf, double wmax) {
-      imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::ir_source);
+      imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::ir_basis);
 
       solvers::hf_t hf;
       solvers::gw_t gw(&ft, "gygi_smallest_q");
@@ -237,7 +237,7 @@ namespace bdft_tests {
 
     std::string output = "coqui";
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, mf::pyscf_source));
-    imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_basis);
     solvers::hf_t hf;
     solvers::gw_t gw(&ft, "ignore_g0", output);
 
@@ -293,7 +293,7 @@ namespace bdft_tests {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, mf::pyscf_source));
-    imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_basis);
     solvers::hf_t hf;
     solvers::gw_t gw(&ft, "gygi_smallest_q");
     solvers::mb_solver_t mb_solver(&hf, &gw);
@@ -329,7 +329,7 @@ namespace bdft_tests {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
     std::string output = "coqui";
-    imag_axes_ft::IAFT ft(2000, 6.0, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(2000, 6.0, imag_axes_ft::ir_basis);
 
     auto solve_gdf_thc_gw = [&](std::shared_ptr<mf::MF> &mf, std::string gdf_dir) {
       solvers::hf_t hf;
@@ -366,7 +366,7 @@ namespace bdft_tests {
 
     auto solve_thc_gw = [&](std::shared_ptr<mf::MF> &mf, double wmax) {
 
-      imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::ir_source);
+      imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::ir_basis);
       std::string output = "coqui";
 
       solvers::hf_t hf;

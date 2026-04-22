@@ -74,7 +74,7 @@ namespace imag_axes_ft {
           init_grid_variant(
             io::get_value_with_default<double>(pt,"beta",1000.0), 
             io::get_value_with_default<double>(*iaft_pt,"wmax",12.0), 
-            string_to_source_enum(io::get_value_with_default<std::string>(*iaft_pt, "basis", "ir")), 
+            string_to_basis_enum(io::get_value_with_default<std::string>(*iaft_pt, "basis", "ir")), 
             prec,
             eps,
             print_meta_log
@@ -92,7 +92,7 @@ namespace imag_axes_ft {
         init_grid_variant(
           io::get_value_with_default<double>(pt,"beta",1000.0), 
           io::get_value_with_default<double>(*iaft_pt,"wmax",12.0), 
-          string_to_source_enum(io::get_value_with_default<std::string>(*iaft_pt, "iaft_basis", "ir")), 
+          string_to_basis_enum(io::get_value_with_default<std::string>(*iaft_pt, "iaft_basis", "ir")), 
           prec,
           eps,
           print_meta_log
@@ -100,12 +100,12 @@ namespace imag_axes_ft {
       }
     } 
 
-    IAFT(double beta, double wmax, source_e source, std::string prec="high", bool print_meta_log = false) {
-      init_grid_variant(beta, wmax, source, prec, std::nullopt, print_meta_log);
+    IAFT(double beta, double wmax, basis_e basis, std::string prec="high", bool print_meta_log = false) {
+      init_grid_variant(beta, wmax, basis, prec, std::nullopt, print_meta_log);
     }
 
-    IAFT(double beta, double wmax, source_e source, double eps, bool print_meta_log = false) {
-      init_grid_variant(beta, wmax, source, std::nullopt, eps, print_meta_log);
+    IAFT(double beta, double wmax, basis_e basis, double eps, bool print_meta_log = false) {
+      init_grid_variant(beta, wmax, basis, std::nullopt, eps, print_meta_log);
     }
 
     // ir interface
@@ -226,10 +226,10 @@ namespace imag_axes_ft {
       return *val;
     }
 
-    void validate_accuracy_inputs(source_e source,
+    void validate_accuracy_inputs(basis_e basis,
                                   std::optional<std::string> const& prec,
                                   std::optional<double> const& eps) const {
-      if (source == ir_source) {
+      if (basis == ir_basis) {
         utils::check(!eps.has_value(),
           "IAFT.hpp::IAFT: IR backend accepts only prec; eps is not supported.");
         utils::check(prec.has_value(),
@@ -238,7 +238,7 @@ namespace imag_axes_ft {
       }
 
 #ifdef ENABLE_DLR
-      if (source == dlr_source) {
+      if (basis == dlr_basis) {
         utils::check(prec.has_value() || eps.has_value(),
           "IAFT.hpp::IAFT: DLR backend requires at least one of prec or eps.");
 
@@ -260,16 +260,16 @@ namespace imag_axes_ft {
       }
 #endif
 
-      APP_ABORT(" imag_axes_ft::IAFT(): Invalid value of imag_axes_ft::source_e. \n");
+      APP_ABORT(" imag_axes_ft::IAFT(): Invalid value of imag_axes_ft::basis_e. \n");
     }
 
-    void init_grid_variant(double beta, double wmax, source_e source,
+    void init_grid_variant(double beta, double wmax, basis_e basis,
                            std::optional<std::string> prec,
                            std::optional<double> eps,
                            bool print_meta_log = false) {
-      validate_accuracy_inputs(source, prec, eps);
+      validate_accuracy_inputs(basis, prec, eps);
 
-      if (source == dlr_source) {
+      if (basis == dlr_basis) {
 #ifdef ENABLE_DLR
         bool const build_with_eps = eps.has_value() && (!prec.has_value() || *prec == "custom");
         if (build_with_eps) {
@@ -280,10 +280,10 @@ namespace imag_axes_ft {
 #else
         APP_ABORT(" imag_axes_ft::IAFT(): DLR backend requested but ENABLE_DLR is OFF at build time. \n");
 #endif
-      } else if (source == ir_source) {
+      } else if (basis == ir_basis) {
         grid_var = ir::IR(beta, wmax, *prec, print_meta_log);
       } else {
-        APP_ABORT(" imag_axes_ft::IAFT(): Invalid value of imag_axes_ft::source_e. \n");
+        APP_ABORT(" imag_axes_ft::IAFT(): Invalid value of imag_axes_ft::basis_e. \n");
       }
     }
  
@@ -295,16 +295,16 @@ namespace imag_axes_ft {
 #endif
 
   public:
-    source_e source() const {
+    basis_e basis() const {
       if (grid_var.index() == 0) {
-        return ir_source;
+        return ir_basis;
 #ifdef ENABLE_DLR
       } else if (grid_var.index() == 1) {
-        return dlr_source;
+        return dlr_basis;
 #endif
       } else {
-        utils::check(false, "IAFT::source(): This should not trigger");
-        return ir_source;
+        utils::check(false, "IAFT::basis(): This should not trigger");
+        return ir_basis;
       }
     }
     void metadata_log() const {

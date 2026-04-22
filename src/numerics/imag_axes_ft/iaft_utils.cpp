@@ -31,14 +31,21 @@ namespace imag_axes_ft {
   IAFT read_iaft(std::string scf_file, bool print_meta_log) {
     double beta;
     double wmax;
-    std::string source;
+    std::string basis;
     std::optional<std::string> prec;
     std::optional<double> eps;
 
     h5::file file(scf_file, 'r');
     h5::group grp(file);
     auto iaft_grp = grp.open_group("imaginary_fourier_transform");
-    h5::h5_read(iaft_grp, "source", source);
+    if (iaft_grp.has_dataset("basis")) {
+      h5::h5_read(iaft_grp, "basis", basis);
+    } else if (iaft_grp.has_dataset("source")) {
+      h5::h5_read(iaft_grp, "source", basis);
+    } else {
+      utils::check(false,
+        "iaft_utils.cpp::read_iaft: checkpoint is missing required IAFT basis metadata.");
+    }
     h5::h5_read(iaft_grp, "beta", beta);
 
     if (iaft_grp.has_dataset("prec")) {
@@ -60,24 +67,24 @@ namespace imag_axes_ft {
       wmax = lambda / beta;
     }
 
-    auto const source_enum = string_to_source_enum(source);
-    if (source_enum == dlr_source) {
+    auto const basis_enum = string_to_basis_enum(basis);
+    if (basis_enum == dlr_basis) {
       utils::check(prec.has_value() || eps.has_value(),
         "iaft_utils.cpp::read_iaft: DLR checkpoint must provide at least one of prec or eps.");
 
       bool const build_with_eps = eps.has_value() && (!prec.has_value() || *prec == "custom");
       if (build_with_eps) {
-        return IAFT(beta, wmax, source_enum, *eps, print_meta_log);
+        return IAFT(beta, wmax, basis_enum, *eps, print_meta_log);
       }
 
       utils::check(prec.has_value(),
         "iaft_utils.cpp::read_iaft: DLR checkpoint is missing required IAFT prec metadata.");
-      return IAFT(beta, wmax, source_enum, *prec, print_meta_log);
+      return IAFT(beta, wmax, basis_enum, *prec, print_meta_log);
     }
 
     utils::check(prec.has_value(),
       "iaft_utils.cpp::read_iaft: checkpoint is missing required IAFT prec metadata.");
-    return IAFT(beta, wmax, source_enum, *prec, print_meta_log);
+    return IAFT(beta, wmax, basis_enum, *prec, print_meta_log);
   }
 
   namespace test_utils {

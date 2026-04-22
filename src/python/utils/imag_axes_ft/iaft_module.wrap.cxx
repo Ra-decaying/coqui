@@ -31,10 +31,10 @@ std::map<imag_axes_ft::stats_e, str_t>
         {imag_axes_ft::stats_e::fermion, "fermion"},
         {imag_axes_ft::stats_e::boson, "boson"}};
 template <>
-std::map<imag_axes_ft::source_e, str_t>
-    c2py::enum_to_string<imag_axes_ft::source_e> = {
-        {imag_axes_ft::source_e::dlr_source, "dlr_source"},
-        {imag_axes_ft::source_e::ir_source, "ir_source"}};
+std::map<imag_axes_ft::basis_e, str_t>
+    c2py::enum_to_string<imag_axes_ft::basis_e> = {
+        {imag_axes_ft::basis_e::dlr_basis, "dlr_basis"},
+        {imag_axes_ft::basis_e::ir_basis, "ir_basis"}};
 
 // ==================== module classes =====================
 
@@ -195,12 +195,11 @@ template <>
 inline constexpr auto c2py::tp_name<imag_axes_ft::IAFT> = "iaft_module.IAFT";
 static auto init_1 = c2py::dispatcher_c_kw_t{
     c2py::c_constructor<imag_axes_ft::IAFT, double, double,
-                        imag_axes_ft::source_e, std::string, bool>(
-        "beta", "wmax", "source", "prec"_a = "high",
-        "print_meta_log"_a = false),
+                        imag_axes_ft::basis_e, std::string, bool>(
+        "beta", "wmax", "basis", "prec"_a = "high", "print_meta_log"_a = false),
     c2py::c_constructor<imag_axes_ft::IAFT, double, double,
-                        imag_axes_ft::source_e, double, bool>(
-        "beta", "wmax", "source", "eps", "print_meta_log"_a = false)};
+                        imag_axes_ft::basis_e, double, bool>(
+        "beta", "wmax", "basis", "eps", "print_meta_log"_a = false)};
 template <>
 constexpr initproc c2py::tp_init<imag_axes_ft::IAFT> =
     c2py::pyfkw_constructor<init_1>;
@@ -277,15 +276,22 @@ static auto const fun_14 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     },
     "self")};
 
-// beta
+// basis
 static auto const fun_15 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+    [](imag_axes_ft::IAFT const &self) -> decltype(auto) {
+      return self.basis();
+    },
+    "self")};
+
+// beta
+static auto const fun_16 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](imag_axes_ft::IAFT const &self) -> decltype(auto) {
       return self.beta();
     },
     "self")};
 
 // construct_tau_interpolate_matrix
-static auto const fun_16 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+static auto const fun_17 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     c2py::cast<const imag_axes_ft::IAFT &,
                const nda::basic_array<double, 1, nda::C_layout, 'A',
                                       nda::heap_basic<nda::mem::mallocator<
@@ -294,7 +300,7 @@ static auto const fun_16 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     "iaft", "tau_mesh_out", "ph_sym"_a = false)};
 
 // construct_w_interpolate_matrix
-static auto const fun_17 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+static auto const fun_18 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     c2py::cast<const imag_axes_ft::IAFT &,
                const nda::basic_array<long, 1, nda::C_layout, 'A',
                                       nda::heap_basic<nda::mem::mallocator<
@@ -304,69 +310,62 @@ static auto const fun_17 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     "iaft", "wn_mesh_out", "stats_str", "ph_sym"_a = false)};
 
 // eps
-static auto const fun_18 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+static auto const fun_19 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](imag_axes_ft::IAFT const &self) -> decltype(auto) { return self.eps(); },
     "self")};
 
 // lambda
-static auto const fun_19 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+static auto const fun_20 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](imag_axes_ft::IAFT const &self) -> decltype(auto) {
       return self.lambda();
     },
     "self")};
 
 // metadata_log
-static auto const fun_20 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+static auto const fun_21 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](imag_axes_ft::IAFT const &self) -> decltype(auto) {
       return self.metadata_log();
     },
     "self")};
 
 // nt_b
-static auto const fun_21 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+static auto const fun_22 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](imag_axes_ft::IAFT const &self) -> decltype(auto) {
       return self.nt_b();
     },
     "self")};
 
 // nt_f
-static auto const fun_22 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+static auto const fun_23 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](imag_axes_ft::IAFT const &self) -> decltype(auto) {
       return self.nt_f();
     },
     "self")};
 
 // nw_b
-static auto const fun_23 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+static auto const fun_24 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](imag_axes_ft::IAFT const &self) -> decltype(auto) {
       return self.nw_b();
     },
     "self")};
 
 // nw_f
-static auto const fun_24 = c2py::dispatcher_f_kw_t{c2py::cmethod(
+static auto const fun_25 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](imag_axes_ft::IAFT const &self) -> decltype(auto) {
       return self.nw_f();
     },
     "self")};
 
 // omega
-static auto const fun_25 = c2py::dispatcher_f_kw_t{
+static auto const fun_26 = c2py::dispatcher_f_kw_t{
     c2py::cmethod([](imag_axes_ft::IAFT const &self,
                      long n) -> decltype(auto) { return self.omega(n); },
                   "self", "n")};
 
 // prec
-static auto const fun_26 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](imag_axes_ft::IAFT const &self) -> decltype(auto) {
-      return self.prec();
-    },
-    "self")};
-
-// source
 static auto const fun_27 = c2py::dispatcher_f_kw_t{c2py::cmethod(
     [](imag_axes_ft::IAFT const &self) -> decltype(auto) {
-      return self.source();
+      return self.prec();
     },
     "self")};
 
@@ -550,10 +549,10 @@ static const auto doc_d_21 = fun_21.doc(R"DOC()DOC");
 static const auto doc_d_22 = fun_22.doc(R"DOC()DOC");
 static const auto doc_d_23 = fun_23.doc(R"DOC()DOC");
 static const auto doc_d_24 = fun_24.doc(R"DOC()DOC");
-static const auto doc_d_25 = fun_25.doc(R"DOC(
+static const auto doc_d_25 = fun_25.doc(R"DOC()DOC");
+static const auto doc_d_26 = fun_26.doc(R"DOC(
 Matsubara frequency iw_n = i*n*pi/beta
 )DOC");
-static const auto doc_d_26 = fun_26.doc(R"DOC()DOC");
 static const auto doc_d_27 = fun_27.doc(R"DOC()DOC");
 static const auto doc_d_28 = fun_28.doc(R"DOC()DOC");
 static const auto doc_d_29 = fun_29.doc(R"DOC()DOC");
@@ -597,31 +596,31 @@ PyMethodDef c2py::tp_methods<imag_axes_ft::IAFT>[] = {
      doc_d_13.c_str()},
     {"Twt_ff", (PyCFunction)c2py::pyfkw<fun_14>, METH_VARARGS | METH_KEYWORDS,
      doc_d_14.c_str()},
-    {"beta", (PyCFunction)c2py::pyfkw<fun_15>, METH_VARARGS | METH_KEYWORDS,
+    {"basis", (PyCFunction)c2py::pyfkw<fun_15>, METH_VARARGS | METH_KEYWORDS,
      doc_d_15.c_str()},
-    {"construct_tau_interpolate_matrix", (PyCFunction)c2py::pyfkw<fun_16>,
-     METH_VARARGS | METH_KEYWORDS, doc_d_16.c_str()},
-    {"construct_w_interpolate_matrix", (PyCFunction)c2py::pyfkw<fun_17>,
+    {"beta", (PyCFunction)c2py::pyfkw<fun_16>, METH_VARARGS | METH_KEYWORDS,
+     doc_d_16.c_str()},
+    {"construct_tau_interpolate_matrix", (PyCFunction)c2py::pyfkw<fun_17>,
      METH_VARARGS | METH_KEYWORDS, doc_d_17.c_str()},
-    {"eps", (PyCFunction)c2py::pyfkw<fun_18>, METH_VARARGS | METH_KEYWORDS,
-     doc_d_18.c_str()},
-    {"lambda", (PyCFunction)c2py::pyfkw<fun_19>, METH_VARARGS | METH_KEYWORDS,
+    {"construct_w_interpolate_matrix", (PyCFunction)c2py::pyfkw<fun_18>,
+     METH_VARARGS | METH_KEYWORDS, doc_d_18.c_str()},
+    {"eps", (PyCFunction)c2py::pyfkw<fun_19>, METH_VARARGS | METH_KEYWORDS,
      doc_d_19.c_str()},
-    {"metadata_log", (PyCFunction)c2py::pyfkw<fun_20>,
-     METH_VARARGS | METH_KEYWORDS, doc_d_20.c_str()},
-    {"nt_b", (PyCFunction)c2py::pyfkw<fun_21>, METH_VARARGS | METH_KEYWORDS,
-     doc_d_21.c_str()},
-    {"nt_f", (PyCFunction)c2py::pyfkw<fun_22>, METH_VARARGS | METH_KEYWORDS,
+    {"lambda", (PyCFunction)c2py::pyfkw<fun_20>, METH_VARARGS | METH_KEYWORDS,
+     doc_d_20.c_str()},
+    {"metadata_log", (PyCFunction)c2py::pyfkw<fun_21>,
+     METH_VARARGS | METH_KEYWORDS, doc_d_21.c_str()},
+    {"nt_b", (PyCFunction)c2py::pyfkw<fun_22>, METH_VARARGS | METH_KEYWORDS,
      doc_d_22.c_str()},
-    {"nw_b", (PyCFunction)c2py::pyfkw<fun_23>, METH_VARARGS | METH_KEYWORDS,
+    {"nt_f", (PyCFunction)c2py::pyfkw<fun_23>, METH_VARARGS | METH_KEYWORDS,
      doc_d_23.c_str()},
-    {"nw_f", (PyCFunction)c2py::pyfkw<fun_24>, METH_VARARGS | METH_KEYWORDS,
+    {"nw_b", (PyCFunction)c2py::pyfkw<fun_24>, METH_VARARGS | METH_KEYWORDS,
      doc_d_24.c_str()},
-    {"omega", (PyCFunction)c2py::pyfkw<fun_25>, METH_VARARGS | METH_KEYWORDS,
+    {"nw_f", (PyCFunction)c2py::pyfkw<fun_25>, METH_VARARGS | METH_KEYWORDS,
      doc_d_25.c_str()},
-    {"prec", (PyCFunction)c2py::pyfkw<fun_26>, METH_VARARGS | METH_KEYWORDS,
+    {"omega", (PyCFunction)c2py::pyfkw<fun_26>, METH_VARARGS | METH_KEYWORDS,
      doc_d_26.c_str()},
-    {"source", (PyCFunction)c2py::pyfkw<fun_27>, METH_VARARGS | METH_KEYWORDS,
+    {"prec", (PyCFunction)c2py::pyfkw<fun_27>, METH_VARARGS | METH_KEYWORDS,
      doc_d_27.c_str()},
     {"tau_mesh", (PyCFunction)c2py::pyfkw<fun_28>, METH_VARARGS | METH_KEYWORDS,
      doc_d_28.c_str()},
@@ -677,8 +676,15 @@ Grid information is provided from the grid driver (grid_var).)DOC" +
 
 // ==================== module functions ====================
 
-// build_g_iw_ref
+// basis_enum_to_string
 static auto const fun_46 = c2py::dispatcher_f_kw_t{c2py::cfun(
+    [](int basis_enum) {
+      return imag_axes_ft::basis_enum_to_string(basis_enum);
+    },
+    "basis_enum")};
+
+// build_g_iw_ref
+static auto const fun_47 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const nda::basic_array<
            long, 1, nda::C_layout, 'A',
            nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
@@ -690,7 +696,7 @@ static auto const fun_46 = c2py::dispatcher_f_kw_t{c2py::cfun(
     "wn_mesh", "beta", "stats_str", "norb", "ph_sym"_a = false)};
 
 // build_g_tau_ref
-static auto const fun_47 = c2py::dispatcher_f_kw_t{c2py::cfun(
+static auto const fun_48 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const nda::basic_array<
            double, 1, nda::C_layout, 'A',
            nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
@@ -701,18 +707,11 @@ static auto const fun_47 = c2py::dispatcher_f_kw_t{c2py::cfun(
     "tau_mesh", "beta", "norb", "ph_sym"_a = false)};
 
 // read_iaft
-static auto const fun_48 = c2py::dispatcher_f_kw_t{c2py::cfun(
+static auto const fun_49 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](std::string scf_file, bool print_meta_log) {
       return imag_axes_ft::read_iaft(scf_file, print_meta_log);
     },
     "scf_file", "print_meta_log"_a = true)};
-
-// source_enum_to_string
-static auto const fun_49 = c2py::dispatcher_f_kw_t{c2py::cfun(
-    [](int source_enum) {
-      return imag_axes_ft::source_enum_to_string(source_enum);
-    },
-    "source_enum")};
 
 // stats_enum_to_string
 static auto const fun_50 = c2py::dispatcher_f_kw_t{c2py::cfun(
@@ -721,12 +720,12 @@ static auto const fun_50 = c2py::dispatcher_f_kw_t{c2py::cfun(
     },
     "stats_enum")};
 
-// string_to_source_enum
+// string_to_basis_enum
 static auto const fun_51 = c2py::dispatcher_f_kw_t{c2py::cfun(
-    [](std::string iaft_source) {
-      return imag_axes_ft::string_to_source_enum(iaft_source);
+    [](std::string iaft_basis) {
+      return imag_axes_ft::string_to_basis_enum(iaft_basis);
     },
-    "iaft_source")};
+    "iaft_basis")};
 
 // string_to_stats_enum
 static auto const fun_52 = c2py::dispatcher_f_kw_t{c2py::cfun(
@@ -735,8 +734,9 @@ static auto const fun_52 = c2py::dispatcher_f_kw_t{c2py::cfun(
 
 static const auto doc_d_46 = fun_46.doc(R"DOC()DOC");
 static const auto doc_d_47 = fun_47.doc(R"DOC()DOC");
-static const auto doc_d_48 =
-    fun_48.doc(R"DOC(
+static const auto doc_d_48 = fun_48.doc(R"DOC()DOC");
+static const auto doc_d_49 =
+    fun_49.doc(R"DOC(
 Reconstruct IAFT object from the metadata in bdft scf output
 
 Returns
@@ -745,24 +745,23 @@ Returns
    IAFT
 )DOC",
                {}, {c2py::python_typename<imag_axes_ft::IAFT>()});
-static const auto doc_d_49 = fun_49.doc(R"DOC()DOC");
 static const auto doc_d_50 = fun_50.doc(R"DOC()DOC");
 static const auto doc_d_51 = fun_51.doc(R"DOC()DOC");
 static const auto doc_d_52 = fun_52.doc(R"DOC()DOC");
 //--------------------- module function table  -----------------------------
 
 static PyMethodDef module_methods[] = {
-    {"build_g_iw_ref", (PyCFunction)c2py::pyfkw<fun_46>,
+    {"basis_enum_to_string", (PyCFunction)c2py::pyfkw<fun_46>,
      METH_VARARGS | METH_KEYWORDS, doc_d_46.c_str()},
-    {"build_g_tau_ref", (PyCFunction)c2py::pyfkw<fun_47>,
+    {"build_g_iw_ref", (PyCFunction)c2py::pyfkw<fun_47>,
      METH_VARARGS | METH_KEYWORDS, doc_d_47.c_str()},
-    {"read_iaft", (PyCFunction)c2py::pyfkw<fun_48>,
+    {"build_g_tau_ref", (PyCFunction)c2py::pyfkw<fun_48>,
      METH_VARARGS | METH_KEYWORDS, doc_d_48.c_str()},
-    {"source_enum_to_string", (PyCFunction)c2py::pyfkw<fun_49>,
+    {"read_iaft", (PyCFunction)c2py::pyfkw<fun_49>,
      METH_VARARGS | METH_KEYWORDS, doc_d_49.c_str()},
     {"stats_enum_to_string", (PyCFunction)c2py::pyfkw<fun_50>,
      METH_VARARGS | METH_KEYWORDS, doc_d_50.c_str()},
-    {"string_to_source_enum", (PyCFunction)c2py::pyfkw<fun_51>,
+    {"string_to_basis_enum", (PyCFunction)c2py::pyfkw<fun_51>,
      METH_VARARGS | METH_KEYWORDS, doc_d_51.c_str()},
     {"string_to_stats_enum", (PyCFunction)c2py::pyfkw<fun_52>,
      METH_VARARGS | METH_KEYWORDS, doc_d_52.c_str()},

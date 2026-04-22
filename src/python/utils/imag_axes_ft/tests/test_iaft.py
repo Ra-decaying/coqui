@@ -201,7 +201,29 @@ def test_iaft_dlr_accepts_eps_and_roundtrips_checkpoint():
         with HDFArchive(chkpt, 'w') as ar:
             iaft.save(ar)
 
+        with HDFArchive(chkpt, 'r') as ar:
+            iaft_grp = ar['imaginary_fourier_transform']
+            assert iaft_grp['basis'] == 'dlr'
+
         restored = IAFT.from_coqui_chkpt(chkpt, verbose=False)
         assert restored == iaft
         assert restored.eps == pytest.approx(1e-11)
         assert restored.prec == "custom"
+
+
+def test_iaft_restores_from_legacy_source_checkpoint():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        chkpt = os.path.join(tmpdir, "iaft_legacy_source.h5")
+        with HDFArchive(chkpt, 'w') as ar:
+            ar.create_group('imaginary_fourier_transform')
+            iaft_grp = ar['imaginary_fourier_transform']
+            iaft_grp['beta'] = 5.0
+            iaft_grp['wmax'] = 10.0
+            iaft_grp['prec'] = 'high'
+            iaft_grp['source'] = 'ir'
+
+        restored = IAFT.from_coqui_chkpt(chkpt, verbose=False)
+        assert restored.beta == pytest.approx(5.0)
+        assert restored.wmax == pytest.approx(10.0)
+        assert restored.prec == 'high'
+        assert restored.basis == 'ir'

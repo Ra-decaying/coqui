@@ -23,7 +23,8 @@ import numpy as np
 
 try:
     from coqui._lib.iaft_module import IAFT as IAFTCpp
-    from coqui._lib.iaft_module import string_to_source_enum, build_g_tau_ref, build_g_iw_ref
+    from coqui._lib.iaft_module import build_g_tau_ref, build_g_iw_ref
+    from coqui._lib.iaft_module import string_to_basis_enum
     from .iaft_sparse_ir import _IAFTIRAdapter
 except ImportError:
     raise ImportError(
@@ -36,9 +37,9 @@ Kernel for Fourier transform on the imaginary axis, supporting both IR and DLR b
 """
 
 
-def _validate_accuracy_args(source: str, prec, eps):
-    if source not in ("dlr", "ir"):
-        raise ValueError("source must be 'dlr' or 'ir', got '{}'".format(source))
+def _validate_accuracy_args(basis: str, prec, eps):
+    if basis not in ("dlr", "ir"):
+        raise ValueError("basis must be 'dlr' or 'ir', got '{}'".format(basis))
 
     if prec is not None:
         _validate_prec_string(prec)
@@ -49,7 +50,7 @@ def _validate_accuracy_args(source: str, prec, eps):
         if float(eps) <= 0.0:
             raise ValueError("'eps' must be positive.")
 
-    if source == "ir":
+    if basis == "ir":
         if eps is not None:
             raise ValueError("IR basis accepts only 'prec'; 'eps' is not supported.")
         if prec is None:
@@ -101,7 +102,7 @@ class _IAFTCppAdapter(object):
         - `prec == "custom"` -> build with `eps`
         - otherwise -> build with `prec`
     """
-    def __init__(self, beta: float, wmax: float, *, prec=None, eps=None, verbose: bool=True, source: str="dlr"):
+    def __init__(self, beta: float, wmax: float, *, prec=None, eps=None, verbose: bool=True, basis: str="dlr"):
         """
         :param beta: float
             Inverse temperature (a.u.)
@@ -113,26 +114,26 @@ class _IAFTCppAdapter(object):
             Explicit DLR accuracy target
         :param verbose: bool
             Print metadata (currently unused; kept for API compatibility)
-        :param source: str
-            C++ source basis, one of {"dlr", "ir"}
+        :param basis: str
+            C++ backend basis, one of {"dlr", "ir"}
         """
 
-        self.source = source
+        self.basis = basis
         self.beta = beta
         self.lmbda = wmax * beta
         self.wmax = wmax
 
-        # Create C++ IAFT instance with selected C++ source basis
+        # Create C++ IAFT instance with selected C++ basis backend
         build_with_eps = (eps is not None) and (prec is None or prec == "custom")
         if build_with_eps:
             self._iaft_cpp = IAFTCpp(
-                self.beta, self.wmax, string_to_source_enum(self.source), 
+                self.beta, self.wmax, string_to_basis_enum(self.basis), 
                 float(eps), verbose
             )
         else:
             _validate_prec_string(prec)
             self._iaft_cpp = IAFTCpp(
-                self.beta, self.wmax, string_to_source_enum(self.source), 
+                self.beta, self.wmax, string_to_basis_enum(self.basis), 
                 prec, verbose
             )
 
@@ -196,7 +197,7 @@ class _IAFTCppAdapter(object):
         h5_grp['imaginary_fourier_transform']['wmax'] = self.wmax
         h5_grp['imaginary_fourier_transform']['prec'] = self.prec
         h5_grp['imaginary_fourier_transform']['eps'] = self.eps
-        h5_grp['imaginary_fourier_transform']['source'] = self.source
+        h5_grp['imaginary_fourier_transform']['basis'] = self.basis
 
     def __str__(self):
         self._iaft_cpp.metadata_log()
@@ -210,7 +211,7 @@ class _IAFTCppAdapter(object):
                 self.lmbda == other.lmbda and
                 self.prec == other.prec and
                 self.eps == other.eps and
-                self.source == other.source
+                self.basis == other.basis
         )
 
     def tau_mesh(self, stats: str):
@@ -438,7 +439,7 @@ class IAFT(object):
                 )
             self._impl = _IAFTIRAdapter(beta, wmax, prec, verbose)
         else:  # basis == "dlr"
-            self._impl = _IAFTCppAdapter(beta, wmax, prec=prec, eps=eps, verbose=verbose, source="dlr")
+            self._impl = _IAFTCppAdapter(beta, wmax, prec=prec, eps=eps, verbose=verbose, basis="dlr")
 
         self.basis = basis
 
@@ -523,15 +524,15 @@ class IAFT(object):
             else:
                 ir_lambda = iaft_grp['lambda']
                 wmax = ir_lambda / beta
-            # Default to IR basis for backward compatibility if source not in checkpoint
-            basis = iaft_grp['source'] if 'source' in iaft_grp else "ir"
+            # Prefer basis metadata; fall back to source for backward compatibility.
+            basis = iaft_grp['basis'] if 'basis' in iaft_grp else (iaft_grp['source'] if 'source' in iaft_grp else "ir")
 
         if basis == "ir":
             return cls(beta, wmax, prec=prec, verbose=verbose, basis=basis)
         elif basis == "dlr":
             return cls(beta, wmax, prec=prec, eps=eps, verbose=verbose, basis=basis)
         else:
-            raise ValueError("iaft.py::IAFT.from_coqui_chkpt: unknown source '{}' in checkpoint".format(basis))
+            raise ValueError("iaft.py::IAFT.from_coqui_chkpt: unknown basis '{}' in checkpoint".format(basis))
 
     def save(self, h5_grp):
         """

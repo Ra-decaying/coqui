@@ -89,7 +89,7 @@ namespace bdft_tests {
 
     double beta = 1000;
     double wmax = 1.2;
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis);
 
     auto [sMO_skij, sE_ski] = get_mf_MOs(*context, mf, psp);
     double mu = 0.175;

@@ -56,7 +56,7 @@ namespace bdft_tests {
     double beta = 1000;
     double wmax = 12.0;
     auto mf = mf::make_MF(context, mf::pyscf_source, filepath, "pyscf");
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis);
     simple_dyson dyson(std::addressof(mf), std::addressof(ft));
   }
 
@@ -67,7 +67,7 @@ namespace bdft_tests {
     double beta = 1000;
     double wmax = 1.2;
     auto mf = mf::make_MF(context, mf::pyscf_source, filepath, "pyscf");
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis);
     hamilt::pseudopot psp(mf);
     sArray_t<Array_view_4D_t> F(math::shm::make_shared_array<Array_view_4D_t>(
         *context, {mf.nspin(), mf.nkpts(), mf.nbnd(), mf.nbnd()}));

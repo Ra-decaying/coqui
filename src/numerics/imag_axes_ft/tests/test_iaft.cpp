@@ -45,7 +45,7 @@ namespace bdft_tests {
       imag_axes_ft::ir::IR myir(beta, wmax);
       imag_axes_ft::IAFT iaft(myir);
     }
-    imag_axes_ft::IAFT iaft(beta, wmax, imag_axes_ft::ir_source, "high");
+    imag_axes_ft::IAFT iaft(beta, wmax, imag_axes_ft::ir_basis, "high");
 
     REQUIRE(iaft.beta() == beta);
     REQUIRE(iaft.nt_f() == 137);
@@ -74,7 +74,7 @@ namespace bdft_tests {
 
     auto test_iaft = [&](double beta, double wmax, std::string prec, double tol) {
 
-      imag_axes_ft::IAFT myft(beta, wmax, imag_axes_ft::ir_source, prec, true);
+      imag_axes_ft::IAFT myft(beta, wmax, imag_axes_ft::ir_basis, prec, true);
 
       std::string filename = source_path+"/gw_Gw_Gt_beta"+std::to_string(int(beta))+"_wmax"+std::format("{:.1f}", wmax)+"_"+prec+".h5";
       h5::file file(filename, 'r');
@@ -143,12 +143,12 @@ namespace bdft_tests {
   }
 
   TEST_CASE("iaft_gfun_tau_w_roundtrip", "[iaft][ir][dlr]") {
-    auto test_gfun_roundtrip = [&](imag_axes_ft::source_e source, double tol, imag_axes_ft::stats_e stat, bool ph_sym = false) {
+    auto test_gfun_roundtrip = [&](imag_axes_ft::basis_e basis, double tol, imag_axes_ft::stats_e stat, bool ph_sym = false) {
       double beta = 1000.0;
       double wmax = 1.0;
       int norb = 2;
 
-      imag_axes_ft::IAFT myft(beta, wmax, source, "high", true);
+      imag_axes_ft::IAFT myft(beta, wmax, basis, "high", true);
       auto wn_mesh = (stat == imag_axes_ft::fermion)? myft.wn_mesh_f() : myft.wn_mesh_b();
       auto tau_mesh = (stat == imag_axes_ft::fermion)? myft.tau_mesh_f() : myft.tau_mesh_b();
       
@@ -191,16 +191,16 @@ namespace bdft_tests {
     };
 
     SECTION("ir_backend") {
-      test_gfun_roundtrip(imag_axes_ft::ir_source, 1e-10, imag_axes_ft::fermion);
-      test_gfun_roundtrip(imag_axes_ft::ir_source, 1e-10, imag_axes_ft::boson);
-      test_gfun_roundtrip(imag_axes_ft::ir_source, 1e-10, imag_axes_ft::boson, true);
+      test_gfun_roundtrip(imag_axes_ft::ir_basis, 1e-10, imag_axes_ft::fermion);
+      test_gfun_roundtrip(imag_axes_ft::ir_basis, 1e-10, imag_axes_ft::boson);
+      test_gfun_roundtrip(imag_axes_ft::ir_basis, 1e-10, imag_axes_ft::boson, true);
     }
 
 #ifdef ENABLE_DLR
     SECTION("dlr_backend") {
-      test_gfun_roundtrip(imag_axes_ft::dlr_source, 1e-10, imag_axes_ft::fermion);
-      test_gfun_roundtrip(imag_axes_ft::dlr_source, 1e-10, imag_axes_ft::boson);
-      test_gfun_roundtrip(imag_axes_ft::dlr_source, 1e-10, imag_axes_ft::boson, true);
+      test_gfun_roundtrip(imag_axes_ft::dlr_basis, 1e-10, imag_axes_ft::fermion);
+      test_gfun_roundtrip(imag_axes_ft::dlr_basis, 1e-10, imag_axes_ft::boson);
+      test_gfun_roundtrip(imag_axes_ft::dlr_basis, 1e-10, imag_axes_ft::boson, true);
     }
 #endif
   }
@@ -211,13 +211,13 @@ namespace bdft_tests {
 
 #ifdef ENABLE_DLR
     SECTION("dlr_accepts_prec") {
-      imag_axes_ft::IAFT iaft(beta, wmax, imag_axes_ft::dlr_source, "medium", false);
+      imag_axes_ft::IAFT iaft(beta, wmax, imag_axes_ft::dlr_basis, "medium", false);
       REQUIRE(iaft.prec() == "medium");
       REQUIRE(iaft.eps() == Approx(1e-10));
     }
 
     SECTION("dlr_accepts_eps") {
-      imag_axes_ft::IAFT iaft(beta, wmax, imag_axes_ft::dlr_source, 1e-12, false);
+      imag_axes_ft::IAFT iaft(beta, wmax, imag_axes_ft::dlr_basis, 1e-12, false);
       REQUIRE(iaft.prec() == "custom");
       REQUIRE(iaft.eps() == Approx(1e-12));
     }

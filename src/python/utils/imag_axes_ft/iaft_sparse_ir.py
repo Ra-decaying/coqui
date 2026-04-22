@@ -141,7 +141,7 @@ class _IAFTIRAdapter(object):
         h5_grp['imaginary_fourier_transform']['beta'] = self.beta
         h5_grp['imaginary_fourier_transform']['wmax'] = self.wmax
         h5_grp['imaginary_fourier_transform']['prec'] = self.prec
-        h5_grp['imaginary_fourier_transform']['source'] = "ir"
+        h5_grp['imaginary_fourier_transform']['basis'] = "ir"
 
     def __str__(self):
         return ("Mesh details on the imaginary axis\n"
