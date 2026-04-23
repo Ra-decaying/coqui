@@ -1395,6 +1395,7 @@ auto wannier90_library_run(utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF
                 nat,at_cart_ang.data(),at_sym.extent(1),at_sym.data(),at_sym_sz.data(),
                 eigv.data(),lattv.data(),
                 mf.nkpts(),mf.kp_grid().data(),wann_kp.data(), n_neigh,
+                auto_projections, nproj_lines, proj_str.extent(1), proj_str.data(), str_len.data(),
                 Mmn.local().data(),Amn(0,nda::ellipsis{}).data(),
                 wann_center.data(),wann_spreads.data(), 
                 err);

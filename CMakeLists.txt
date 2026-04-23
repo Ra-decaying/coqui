@@ -506,45 +506,19 @@ if(ENABLE_WANNIER90)
   FetchContent_Declare(
       Wannier90 
       GIT_REPOSITORY https://github.com/wannier-developers/wannier90.git 
-      GIT_TAG        develop
+      GIT_TAG        3ff086adf9c223c140c54af7070c6e6f5871dbe9 #develop
    )
    FetchContent_MakeAvailable(Wannier90)
-   add_compile_definitions(ENABLE_WANNIER90)
-endif(ENABLE_WANNIER90)
-
-######################################################################
-# lab-cosmo sphericart 
-######################################################################
-if(ENABLE_SPHERICART)
-  if(DEFINED SPHERICART)
-    set(FETCHCONTENT_SOURCE_DIR_SPHERICART ${SPHERICART})
-  endif()
-
-  #set(SPHERICART_OPENMP OFF CACHE INTERNAL "")
-  FetchContent_Declare(
-      sphericart
-      GIT_REPOSITORY https://github.com/lab-cosmo/sphericart.git 
-      GIT_TAG        main # <HASH or TAG>
-   )
-   FetchContent_MakeAvailable(sphericart)
-   add_compile_definitions(ENABLE_SPHERICART)
-endif(ENABLE_SPHERICART)
-
-######################################################################
-# Wannier90 
-######################################################################
-if(ENABLE_WANNIER90)
-  if(DEFINED WANNIER90)
-    set(FETCHCONTENT_SOURCE_DIR_WANNIER90 ${WANNIER90})
-  endif()
-
-  FetchContent_Declare(
-      Wannier90 
-      GIT_REPOSITORY https://github.com/wannier-developers/wannier90.git 
-      GIT_TAG        develop
-   )
-   FetchContent_MakeAvailable(Wannier90)
-   add_compile_definitions(ENABLE_WANNIER90)
+    # Add the include directory of the fortran compiler explicitly to ensure ISO_Fortran_binding.h 
+    # can be found when building Wannier90_lib. This is a workaround for the issue of missing 
+    # ISO_Fortran_binding.h when using clang as the C++ compiler and gfortran as the Fortran compiler, 
+    execute_process(
+      COMMAND ${CMAKE_Fortran_COMPILER} -print-file-name=include
+      OUTPUT_VARIABLE GFORTRAN_INCLUDE_DIR
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    target_include_directories(Wannier90_lib PRIVATE "${GFORTRAN_INCLUDE_DIR}")
+    add_compile_definitions(ENABLE_WANNIER90)
 endif(ENABLE_WANNIER90)
 
 ######################################################################
