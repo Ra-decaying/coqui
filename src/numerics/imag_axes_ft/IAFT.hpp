@@ -9,7 +9,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -86,15 +86,18 @@ namespace imag_axes_ft {
     template<nda::MemoryArray ndaArray_A, nda::MemoryArray ndaArray_B>
     void tau_to_w(ndaArray_A &&X_ti, ndaArray_B &&X_wi, stats_e stats) const;
 
+    template<nda::MemoryArray ndaArray_A_t, nda::MemoryArray ndaArray_B_t>
+    void tau_to_w(ndaArray_A_t &&X_wi, stats_e stats_A, ndaArray_B_t &&X_ti, stats_e stats_B) const;
+
     template<nda::MemoryArray ndaArray_A, nda::MemoryArray ndaArray_B>
     void tau_to_w(ndaArray_A &&X_ti, ndaArray_B &&Xw_i, stats_e stats, size_t iw) const;
- 
+
     /**
      * version for FT with particle-hole symmetry
      */
     template<nda::MemoryArray Array_tau_t, nda::MemoryArray Array_w_t>
     void tau_to_w_PHsym(Array_tau_t &&X_ti_pos, Array_w_t &&X_wi_pos) const;
- 
+
     /**
      * Transformation from Matsubara frequencies to imaginary times
      * @param X_wi  - [INPUT] Matsubara frequency tensor
@@ -103,16 +106,16 @@ namespace imag_axes_ft {
      */
     template<nda::MemoryArray ndaArray_A, nda::MemoryArray ndaArray_B>
     void w_to_tau(ndaArray_A &&X_wi, ndaArray_B &&X_ti, stats_e stats) const;
- 
+
     /**
      * version for FT with particle-hole symmetry
      */
     template<nda::MemoryArray Array_w_t, nda::MemoryArray Array_tau_t>
     void w_to_tau_PHsym(Array_w_t &&X_wi_pos, Array_tau_t &&X_ti_pos) const;
- 
+
     template<nda::MemoryArray ndaArray_A_t, nda::MemoryArray ndaArray_B_t>
     void w_to_tau(ndaArray_A_t &&X_wi, stats_e stats_A, ndaArray_B_t &&X_ti, stats_e stats_B) const;
- 
+
     /**
      * Partial transformation from Matsubara frequencies to imaginary times
      * X(t, ...) = sum_{n} Ttw(t, wn) * X(wn, ...) = sum_{n} X(t, ..., n)
@@ -124,7 +127,7 @@ namespace imag_axes_ft {
      */
     template<nda::MemoryArray ndaArray_A, nda::MemoryArray ndaArray_B>
     void w_to_tau_partial(ndaArray_A&& Xw_i, ndaArray_B&& X_ti, stats_e stats, size_t iwn) const;
- 
+
     /**
      * Interpolation from tau_A grid to tau_B grid with different statistics
      * @param A_ti     - [INPUT] imaginary-time tensor on tau_A grid
@@ -133,10 +136,10 @@ namespace imag_axes_ft {
      */
     template<nda::MemoryArray ndaArray_A, nda::MemoryArray ndaArray_B>
     void tau_to_tau(ndaArray_A &&A_ti, stats_e A_stats, ndaArray_B &&B_ti) const;
- 
+
     template<nda::MemoryArray ndaArray_A, nda::MemoryArray ndaArray_B>
     void tau_to_tau(ndaArray_A &&A_ti, stats_e A_stats, ndaArray_B &&Bt_i, size_t it_B) const;
- 
+
     /**
      * Interpolation from fermionic sparse sampling nodes to tau = beta^{-}.
      * This function is useful for Matsubara frequency summation: 1/beta \sum_{n} A(iwn) = -1.0 * A(tau=beta^{-})
@@ -145,7 +148,16 @@ namespace imag_axes_ft {
      */
     template<nda::MemoryArray ndaArray_A, nda::MemoryArray ndaArray_B>
     void tau_to_beta(ndaArray_A &&A_ti, ndaArray_B &&A_beta_i) const;
- 
+
+    /**
+     * Interpolation from bosonic sparse sampling nodes to tau = beta^{-} with particle-hole symmetry.
+     * This function is useful for Matsubara frequency summation: 1/beta \sum_{n} A(iwn) = -1.0 * A(tau=beta^{-})
+     * @param A_ti_pos - [INPUT] imaginary-time tensor on bosonic tau grid
+     * @param A_beta_i - [OUTPUT] imaginary-time tensor at tau = beta^{-}
+     */
+    template<nda::MemoryArray ndaArray_A, nda::MemoryArray ndaArray_B>
+    void tau_to_beta_PHsym(ndaArray_A &&A_ti_pos, ndaArray_B &&A_beta_i) const;
+
     /**
      * Interpolation from fermionic sparse sampling nodes to tau = 0^{+}.
      * This function is needed to evaluate overlap matrix inverse as S = -(G(0^{+}) + G(\beta^{-}))
@@ -153,17 +165,17 @@ namespace imag_axes_ft {
      * @param A_zero_i - [OUTPUT] imaginary-time tensor at tau = zero^{+}
      */
     template<nda::MemoryArray ndaArray_A, nda::MemoryArray ndaArray_B>
-    void tau_to_zero(ndaArray_A &&A_ti, ndaArray_B &&A_zero_i)  const;
- 
+    void tau_to_zero(ndaArray_A &&A_ti, ndaArray_B &&A_zero_i) const;
+
     template<nda::MemoryArray Array_A, typename comm_t>
     void check_leakage(Array_A &&A_ti, stats_e stats, comm_t *comm, std::string A_name) const;
- 
+
     template<nda::MemoryArray Array_A, typename comm_t>
     void check_leakage_PHsym(Array_A &&A_ti, stats_e stats, comm_t *comm, std::string A_name) const;
- 
+
     template<typename A_t>
     void check_leakage(A_t &&A_ti, stats_e stats, std::string A_name, bool PHsym=false) const;
- 
+
   private:
     std::variant<ir::IR> grid_var;
 
@@ -248,7 +260,7 @@ namespace imag_axes_ft {
   };
 
   // include definition of template member functions
-  #include"numerics/imag_axes_ft/IAFT.icc" 
+  #include"numerics/imag_axes_ft/IAFT.icc"
 } // imag_axes_ft
 
 
