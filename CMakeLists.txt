@@ -506,7 +506,7 @@ if(ENABLE_WANNIER90)
   FetchContent_Declare(
       Wannier90 
       GIT_REPOSITORY https://github.com/wannier-developers/wannier90.git 
-      GIT_TAG        c1ada05aeaa06fc4defaa2d0e837a8b5b1ea7047 #develop
+      GIT_TAG        3ff086adf9c223c140c54af7070c6e6f5871dbe9 #develop
    )
    FetchContent_MakeAvailable(Wannier90)
     # Add the include directory of the fortran compiler explicitly to ensure ISO_Fortran_binding.h 
