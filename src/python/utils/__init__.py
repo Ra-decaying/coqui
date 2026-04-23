@@ -20,5 +20,6 @@ limitations under the License.
 
 from coqui._lib.utils_module import set_verbosity
 from coqui._lib.mpi_handler import MpiHandler
+from .imag_axes_ft import IAFT
 
-__all__ = ["set_verbosity", "MpiHandler"]
+__all__ = ["set_verbosity", "MpiHandler", "IAFT"]

@@ -43,7 +43,7 @@ For the pure C++ interface, please refer to the CoQuí C++ documentation [link h
 from .version import *
 
 # Direct api for important routines
-from .utils import set_verbosity, MpiHandler
+from .utils import set_verbosity, MpiHandler, IAFT
 from .mean_field import make_mf
 from .interaction import make_thc_coulomb, make_chol_coulomb, run_isdf
 from .mbpt import run_hf, run_gw, run_qpg0w0
