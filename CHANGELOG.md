@@ -14,12 +14,23 @@
 ### Improved
 
 - Major refactor for downfolding routines to improve the API, enhance modularity, and increase code readability.
-- Renamed `downfold_local_coulomb` to `downfold_coulomb` to reflect support for non-local downfolded interactions.
 - Downfolded Coulomb interactions are now stored under `downfolded_model` h5 group within the input h5 group, e.g. `scf/iter{}` or `embed/iter{}`.
 - `IAFT` initialization from CoQui checkpoint h5.
-- Interfacing with TRIQS ModEST for quantum embedding.
+- Improved TRIQS ModEST interface for quantum embedding.
+- Improved SCF runtime controls: added `iter_alg.enable` to optionally disable iterative mixing/DIIS paths, added `mu_tolerance` for explicit chemical-potential convergence control, and added stricter checkpoint/input dataset validation for `greens_func_source`/`greens_func_iteration` workflows.
 - Examples for MLWF library and standalone modes.
 - Examples for Fourier transform on imaginary time/frequency grids on Python.
+- Chol-GW for molecules refactoring.
+- Improved divergence treatment for dielectric function, and a customized option for metallic systems. The previous default `gygi` is now an alias for `gygi_smallest_q` for backward compatibility.
+
+### Fixed
+
+- Wannier90 compilation issue due to recent updates in Wannier90 codebase. 
+
+### API Updates
+
+- Renamed MBPT/downfolding input keys from `input_type` and `input_iter` to `greens_func_source` and `greens_func_iteration`.
+- Renamed `downfold_local_coulomb` to `downfold_coulomb` to reflect support for non-local downfolded interactions.
 
 ## CoQui v0.1.0 [2026-01-23]
 
