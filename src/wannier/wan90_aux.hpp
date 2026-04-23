@@ -1286,7 +1286,8 @@ auto wannier90_library_run(utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF
   auto eigv = get_eig(mpi,mf,prefix,kp_map,band_list,write_eigv);
   eigv() /= 3.674932540e-2;
 
-  // nnkp array, returned by wann90_setup 
+  // nnkp array, returned by wann90_setup: 
+  // nearest neighbors k-point pairs for construction of the overlap matrices between differnt k-points. 
   ::nda::array<int,3> nnkp; 
 
   // projection information, returned by wann90_setup
@@ -1394,6 +1395,7 @@ auto wannier90_library_run(utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF
                 nat,at_cart_ang.data(),at_sym.extent(1),at_sym.data(),at_sym_sz.data(),
                 eigv.data(),lattv.data(),
                 mf.nkpts(),mf.kp_grid().data(),wann_kp.data(), n_neigh,
+                auto_projections, nproj_lines, proj_str.extent(1), proj_str.data(), str_len.data(),
                 Mmn.local().data(),Amn(0,nda::ellipsis{}).data(),
                 wann_center.data(),wann_spreads.data(), 
                 err);
@@ -1451,6 +1453,151 @@ inline auto wannier90_library_run_from_files(utils::mpi_context_t<mpi3::communic
   mpi.broadcast(wann_spreads);
 
   return std::make_tuple(Pkam,wann_center,wann_spreads);
+}
+
+/**
+ * Implementation of wannier_from_standalone_output: read Wannier90 standalone outputs and generate HDF5
+ */
+inline void mlwf_h5_from_wannier90_output_impl(
+  utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF &mf, ptree &pt)
+{
+  auto prefix = io::get_value<std::string>(pt, "prefix");
+  
+  if(!mpi.comm.root()) return;
+
+  // =======================================================================
+  // Check for required files and determine disentanglement
+  // =======================================================================
+  utils::check(std::filesystem::exists(prefix + "_u.mat"),
+               "wan90_aux.hpp::mlwf_h5_from_wannier90_output_impl: U matrix file not found: {}_u.mat",
+               prefix);
+  utils::check(std::filesystem::exists(prefix + "_centres.xyz"),
+               "wan90_aux.hpp::mlwf_h5_from_wannier90_output_impl: Centres file not found: {}_centres.xyz",
+               prefix);
+
+  // Auto-determine disentanglement based on file existence
+  bool use_disentangle = std::filesystem::exists(prefix + "_u_dis.mat");
+
+  app_log(2, "All required input files found.\n");
+
+  // =======================================================================
+  // Read win file to extract nwann, nband, and band_list
+  // =======================================================================
+  auto file_data = utils::read_file_to_string(prefix + ".win");
+  auto file_data_lower = io::tolower_copy(file_data);
+
+  int nwann = read_key<true, int>(file_data, "num_wann");
+  int nband = read_key<false, int>(file_data, "num_bands", nwann);
+
+  // Check consistency: if no disentanglement, nwann must equal nband
+  if(!use_disentangle) {
+    utils::check(nwann == nband,
+                 "wan90_aux.hpp::mlwf_h5_from_wannier90_output_impl: Without disentanglement, num_wann ({}) must equal num_bands ({})",
+                 nwann, nband);
+  }
+
+  // Read exclude_bands to construct band_list (same as wannier90_library_run)
+  nda::array<int, 1> band_list;
+  auto excl = read_range<false>(file_data, "exclude_bands", ",");
+  if(excl.size() > 0) {
+    const int nbnd_ = mf.nbnd();
+    int nexcl = std::count_if(excl.begin(), excl.end(), [&](auto && a) { return a > 0 and a <= nbnd_; });
+    band_list = nda::arange<int>(mf.nbnd() - nexcl);
+    nda::array<bool, 1> b(nbnd_, true);
+    for(auto n : excl)
+      if(n > 0 and n <= nbnd_) b[n - 1] = false;
+    int cnt = 0;
+    for(int i = 0; i < nbnd_; ++i)
+      if(b[i]) band_list(cnt++) = i;
+    utils::check(cnt == mf.nbnd() - nexcl, "Logic error in band_list construction");
+  } else {
+    band_list = nda::arange<int>(mf.nbnd());
+  }
+  utils::check(nband == band_list.size(),
+               "wan90_aux.hpp::mlwf_h5_from_wannier90_output_impl: Inconsistency between num_bands and exclude_bands: num_bands={}, # bands from exclude_bands={}",
+               nband, band_list.size());
+
+  // =======================================================================
+  // Read eigenvalues
+  // =======================================================================
+  auto nkpts = mf.nkpts();
+  auto nspin = mf.nspin();
+  nda::array<double, 3> eigv;
+
+  if(std::filesystem::exists(prefix + ".eig")) {
+    app_log(2, "Reading eigenvalues from {}.eig...\n", prefix);
+    // When reading from standalone Wannier90 output, the .eig file contains eigenvalues
+    // for Wannier bands (1 to nwann), not absolute band indices from DFT.
+    // Create a temporary band_list for the Wannier bands
+    auto wan_band_list = nda::arange<int>(nband);
+    eigv = read_eig_file(prefix + ".eig", nkpts, wan_band_list);
+  } else {
+    app_log(2, "Eigenvalue file not found, generating from DFT calculation\n");
+    auto kp_map = nda::arange<int>(nkpts);
+    eigv = get_eig(mpi, mf, prefix, kp_map, band_list, false);
+    // Convert Hartree -> eV for HDF5 output
+    eigv() /= 3.674932540e-2;
+  }
+
+  // =======================================================================
+  // Read U matrix
+  // =======================================================================
+  app_log(2, "Reading U matrix from {}_u.mat...\n", prefix);
+  auto U_matrix = read_u_matrix_file(prefix + "_u.mat", nkpts, nwann);
+
+  // =======================================================================
+  // Read U_dis matrix if present
+  // =======================================================================
+  nda::array<ComplexType, 3> U_dis_matrix;
+  if(use_disentangle) {
+    app_log(2, "Reading U_dis matrix from {}_u_dis.mat...\n", prefix);
+    U_dis_matrix = read_u_dis_matrix_file(prefix + "_u_dis.mat", nkpts, nband, nwann);
+  }
+
+  // =======================================================================
+  // Read Wannier centres
+  // =======================================================================
+  app_log(2, "Reading Wannier centres from {}_centres.xyz...", prefix);
+  auto wan_centres = read_wan_centres_file(prefix + "_centres.xyz", nwann);
+
+  // =======================================================================
+  // Construct projection matrix Pkwa = U_dis * U (or just U if no disentanglement)
+  // =======================================================================
+  nda::array<ComplexType, 4> Pkwa(nspin, nkpts, nwann, nband);
+  Pkwa() = ComplexType(0.0);
+
+  if(use_disentangle) {
+    // Pkwa(s, k, w, b) = sum_w' U_dis(k, b, w') * U(k, w', w)
+    auto all = nda::range::all;
+    nda::array<ComplexType, 2> tmp(nband, nwann);
+    for(long ik = 0; ik < nkpts; ik++) {
+      // tmp(b, w) = (U_dis * U)(b, w)
+      nda::blas::gemm(ComplexType(1.0), U_dis_matrix(ik, all, all), U_matrix(ik, all, all),
+                      ComplexType(0.0), tmp);
+      // transpose to match Pkwa(w, b)
+      Pkwa(0, ik, nda::ellipsis{}) = nda::transpose(tmp);
+    }
+  } else {
+    // No disentanglement: Pkwa = U^T
+    // U_matrix shape: (nkpts, nwann, nwann)
+    // Pkwa(0, :, :, :) shape: (nkpts, nwann, nband)
+    // Note: Wannier90 standalone output stores U in transposed form compared to library mode
+    for(long ik = 0; ik < nkpts; ik++) {
+      Pkwa(0, ik, nda::ellipsis{}) = nda::transpose(U_matrix(ik, nda::ellipsis{}));
+    }
+  }
+
+  // =======================================================================
+  // Prepare Wannier centres array (reshaped for write_wan90_h5)
+  // =======================================================================
+  nda::array<double, 3> R_wan(nspin, nwann, 3);
+  R_wan(0, nda::ellipsis{}) = wan_centres;
+
+  // =======================================================================
+  // Call write_wan90_h5 to generate HDF5 output
+  // =======================================================================
+  write_wan90_h5(mf, pt, band_list, eigv, Pkwa, R_wan);
+
 }
 
 } // detail

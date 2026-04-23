@@ -56,7 +56,7 @@ namespace methods {
                  "  Divergent treatment at q->0   = {}\n",
                  hartree, exchange, thc.MF()->nspin(), thc.MF()->npol(),
                  thc.MF()->nbnd(), thc.Np(), thc.MF()->nkpts(), thc.MF()->nkpts_ibz(),
-                 div_enum_to_string(_div_treatment));
+                 _div_treatment);
 
       for( auto& v: {"TOTAL", "ALLOC",
                      "PRIM_TO_AUX", "AUX_TO_PRIM",

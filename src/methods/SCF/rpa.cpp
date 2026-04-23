@@ -73,7 +73,24 @@ double rpa_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_
   Timer.start("MBPT_SOLVERS");
   if (mb_solver.hf != nullptr) {
     // Fock matrix evaluated using the KS Green's function
-    mb_solver.hf->evaluate(sF_skij, sDm_skij.local(), mb_eri.hf_eri->get(), dyson.sS_skij().local());
+    if (mb_eri.hf_eri) {
+        mb_solver.hf->evaluate(sF_skij, sDm_skij.local(),
+                               mb_eri.hf_eri->get(), dyson.sS_skij().local(), true, true);
+    } else if (mb_eri.hartree_eri and mb_eri.exchange_eri) {
+        mb_solver.hf->evaluate(sF_skij, sDm_skij.local(),
+                               mb_eri.hartree_eri->get(), dyson.sS_skij().local(), true, false);
+        // create temporary buffer for K since hf_solver.evaluate(F) performs in-place evaluation for F.
+        sArray_t<Array_view_4D_t> sK_skij(
+            math::shm::make_shared_array<Array_view_4D_t>(*mpi, sF_skij.shape()));
+        mb_solver.hf->evaluate(sK_skij, sDm_skij.local(),
+                               mb_eri.exchange_eri->get(), dyson.sS_skij().local(), false, true);
+        if (mpi->node_comm.root()) {
+          sF_skij.local() += sK_skij.local();
+        }
+    } else {
+      mb_solver.hf->evaluate(sF_skij, sDm_skij.local(), mb_eri.corr_eri->get(),
+                               dyson.sS_skij().local(), true, true);
+    }
     mpi->comm.barrier();
   }
   // RPA energy evaluated using the KS Green's function

@@ -333,7 +333,7 @@ void check_K(mpi_context_t& mpi, std::shared_ptr<mf::MF> &mfobj, double x) {
     methods::thc_reader_t thc(mfobj,
                               methods::make_thc_reader_ptree(0.0, "", "incore", "test.h5", "bdft",
                                                              1e-8, mfobj->ecutrho(), 1, 1024));
-    methods::solvers::hf_t hf(methods::ignore_g0);
+    methods::solvers::hf_t hf("ignore_g0");
 
     auto sS_skij = make_shared_array<array_view_4d_t>(
         mpi.comm, mpi.internode_comm, mpi.node_comm, {nspin, nkpts_ibz, nbnd, nbnd});

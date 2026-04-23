@@ -79,7 +79,8 @@ template<typename communicator_t, typename X_t, typename Xt_t>
 void dump_scf(communicator_t &comm, long iter,
               const X_t &Dm, const Xt_t &G,
               const X_t &F, const Xt_t &Sigma,
-              double mu, std::string output) {
+              double mu, std::string output,
+              std::string input_grp, long input_iter) {
   if (comm.root()) {
     std::string filename = output + ".mbpt.h5";
     std::string iter_grp_name = "iter" + std::to_string(iter);
@@ -89,15 +90,15 @@ void dump_scf(communicator_t &comm, long iter,
     auto iter_grp = (scf_grp.has_subgroup(iter_grp_name) )?
         scf_grp.open_group(iter_grp_name) : scf_grp.create_group(iter_grp_name);
 
-    auto Gloc = G.local();
-    auto Sloc = Sigma.local();
-    auto Floc = F.local();
-    auto Dloc = Dm.local();
+    if (input_iter==-1) input_iter = iter-1;
+
     h5::h5_write(scf_grp, "final_iter", iter);
-    nda::h5_write(iter_grp, "G_tskij", Gloc, false);
-    nda::h5_write(iter_grp, "Sigma_tskij", Sloc, false);
-    nda::h5_write(iter_grp, "F_skij", Floc, false);
-    nda::h5_write(iter_grp, "Dm_skij", Dloc, false);
+    h5::h5_write(iter_grp, "greens_func_source", input_grp);
+    h5::h5_write(iter_grp, "greens_func_iteration", input_iter);
+    nda::h5_write(iter_grp, "G_tskij", G.local(), false);
+    nda::h5_write(iter_grp, "Sigma_tskij", Sigma.local(), false);
+    nda::h5_write(iter_grp, "F_skij", F.local(), false);
+    nda::h5_write(iter_grp, "Dm_skij", Dm.local(), false);
     h5::h5_write(iter_grp, "mu", mu);
   }
   comm.barrier();
@@ -482,7 +483,7 @@ template void dump_scf(
     mpi3::communicator&, long,
     const sArray_t<Array_view_4D_t>&, const sArray_t<Array_view_5D_t>&,
     const sArray_t<Array_view_4D_t>&, const sArray_t<Array_view_5D_t>&,
-    double, std::string);
+    double, std::string, std::string, long);
 
 template void dump_scf(
     mpi3::communicator&, long,

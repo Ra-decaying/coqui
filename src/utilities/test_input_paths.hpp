@@ -123,6 +123,10 @@ inline std::tuple<std::string,std::string> utest_filename(std::string src)
     return std::make_tuple(std::string(PROJECT_SOURCE_DIR)+
                                "/tests/unit_test_files/qe/GaAs_kp222_so/",
                            std::string("pwscf"));
+  } else if (src == "qe_svo222_sym") {
+    return std::make_tuple(std::string(PROJECT_SOURCE_DIR)+
+                           "/tests/unit_test_files/qe/svo_kp222_nbnd40/out/",
+                           std::string("svo"));
   } else if (src == "bdft_lih222") {
     return std::make_tuple(std::string(PROJECT_SOURCE_DIR)+
                                "/tests/unit_test_files/bdft/lih_kp222_nbnd16/",

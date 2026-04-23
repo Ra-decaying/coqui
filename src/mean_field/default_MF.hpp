@@ -124,6 +124,11 @@ inline decltype(auto) default_MF(std::shared_ptr<utils::mpi_context_t<comm_t>>& 
     auto [outdir,prefix] = utils::utest_filename("qe_GaAs222_so");
     return default_MF(comm, mf::qe_source, outdir, prefix, h5_input_type);
 
+  } else if (src == "qe_svo222_sym") {
+
+    auto [outdir,prefix] = utils::utest_filename("qe_svo222_sym");
+    return default_MF(comm, mf::qe_source, outdir, prefix, h5_input_type);
+
   } else if (src == "bdft_lih222") {
 
     auto [outdir,prefix] = utils::utest_filename("bdft_lih222");

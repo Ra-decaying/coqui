@@ -32,10 +32,10 @@
 
 #include "utilities/Timer.hpp"
 #include "IO/app_loggers.h"
+#include "IO/ptree/ptree_utilities.hpp"
 
 #include "utilities/mpi_context.h"
 #include "mean_field/MF.hpp"
-#include "methods/ERI/div_treatment_e.hpp"
 #include "methods/SCF/mb_solver_t.h"
 #include "methods/mb_state/mb_state.hpp"
 #include "numerics/imag_axes_ft/iaft_utils.hpp"
@@ -81,7 +81,7 @@ namespace methods {
         _proj(std::in_place, MF, C_ksIai, band_window, kpts_crys, translate_home_cell),
         _Timer() {}
 
-    void dmft_embed(MBState &mb_state,
+    void dmft_embed(MBState &mb_state, simple_dyson &dyson,
                     iter_scf::iter_scf_t *iter_solver=nullptr,
                     bool qp_approx_mbpt=false, bool corr_only=false);
 
@@ -100,17 +100,13 @@ namespace methods {
      * @param qp_context    - [INPUT] quasiparticle approximation parameters
      * @param format_type   - [OPTION] Type of output: "default", "interaction_static"
      */
-    void downfolding(MBState &mb_state,
-                     bool qp_selfenergy, bool update_dc, std::string dc_type,
-                     bool force_real,
-                     qp_context_t *qp_context=nullptr,
-                     std::string format_type = "default",
-                     std::array<double, 2> sigma_mixing = {1.0,1.0});
+    void downfolding(MBState &mb_state, ptree const& pt,
+                     qp_context_t *qp_context = nullptr, std::string format_type="default");
 
     template<THC_ERI thc_t>
     void hf_downfolding(std::string outdir, std::string prefix,
                         thc_t& eri, imag_axes_ft::IAFT &ft,
-                        bool force_real, div_treatment_e hf_div_treatment=gygi);
+                        bool force_real, std::string hf_div_treatment="gygi");
 
 
     void add_Vhf_correction(MBState &mb_state);
@@ -160,10 +156,11 @@ namespace methods {
   private:
     /*** dmft_embed implementation details ***/
     void dmft_embed_logic(long gw_iter, long weiss_f_iter, long embed_iter, std::string filename);
-    void dmft_embed_impl(MBState &mb_state,
+    void dmft_embed_impl(MBState &mb_state, simple_dyson &dyson,
                          iter_scf::iter_scf_t *iter_solver=nullptr,
                          bool corr_only=false);
-    void dmft_embed_qp_impl(MBState &mb_state, iter_scf::iter_scf_t *iter_solver=nullptr);
+    void dmft_embed_qp_impl(MBState &mb_state, simple_dyson &dyson,
+                            iter_scf::iter_scf_t *iter_solver=nullptr);
 
     /*** downfold_1e implementation details ***/
     void downfold_hf_logic(long gw_iter, long weiss_f_iter, long weiss_b_iter, long embed_iter,
@@ -180,8 +177,11 @@ namespace methods {
      * @param filename - [INPUT] checkpoint h5 file
      * @param dc_type  - [INPUT] double counting type
      */
-    void downfold_mb_solution_impl(MBState &mb_state, bool update_dc, std::string dc_type,
-                                   bool force_real, std::array<double, 2> sigma_mixing = {1.0, 1.0});
+    void downfold_mb_solution_impl(
+        MBState &mb_state, bool update_dc, std::string dc_type,
+        bool force_real, std::string g_k_grp = "", long g_k_iter = -1,
+        std::array<double, 2> mixing = {1.0, 1.0},
+        std::string g_weiss_type="dmft");
 
     /**
      * Compute a downfolded 1e Hamiltonian using a many-body solution from a checkpoint h5 file.
@@ -201,7 +201,7 @@ namespace methods {
     template<THC_ERI thc_t>
     void downfold_hf_impl(std::string prefix,
                           thc_t& eri, imag_axes_ft::IAFT &ft,
-                          bool force_real, div_treatment_e hf_div_treatment=gygi);
+                          bool force_real, std::string hf_div_treatment="gygi");
 
     auto double_counting_hf_bare(h5::group &gh5_dc, h5::group &gh5_V, 
                                  long dc_iter, std::string dc_src_grp,
@@ -257,8 +257,7 @@ namespace methods {
      * @return Fermionic Weiss field g_wsIab.
      */
     auto compute_g_weiss(const nda::array<ComplexType, 5> &Gloc_wsIab,
-                         std::string filename, long weiss_f_iter,
-                         double imp_sigma_mixing = 1.0)
+                         h5::group h5_grp, long weiss_f_iter)
     -> nda::array<ComplexType, 5>;
 
     auto compute_hybridization(const nda::array<ComplexType, 5> &g_wsIab,

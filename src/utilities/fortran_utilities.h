@@ -64,10 +64,10 @@ void FC_wann90_run(char const* fname, int const& clen,
                     int const& nat, double const* at_cart, int const&, char const*, int const*,
                     double const* eival, double const* lattice_vectors,
                     int const& nk, int const* nkabc, double const* kpt, int const& nn,
-//                    int const& auto_proj, int const& nproj, int const& max_len, 
-//                    char const* proj_str, int const* str_len, 
-                    std::complex<double> * M, 
-                    std::complex<double> * Uopt, double * centers, double * spreads, 
+                    int const& auto_proj, int const& nproj, int const& max_len,
+                    char const* proj_str, int const* str_len,
+                    std::complex<double> * M,
+                    std::complex<double> * Uopt, double * centers, double * spreads,
                     int const& ierr);
 
 // Calls disentangle and wannierize, assuming existing *mmn, *amn and *win files.

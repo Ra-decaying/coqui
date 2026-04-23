@@ -160,7 +160,7 @@ nda::array<ComplexType, 4> exchange_double_counting(const nda::MemoryArrayOfRank
     std::string prefix = "__dummy_model__";
     auto mf = std::make_shared<mf::MF>(mf::MF(mf::model::make_dummy_model(mpi,nb,1.0)));
     solvers::hf_t hf;
-    solvers::gw_t gw(&ft, string_to_div_enum("ignore_g0"), prefix);
+    solvers::gw_t gw(&ft, "ignore_g0", prefix);
     chol_reader_t chol(mf, "./", chol_file, each_q, single_file);
 
     sArray_t<Array_view_5D_t> Sigma_shm(math::shm::make_shared_array<Array_view_5D_t>(

@@ -41,7 +41,9 @@ please visit our [examples](examples/README.md) page.
 - Hartree-Fock [[ref](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.3c00615)]
 - RPA correlation energy [[ref](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.3c00615)]
 - GW approximation [[ref](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.4c00085)]
-- Second-order exchange (SOX) diagram [[ref](https://arxiv.org/abs/2404.17744)]
+- Second-order exchange (SOX) diagram with bare interactions [[ref](https://doi.org/10.1063/5.0215954)]
+- Second-order screened exchange (SOSEX, 2SOSEX) diagram with statically and dynamically screened interactions [[ref](https://doi.org/10.1063/5.0269572)]
+- Vertex-corrected GW self-energy (G3W2) diagram with statically screened interactions [[ref](https://doi.org/10.1063/5.0269572)]
 - Self-consistency with quasiparticle approximation 
 - Self-consistency with full frequency dependence
 
@@ -107,13 +109,4 @@ source [YOUR_INSTALL_PREFIX]/share/coqui/coqui_env.sh
 - **Reference inputs:** Browse runnable cases in [examples](examples/README.md).
 
 ## Citation
-If you use CoQuí in your research, please consider supporting our developers 
-by citing the following papers:
-
-[1] C.-N. Yeh, M. Morales, Low-Scaling Algorithm for the Random Phase
-Approximation Using Tensor Hypercontraction with k-point Sampling,
-[J. Chem. Theory Comput. 19, 18, 6197–6207 (2023)](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.3c00615).
-
-[2] C.-N. Yeh, M. Morales, Low-Scaling Algorithms for GW and Constrained Random Phase
-Approximation Using Symmetry-Adapted Interpolative Separable Density Fitting,
-[J. Chem. Theory Comput. 20, 8, 3184–3198 (2024)](https://pubs.acs.org/doi/abs/10.1021/acs.jctc.4c00085). 
+If you use `CoQui` in your research, please cite the relevant papers listed in [REFERENCES.md](REFERENCES.md).

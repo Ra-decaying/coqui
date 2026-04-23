@@ -32,7 +32,6 @@
 
 #include "mean_field/MF.hpp"
 #include "methods/ERI/detail/concepts.hpp"
-#include "methods/ERI/div_treatment_e.hpp"
 
 namespace methods {
   namespace solvers {
@@ -59,7 +58,7 @@ namespace methods {
       using shape_t = std::array<long,N>;
 
     public:
-      hf_t(div_treatment_e div = gygi);
+      hf_t(std::string div = "gygi");
 
       ~hf_t() = default;
 
@@ -119,14 +118,30 @@ namespace methods {
       void HF_K_correction(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij, 
                            const nda::MemoryArrayOfRank<4> auto &S_skij, double madelung);
 
-      div_treatment_e& div_treatmemnt() { return _div_treatment; }
+      std::string& div_treatment() { return _div_treatment; }
       void print_chol_hf_timers(); 
       void print_thc_hf_timers(); 
 
     private:
-      div_treatment_e _div_treatment;
+      std::string _div_treatment;
 
       utils::TimerManager _Timer;
+
+      /**
+       * Single k-point (molecular) Coulomb matrix J w/o SOC from Cholesky-type ERIs.
+       * Uses real arithmetic since integrals are real for molecules and Gamma-only cases.
+       */
+      template<nda::MemoryArray AF_t>
+      void add_J_mol(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij,
+                     Cholesky_ERI auto &&chol);
+
+      /**
+       * Single k-point (molecular) exchange matrix K w/o SOC from Cholesky-type ERIs.
+       * Uses real arithmetic since integrals are real for molecules and Gamma-only cases.
+       */
+      template<nda::MemoryArray AF_t>
+      auto add_K_mol(sArray_t<AF_t> &sF_skij, const nda::MemoryArrayOfRank<4> auto &Dm_skij,
+                     Cholesky_ERI auto &&chol, const nda::MemoryArrayOfRank<4> auto &S_skij);
 
       /**
        * THC-HF implementation for q-independent interpolating points

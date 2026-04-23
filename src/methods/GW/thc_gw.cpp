@@ -35,7 +35,6 @@
 #include "mean_field/MF.hpp"
 #include "methods/ERI/detail/concepts.hpp"
 #include "methods/HF/thc_solver_comm.hpp"
-#include "methods/ERI/div_treatment_e.hpp"
 #include "methods/GW/g0_div_utils.hpp"
 
 #include "methods/ERI/thc_reader_t.hpp"
@@ -59,7 +58,7 @@ namespace methods {
                    "  Divergent treatment at q->0   = {}\n",
                 mb_state.screen_type,
                 thc.MF()->nbnd(), thc.Np(), thc.MF()->nkpts(), thc.MF()->nkpts_ibz(),
-                div_enum_to_string(_div_treatment));
+                _div_treatment);
         _ft->metadata_log();
       }
       utils::check(mb_state.mpi == thc.mpi(),
@@ -125,7 +124,7 @@ namespace methods {
                    "  divergent treatment at q->0 = {}\n",
                 scr_eri->screen_type(),
                 thc.MF()->nbnd(), thc.Np(), thc.MF()->nkpts(), thc.MF()->nkpts_ibz(),
-                div_enum_to_string(_div_treatment));
+                _div_treatment);
         _ft->metadata_log();
       }
       utils::check(_ft->nt_f() == _ft->nt_b(),

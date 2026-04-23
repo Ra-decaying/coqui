@@ -119,5 +119,32 @@ namespace wannier {
    */  
   void append_wannier90_win(mf::MF &mf, ptree &pt); 
 
+  /**
+   * Read Wannier90 standalone mode outputs and generate MLWF HDF5 file
+   *
+   * Reads eigenvalues, U and U_dis matrices, and Wannier centres from standalone
+   * Wannier90 calculations and converts them into CoQuí's HDF5 format.
+   *
+   * @param mf - [INPUT] mean-field instance for system metadata
+   * @param pt - [INPUT] property tree with input options
+   *
+   * Input options:
+   * Required:
+   *  - prefix                     [string] Wannier90 file name prefix (seedname)
+   * Optional:
+   *  - h5_filename                [string] Output HDF5 filename. Default: prefix.mlwf.h5
+   *  - dset_name                  [string] Dataset name in HDF5. Default: "dft_input"
+   *  - shells.atoms, shells.sort, shells.l, shells.dim, shells.SO, shells.irrep
+   *                               [array]  Shell information for orbitals
+   *
+   * Input files:
+   *  - seedname.win               [required] Wannier90 input file (used to read num_wann, num_bands, exclude_bands)
+   *  - seedname.eig               [optional] Eigenvalues file. If not present, computed from the MF object.
+   *  - seedname_u.mat             [required] Unitary projection matrix 
+   *  - seedname_u_dis.mat         [optional] Disentanglement matrix (auto-detected)
+   *  - seedname_centres.xyz       [required] Wannier function centres
+   */
+  void mlwf_h5_from_wannier90_output(mf::MF &mf, ptree &pt);
+
 }
 #endif

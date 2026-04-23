@@ -50,11 +50,11 @@ namespace methods {
                  "  divergent treatment at q->0 = {}\n",
               hartree, exchange,
               chol.MF()->nbnd(), chol.Np(), chol.MF()->nkpts(), chol.MF()->nkpts_ibz(),
-              div_enum_to_string(_div_treatment));
+              _div_treatment);
       utils::check(chol.MF()->nkpts() == chol.MF()->nkpts_ibz(), "hf_t::cholesky_hf::evaluate: Symmetry not yet implemented.");
 
       for( auto& v: {"TOTAL", "ALLOC",
-                     "COULOMB", "EXCHANGE"} ) {
+                     "COULOMB", "EXCHANGE", "CHOL", "CHOL J", "CHOL K", "J BLAS", "K BLAS"} ) {
         _Timer.add(v);
       }
 

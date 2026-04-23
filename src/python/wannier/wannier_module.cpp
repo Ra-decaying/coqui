@@ -54,6 +54,13 @@ namespace coqui_py::wannier_interface {
     wannier::append_wannier90_win(coqui_mf,pt);
   }
 
+  void mlwf_h5_from_wannier90_output(const Mf &mf, const std::string &params) {
+    auto parser = InputParser(params);
+    auto pt = parser.get_root();
+    auto& coqui_mf = *mf.get_mf();
+    wannier::mlwf_h5_from_wannier90_output(coqui_mf, pt);
+  }
+
 } // coqui_py::wannier_interface
 
 
