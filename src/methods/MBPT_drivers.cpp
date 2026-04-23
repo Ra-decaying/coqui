@@ -68,7 +68,7 @@ inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& out
 
   } else if (greens_func_source == "mf" and not std::filesystem::exists(output+".mbpt.h5")) {
     
-    imag_axes_ft::IAFT ft(pt, false);
+    imag_axes_ft::IAFT ft(pt, false, mf::wmax_from_mf(*mf));
     hamilt::pseudopot psp(*mf);
     write_mf_data(*mf, ft, psp, output);
   
@@ -90,7 +90,8 @@ inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& out
  * Many-body perturbation calculations from a given mean-field and ERI objects with arguments in property tree.
  * Optional arguments (with default values):
  *  - beta: "1000" Inverse temperature (a.u.)
- *  - wmax: "12.0" Frequency cutoff for the IAFT grids (a.u.)
+ *  - wmax: Optional. Frequency cutoff for the IAFT grids (a.u.).
+ *          If not provided, wmax is estimated from mean_field. 
  *  - iaft_prec: "high" Precision of IAFT grids. {choices: "high", "medium", "low"}
  *  - div_treatment: "gygi" Divergent treatment for Coulomb kernel. {choices: "ignore_g0", "gygi"}
  *  - hf_div_treatment: "gygi" Divergent treatment for Coulomb kernel in HF. {choices: "ignore_g0", "gygi"}
@@ -146,7 +147,10 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     app_log(1, "╚══════════════════════════════════════════════════════════╝\n");
   }
 
-  imag_axes_ft::IAFT ft( !restart? pt : imag_axes_ft::read_iaft(output+".mbpt.h5") );
+  imag_axes_ft::IAFT ft(
+    !restart ? imag_axes_ft::IAFT(pt, false, mf::wmax_from_mf(*mf))
+             : imag_axes_ft::read_iaft(output+".mbpt.h5", false)
+  );
 
   std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
 
@@ -378,7 +382,10 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
 
   auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
 
-  imag_axes_ft::IAFT ft( !restart? pt : imag_axes_ft::read_iaft(output+".mbpt.h5"));
+  imag_axes_ft::IAFT ft(
+    !restart ? imag_axes_ft::IAFT(pt, false, mf::wmax_from_mf(*mf))
+             : imag_axes_ft::read_iaft(output+".mbpt.h5", false)
+  );
 
   std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
 

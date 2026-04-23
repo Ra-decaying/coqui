@@ -251,4 +251,38 @@ namespace bdft_tests {
 #endif
   }
 
+  TEST_CASE("iaft_wmax_default_and_override", "[iaft][ir][dlr]") {
+    double beta = 200.0;
+
+    SECTION("use default_wmax_when_missing") {
+      ptree pt;
+      pt.put("beta", beta);
+      pt.put("iaft.basis", "ir");
+      pt.put("iaft.prec", "high");
+
+      imag_axes_ft::IAFT iaft_default_1(pt, false, 0.5);
+      imag_axes_ft::IAFT iaft_default_2(pt, false, 3.0);
+
+      REQUIRE(iaft_default_1.wmax() == Approx(imag_axes_ft::IAFT(beta, 0.5, imag_axes_ft::ir_basis, "high", false).wmax()));
+      REQUIRE(iaft_default_2.wmax() == Approx(imag_axes_ft::IAFT(beta, 3.0, imag_axes_ft::ir_basis, "high", false).wmax()));
+      REQUIRE(iaft_default_1.wmax() != Approx(iaft_default_2.wmax()));
+    }
+
+    SECTION("explicit_wmax_over_default_values") {
+      ptree pt;
+      pt.put("beta", beta);
+      pt.put("iaft.basis", "ir");
+      pt.put("iaft.prec", "high");
+      pt.put("iaft.wmax", 1.2);
+
+      imag_axes_ft::IAFT iaft_default_1(pt, false, 0.5);
+      imag_axes_ft::IAFT iaft_default_2(pt, false, 3.0);
+
+      auto iaft_ref = imag_axes_ft::IAFT(beta, 1.2, imag_axes_ft::ir_basis, "high", false);
+      REQUIRE(iaft_default_1.wmax() == Approx(iaft_ref.wmax()));
+      REQUIRE(iaft_default_2.wmax() == Approx(iaft_ref.wmax()));
+    }
+
+  }
+
 } // bdft_tests
