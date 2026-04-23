@@ -175,20 +175,20 @@ class DMFTState(object):
     # TODO make_dmft_state without an existing coqui_h5. Directly take the IR parameters as input. 
     @classmethod
     def make_dmft_state(cls, coqui_h5, embedding_1e, embedding_2e,
-                        wmax_imp=None, prec_imp=None, spin_average=False,
+                        wmax_imp=None, eps_imp=None, spin_average=False,
                         screen_type='gw_edmft', verbal=False):
         from triqs.gf import MeshDLRImFreq
         ir_kernel = IAFT.from_coqui_chkpt(coqui_h5, verbose=verbal)
         # Compatible TRIQS meshes: one for fermion and one for boson, where all triqs Gfs live.
         if wmax_imp is None:
             wmax_imp = ir_kernel.wmax
-        if prec_imp is None:
-            prec_imp = ir_kernel.prec
+        if eps_imp is None:
+            eps_imp = ir_kernel.eps
         iw_mesh_f = MeshDLRImFreq(
-            beta=ir_kernel.beta, statistic='Fermion', w_max=wmax_imp, eps=prec_imp, symmetrize=True
+            beta=ir_kernel.beta, statistic='Fermion', w_max=wmax_imp, eps=eps_imp, symmetrize=True
         )
         iw_mesh_b = MeshDLRImFreq(
-            beta=ir_kernel.beta, statistic='Boson', w_max=wmax_imp, eps=prec_imp, symmetrize=True
+            beta=ir_kernel.beta, statistic='Boson', w_max=wmax_imp, eps=eps_imp, symmetrize=True
         )
         return cls(embedding_1e, embedding_2e, iw_mesh_f, iw_mesh_b,
                    ir_kernel, spin_average, screen_type, verbal)

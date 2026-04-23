@@ -82,7 +82,7 @@ def run_gw_edmft(mf, thc, proj_info, embedding_1e, inner_loop_alg=1, **gw_edmft_
     dmft_state = coqui_dmft.DMFTState.make_dmft_state(
         coqui_chkpt_h5, embedding_1e, embedding_2e,
         wmax_imp=impurity_params.pop('dlr_wmax', None),
-        prec_imp=impurity_params.pop('dlr_eps', None),
+        eps_imp=impurity_params.pop('dlr_eps', None),
         spin_average=mf.nspin()==1,
         screen_type=wloc_params['screen_type'],
         verbal=coqui_mpi.root()
@@ -598,7 +598,7 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
     )
 
     ir_kernel = IAFT.from_coqui_chkpt(imp_params['chkpt_h5'], verbose=coqui_mpi.root())
-    wmax_imp, prec_imp = imp_params.pop('dlr_wmax', ir_kernel.wmax), imp_params.pop('dlr_eps', ir_kernel.prec)
+    wmax_imp, eps_imp = imp_params.pop('dlr_wmax', ir_kernel.wmax), imp_params.pop('dlr_eps', ir_kernel.eps)
 
     solver_inputs = coqui_dmft.read_impurity_chkpt(
         imp_params['chkpt_h5'], dmft_iteration, read="inputs", impurity_indices=imp_indices
@@ -641,7 +641,7 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
         h0, delta_iw, h_int, u_weiss_iw = coqui_dmft.to_triqs_containers(
             Input['h0'], Input['delta_iw'], Input['Vloc'], Input['u_weiss_iw'],
             ir_kernel, gf_struct = Input['gf_struct'],
-            triqs_iw_mesh = {"dlr_wmax": wmax_imp, "dlr_eps": prec_imp},
+            triqs_iw_mesh = {"dlr_wmax": wmax_imp, "dlr_eps": eps_imp},
             density_hamiltonian = True, real_hamiltonian = True,
             screen_j_in_u_dd = solver_params.get('screen_j', False)
         )

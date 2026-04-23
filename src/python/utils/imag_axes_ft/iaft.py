@@ -18,19 +18,21 @@ limitations under the License.
 ==========================================================================
 """
 
-import sys
 import numpy as np
+
+from .iaft_sparse_ir import _IAFTIRAdapter
 
 try:
     from coqui._lib.iaft_module import IAFT as IAFTCpp
     from coqui._lib.iaft_module import build_g_tau_ref, build_g_iw_ref
     from coqui._lib.iaft_module import string_to_basis_enum
-    from .iaft_sparse_ir import _IAFTIRAdapter
-except ImportError:
-    raise ImportError(
-        "DLR backend requires IAFTCpp binding from CoQuí C++ library. "
-        "Please rebuild CoQuí with 'COQUI_UPDATE_PYTHON_BINDINGS=ON'. "
-    )
+    _IAFT_CPP_IMPORT_ERROR = None
+except ImportError as exc:
+    IAFTCpp = None
+    build_g_tau_ref = None
+    build_g_iw_ref = None
+    string_to_basis_enum = None
+    _IAFT_CPP_IMPORT_ERROR = exc
 
 """
 Kernel for Fourier transform on the imaginary axis, supporting both IR and DLR basis. 
@@ -117,6 +119,12 @@ class _IAFTCppAdapter(object):
         :param basis: str
             C++ backend basis, one of {"dlr", "ir"}
         """
+
+        if IAFTCpp is None or string_to_basis_enum is None:
+            raise ImportError(
+                "DLR backend requires IAFTCpp binding from CoQuí C++ library. "
+                "Please rebuild CoQuí with 'COQUI_UPDATE_PYTHON_BINDINGS=ON'. "
+            ) from _IAFT_CPP_IMPORT_ERROR
 
         self.basis = basis
         self.beta = beta
@@ -382,18 +390,16 @@ class _IAFTCppAdapter(object):
     def check_leakage(self, Ot, stats: str, name: str="", w_input: bool=False):
         """
         Check decay of the C++-backend coefficients to assess basis quality.
-        Raises NotImplementedError; pending C++ implementation.
+        Intentionally no operation until C++ leakage diagnostics in DLR are implemented.
         """
-        raise NotImplementedError("check_leakage method not yet implemented for C++ backend; "
-                                 "pending C++ implementation")
+        return None
 
     def check_leakage_phsym(self, Ot, stats: str, name: str="", w_input: bool=False):
         """
         Check decay of the C++-backend coefficients w/ particle-hole symmetry.
-        Raises NotImplementedError; pending C++ implementation.
+        Intentionally no operation until C++ leakage diagnostics in DLR are implemented.
         """
-        raise NotImplementedError("check_leakage_phsym method not yet implemented for C++ backend; "
-                                 "pending C++ implementation")
+        return None
 
 
 class IAFT(object):
@@ -607,6 +613,10 @@ class IAFT(object):
         :param ph_sym: if True, only the first half of tau points is constructed (particle-hole symmetry).
         :return: numpy array of shape (nt, norb, norb).
         """
+        if build_g_tau_ref is None:
+            raise ImportError(
+                "build_g_tau_ref requires IAFTCpp binding from CoQuí C++ library."
+            ) from _IAFT_CPP_IMPORT_ERROR
         return build_g_tau_ref(self.tau_mesh(stats), self.beta, norb, ph_sym)
 
 
@@ -623,6 +633,10 @@ class IAFT(object):
         :return: numpy array of shape (nw, norb, norb).
         """
         stats = _normalize_stats(stats)
+        if build_g_iw_ref is None:
+            raise ImportError(
+                "build_g_iw_ref requires IAFTCpp binding from CoQuí C++ library."
+            ) from _IAFT_CPP_IMPORT_ERROR
         return build_g_iw_ref(self.wn_mesh(stats), self.beta, stats, norb, ph_sym)
 
 
