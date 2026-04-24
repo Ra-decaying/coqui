@@ -52,17 +52,11 @@ def _validate_accuracy_args(basis: str, prec, eps):
         if float(eps) <= 0.0:
             raise ValueError("'eps' must be positive.")
 
-    if basis == "ir":
-        if eps is not None:
-            raise ValueError("IR basis accepts only 'prec'; 'eps' is not supported.")
-        if prec is None:
-            raise ValueError("IR basis requires 'prec'.")
-    else:
-        if prec is None and eps is None:
-            raise ValueError("DLR basis requires at least one of 'prec' or 'eps'.")
+    if prec is None and eps is None:
+        raise ValueError("IAFT requires at least one of 'prec' or 'eps'.")
 
-        if prec == "custom" and eps is None:
-            raise ValueError("For DLR, prec='custom' requires 'eps'.")
+    if prec == "custom" and eps is None:
+        raise ValueError("`eps` must be provided when prec='custom'.")
 
 
 def _validate_prec_string(precision):
@@ -212,14 +206,13 @@ class _IAFTCppAdapter(object):
         return ""
 
     def __eq__(self, other):
-        if not isinstance(other, _IAFTCppAdapter):
-            return NotImplemented
         return (
-                self.beta == other.beta and
-                self.lmbda == other.lmbda and
-                self.prec == other.prec and
-                self.eps == other.eps and
-                self.basis == other.basis
+            isinstance(other, _IAFTCppAdapter) and
+            self.beta == other.beta and
+            self.wmax == other.wmax and 
+            self.lmbda == other.lmbda and
+            self.eps == other.eps and
+            self.basis == other.basis
         )
 
     def tau_mesh(self, stats: str):
@@ -443,7 +436,7 @@ class IAFT(object):
                     "IR backend requires sparse_ir library. "
                     "Please install with: pip install sparse-ir[xprec]==1.1.7"
                 )
-            self._impl = _IAFTIRAdapter(beta, wmax, prec, verbose)
+            self._impl = _IAFTIRAdapter(beta, wmax, prec=prec, eps=eps, verbose=verbose)
         else:  # basis == "dlr"
             self._impl = _IAFTCppAdapter(beta, wmax, prec=prec, eps=eps, verbose=verbose, basis="dlr")
 
@@ -532,13 +525,8 @@ class IAFT(object):
                 wmax = ir_lambda / beta
             # Prefer basis metadata; fall back to source for backward compatibility.
             basis = iaft_grp['basis'] if 'basis' in iaft_grp else (iaft_grp['source'] if 'source' in iaft_grp else "ir")
-
-        if basis == "ir":
-            return cls(beta, wmax, prec=prec, verbose=verbose, basis=basis)
-        elif basis == "dlr":
-            return cls(beta, wmax, prec=prec, eps=eps, verbose=verbose, basis=basis)
-        else:
-            raise ValueError("iaft.py::IAFT.from_coqui_chkpt: unknown basis '{}' in checkpoint".format(basis))
+        
+        return cls(beta, wmax, prec=prec, eps=eps, verbose=verbose, basis=basis)
 
     def save(self, h5_grp):
         """
@@ -554,9 +542,7 @@ class IAFT(object):
         return self._impl.__str__()
 
     def __eq__(self, other):
-        if not isinstance(other, IAFT):
-            return NotImplemented
-        return self._impl == other._impl
+        return (isinstance(other, IAFT) and self._impl == other._impl)
 
     # Delegate all transform methods
     def wn_mesh(self, stats: str, ir_notation: bool=True, *, positive_only=False):

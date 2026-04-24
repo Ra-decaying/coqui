@@ -389,6 +389,7 @@ namespace bdft_tests {
     solve_gdf_thc_hf(mf, gdf_dir);
   }
 
+#ifdef ENABLE_DLR
   TEST_CASE("thc_hf_dlr_vs_ir", "[methods][thc][hf][qe][iaft][dlr][ir]") {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
@@ -427,5 +428,6 @@ namespace bdft_tests {
       solve_thc_hf(mf, -4.287485045424232);
     }
   }
+#endif
 
 } // bdft_tests

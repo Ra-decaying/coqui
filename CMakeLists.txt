@@ -535,7 +535,7 @@ if(ENABLE_DLR)
   FetchContent_Declare(
       cppdlr
       GIT_REPOSITORY https://github.com/flatironinstitute/cppdlr.git
-      GIT_TAG        main
+      GIT_TAG        f6bd6ab1823403015486c2c6b3399fd4db4468c1 #main
   )
   FetchContent_MakeAvailable(cppdlr)
   # temporary workaround before cppdlr's nda dependency is updated. 

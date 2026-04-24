@@ -192,10 +192,13 @@ inline std::string get_mf(const std::shared_ptr<utils::mpi_context_t<comm_t>> &m
 inline double wmax_from_mf(const MF& mf, double padding_factor = 1.5)
 {
   auto ev = mf.eigval();
-  double emin = *std::min_element(ev.data(), ev.data() + ev.size());
-  double emax = *std::max_element(ev.data(), ev.data() + ev.size());
+  auto [it_min, it_max] = std::minmax_element(ev.data(), ev.data() + ev.size());
+  double emin = *it_min, emax = *it_max;
   double ef   = mf.efermi();
   double wmax = std::max(std::abs(emax - ef), std::abs(emin - ef));
+  if (wmax <= 0.0) {
+    utils::check(false, "Error in wmax_from_mf: non-positive bandwidth detected. Cannot determine wmax from the spectrum of the MF object.");
+  }
   return padding_factor * wmax;
 }
 

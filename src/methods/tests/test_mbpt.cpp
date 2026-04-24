@@ -41,14 +41,17 @@ namespace bdft_tests {
 
       ptree pt;
       pt.put("beta", 1000.0);
-      pt.put("iaft_basis", "dlr");
-      pt.put("iaft_prec", "high");
+#ifdef ENABLE_DLR
+      pt.put("iaft.basis", "dlr");
+#else
+      pt.put("iaft.prec", "high");
+#endif
 
       auto ft_ref = imag_axes_ft::IAFT(pt, true, mf::wmax_from_mf(*mf));
       auto wmax_ref = ft_ref.wmax();
 
       auto in_pt2 = pt;
-      in_pt2.put("iaft_wmax", wmax_ref);
+      in_pt2.put("iaft.wmax", wmax_ref);
       auto ft = imag_axes_ft::IAFT(in_pt2, true, mf::wmax_from_mf(*mf) * 100.0);
 
       REQUIRE(ft.wmax() == Approx(ft_ref.wmax()));

@@ -50,7 +50,7 @@ namespace methods {
    * Optional arguments for pp_type = ac (analytical continuation):
    *   - ac_alg: algorithm for analytical continuation, allowed options: pade
    *   - dataset: input dataset
-  *   - stats: statistics, allowed options: fermion, boson
+   *   - stats: statistics, allowed options: fermion, boson
    *   - w_min: minimum real frequency
    *   - w_max: maximum real frequency
    *   - Nw: number of real frequency points

@@ -72,7 +72,7 @@ def compare_sparse_ir_h5(wmax: float, prec: str):
     :param prec: "low" (1e-6), "medium" (1e-10), "high" (1e-15)
     """
     ir = IAFT(beta=1.0, wmax=wmax, prec=prec)
-    with HDFArchive(ir_filename(ir.lmbda, ir.prec), "r") as ar:
+    with HDFArchive(ir_filename(ir.lmbda, ir.eps), "r") as ar:
         tau_mesh = ar["fermion"]["tau_mesh"]
         wn_mesh = ar["fermion"]["wn_mesh"]
         assert np.allclose(tau_mesh, ir.tau_mesh(stats="f"), atol=1e-12)
@@ -113,6 +113,8 @@ def test_ir_compatibility():
 ])
 def test_fourier_transform(stats, ph_sym, basis):
     """G(tau) and G(iw) returned by the two builders should be consistent via IAFT."""
+    if basis == "dlr":
+        pytest.importorskip("coqui._lib.iaft_module")
     norb = 2
     beta = 5.0
     iaft = IAFT(beta=beta, wmax=100.0, prec="high", basis=basis)
@@ -168,33 +170,42 @@ def test_fourier_transform(stats, ph_sym, basis):
         )
 
 
-def test_iaft_ir_rejects_eps():
-    with pytest.raises(ValueError, match="IR basis accepts only 'prec'"):
-        IAFT(beta=5.0, wmax=10.0, eps=1e-10, basis="ir")
-
-
-def test_iaft_dlr_requires_at_least_one_accuracy_arg():
+@pytest.mark.parametrize("basis", [
+    ("dlr"),
+    ("ir"),
+])
+def test_iaft_requires_at_least_one_accuracy_arg(basis):
     with pytest.raises(ValueError, match="at least one of 'prec' or 'eps'"):
-        IAFT(beta=5.0, wmax=10.0, prec=None, eps=None, basis="dlr")
+        IAFT(beta=5.0, wmax=10.0, prec=None, eps=None, basis=basis)
 
-
-def test_iaft_dlr_prefers_prec_when_both_and_prec_not_custom():
-    iaft = IAFT(beta=5.0, wmax=10.0, prec="high", eps=1e-11, basis="dlr", verbose=False)
-    assert iaft.prec == "high"
-    assert iaft.eps == pytest.approx(1e-13)
+@pytest.mark.parametrize("basis", [
+    ("dlr"),
+    ("ir"),
+])
+def test_iaft_prefers_prec_when_both_and_prec_not_custom(basis):
+    iaft = IAFT(beta=5.0, wmax=10.0, prec="low", eps=1e-11, basis=basis, verbose=False)
+    assert iaft.prec == "low"
+    assert iaft.eps == pytest.approx(1e-6)
 
 
 # meaning that "custom" is redundant when eps is provided. 
-def test_iaft_dlr_prefers_eps_when_both_and_prec_custom():
-    iaft = IAFT(beta=5.0, wmax=10.0, prec="custom", eps=1e-11, basis="dlr", verbose=False)
+@pytest.mark.parametrize("basis", [
+    ("dlr"),
+    ("ir"),
+])
+def test_iaft_prefers_eps_when_both_and_prec_custom(basis):
+    iaft = IAFT(beta=5.0, wmax=10.0, prec="custom", eps=3e-4, basis=basis, verbose=False)
     assert iaft.prec == "custom"
-    assert iaft.eps == pytest.approx(1e-11)
+    assert iaft.eps == pytest.approx(3e-4)
 
-
-def test_iaft_dlr_accepts_eps_and_roundtrips_checkpoint():
-    iaft = IAFT(beta=5.0, wmax=10.0, prec=None, eps=1e-11, basis="dlr", verbose=False)
+@pytest.mark.parametrize("basis", [
+    ("dlr"),
+    ("ir"),
+])
+def test_iaft_accepts_eps_and_roundtrips_checkpoint(basis):
+    iaft = IAFT(beta=5.0, wmax=10.0, prec=None, eps=1e-4, basis=basis, verbose=False)
     assert iaft.prec == "custom"
-    assert iaft.eps == pytest.approx(1e-11)
+    assert iaft.eps == pytest.approx(1e-4)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         chkpt = os.path.join(tmpdir, "iaft_test.h5")
@@ -203,15 +214,16 @@ def test_iaft_dlr_accepts_eps_and_roundtrips_checkpoint():
 
         with HDFArchive(chkpt, 'r') as ar:
             iaft_grp = ar['imaginary_fourier_transform']
-            assert iaft_grp['basis'] == 'dlr'
+            assert iaft_grp['basis'] == basis
 
         restored = IAFT.from_coqui_chkpt(chkpt, verbose=False)
         assert restored == iaft
-        assert restored.eps == pytest.approx(1e-11)
+        assert restored.eps == pytest.approx(1e-4)
         assert restored.prec == "custom"
 
 
-def test_iaft_restores_from_legacy_source_checkpoint():
+def test_iaft_restores_from_ir_checkpoint():
+    # This test checks that the old checkpoint format with "source" field is still compatible. 
     with tempfile.TemporaryDirectory() as tmpdir:
         chkpt = os.path.join(tmpdir, "iaft_legacy_source.h5")
         with HDFArchive(chkpt, 'w') as ar:
@@ -219,11 +231,15 @@ def test_iaft_restores_from_legacy_source_checkpoint():
             iaft_grp = ar['imaginary_fourier_transform']
             iaft_grp['beta'] = 5.0
             iaft_grp['wmax'] = 10.0
-            iaft_grp['prec'] = 'high'
+            iaft_grp['prec'] = 'low'
             iaft_grp['source'] = 'ir'
 
         restored = IAFT.from_coqui_chkpt(chkpt, verbose=False)
         assert restored.beta == pytest.approx(5.0)
-        assert restored.wmax == pytest.approx(10.0)
-        assert restored.prec == 'high'
+        # Since IR basis was pre-generated with a set of lambda values, IAFT with IR backend will 
+        # on-the-fly determine the most appropriate lambda and recalculate wmax based on the lambda 
+        # and beta. Therefore, restored.wmax should not be 10.0 as in the checkpoint, but rather 
+        # wmax = 20.0 corresponding to lambda = 100.0 and beta=5.0.
+        assert restored.wmax == pytest.approx(20.0)
+        assert restored.prec == 'low'
         assert restored.basis == 'ir'

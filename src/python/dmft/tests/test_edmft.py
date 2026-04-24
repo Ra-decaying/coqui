@@ -35,6 +35,8 @@ from coqui.utils.imag_axes_ft import IAFT
 @pytest.fixture(scope="module", params=["ir", "dlr"])
 def downfold_inputs(mpi, request):
     iaft_basis = request.param
+    if iaft_basis == "dlr":
+        pytest.importorskip("coqui._lib.iaft_module")
     prefix = f"svo_{iaft_basis}"
     chkpt_h5 = f"./{prefix}.mbpt.h5"
     wan_h5 = coqui.TEST_INPUT_DIR + "qe/svo_kp222_nbnd40/mlwf/svo.mlwf.h5"

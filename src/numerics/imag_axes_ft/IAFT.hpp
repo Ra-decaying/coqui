@@ -61,29 +61,26 @@ namespace imag_axes_ft {
     // TODO check "iaft" child ptree for IAFT parameters and fall back to the old interface if "iaft" child ptree does not exist.
     C2PY_IGNORE
     IAFT(ptree const& pt, bool print_meta_log = false, double wmax_default = 10.0) {
-      
-      const ptree* iaft_pt = nullptr;
 
-      for (auto const& it : pt) {
-        if (it.first == "iaft") {
-          iaft_pt = &it.second;
+      bool iaft_pt_exists = false;
+      auto child_pt = pt.get_child_optional("iaft");
+      if (child_pt) {
+        iaft_pt_exists = true;
+        auto iaft_pt = child_pt.get();
+        auto eps = read_eps_option(iaft_pt, "eps");
+        auto prec = read_prec_option(iaft_pt, "prec", eps.has_value() ? std::nullopt : std::optional<std::string>{"high"});
 
-          auto eps = read_eps_option(*iaft_pt, "eps");
-          auto prec = read_prec_option(*iaft_pt, "prec", eps.has_value() ? std::nullopt : std::optional<std::string>{"high"});
-
-          init_grid_variant(
-            io::get_value_with_default<double>(pt,"beta",1000.0), 
-            io::get_value_with_default<double>(*iaft_pt,"wmax",wmax_default), 
-            string_to_basis_enum(io::get_value_with_default<std::string>(*iaft_pt, "basis", "ir")), 
-            prec,
-            eps,
-            print_meta_log
-          );
-          break;
-        }
+        init_grid_variant(
+          io::get_value_with_default<double>(pt,"beta",1000.0), 
+          io::get_value_with_default<double>(iaft_pt,"wmax",wmax_default), 
+          string_to_basis_enum(io::get_value_with_default<std::string>(iaft_pt, "basis", "ir")), 
+          prec,
+          eps,
+          print_meta_log
+        );
       }
 
-      if (iaft_pt == nullptr) {
+      if (not iaft_pt_exists) {
         // Fall back to the old interface if "iaft" child ptree does not exist.
         auto eps = read_eps_option(pt, "iaft_eps");
         auto prec = read_prec_option(pt, "iaft_prec", eps.has_value() ? std::nullopt : std::optional<std::string>{"high"});

@@ -22,22 +22,22 @@ import sys
 import numpy as np
 
 
-def set_precision(precision):
-    if isinstance(precision, str):
-        if precision == "high":
+def set_epsilon(prec_str: str):
+    if isinstance(prec_str, str):
+        if prec_str == "high":
             return 1e-15
-        elif precision == "medium":
+        elif prec_str == "medium":
             return 1e-10
-        elif precision == "low":
+        elif prec_str == "low":
             return 1e-6
         else:
-            raise ValueError("Unknown precision value: {}. ")
-    return precision
+            raise ValueError(f"Unknown precision string: {prec_str}. Acceptable options are 'high', 'medium', and 'low'.")
+    return -1.0
 
 
 def set_lambda(lmbda, coqui_cxx_style=False):
     if coqui_cxx_style:
-        if lmbda <= 100:
+        if lmbda > 0 and lmbda <= 100:
             return 100
         elif lmbda > 100 and lmbda <= 1000:
             return 1000
@@ -48,8 +48,7 @@ def set_lambda(lmbda, coqui_cxx_style=False):
         elif lmbda > 100000 and lmbda <= 1000000:
             return 1000000
         else:
-            raise ValueError("Invalid lambda value: {}. "
-                             "Acceptable range is [1000, 1000000]".format(lmbda))
+            raise ValueError(f"Invalid lambda value: {lmbda}. Acceptable range is (0, 1000000]")
     return lmbda
 
 
@@ -85,7 +84,7 @@ class _IAFTIRAdapter(object):
         To install: "pip install sparse-ir[xprec]==1.1.7".
         Note: Versions 2.0 and above of sparse-ir have not yet been tested with this code and may not be compatible.
     """
-    def __init__(self, beta: float, wmax: float, prec=1e-15, verbose: bool=True):
+    def __init__(self, beta: float, wmax: float, *, prec: str=None, eps: float=None, verbose: bool=True):
         """
         :param beta: float
             Inverse temperature (a.u.)
@@ -97,12 +96,25 @@ class _IAFTIRAdapter(object):
         import sparse_ir
 
         self.beta = beta
-        self.lmbda = set_lambda(wmax * beta, coqui_cxx_style=True if isinstance(prec, str) else False)
-        self.wmax = self.lmbda / self.beta
-        self.prec = set_precision(prec)
-        self.statisics = {'f', 'b'}
 
-        self._bases = sparse_ir.FiniteTempBasisSet(beta=self.beta, wmax=self.wmax, eps=self.prec)
+        if eps is not None and (prec is None or prec == "custom"):
+            assert isinstance(eps, (float, int)), "eps should be a float or integer value"
+            self.prec = "custom"
+            self.eps = eps
+        else:
+            assert prec is not None, "Either prec or eps must be provided"
+            self.prec = prec
+            self.eps = set_epsilon(prec)
+
+        if prec == "custom" or prec is None:
+            self.lmbda = wmax * beta
+        else:
+            self.lmbda = set_lambda(wmax * beta, coqui_cxx_style=True)
+        self.wmax = self.lmbda / self.beta
+
+        self.statistics = {'f', 'b'}
+
+        self._bases = sparse_ir.FiniteTempBasisSet(beta=self.beta, wmax=self.wmax, eps=self.eps)
         self._tau_mesh_f = self._bases.smpl_tau_f.sampling_points
         self._tau_mesh_b = self._bases.smpl_tau_b.sampling_points
         self._wn_mesh_f = self._bases.smpl_wn_f.sampling_points
@@ -141,51 +153,30 @@ class _IAFTIRAdapter(object):
         h5_grp['imaginary_fourier_transform']['beta'] = self.beta
         h5_grp['imaginary_fourier_transform']['wmax'] = self.wmax
         h5_grp['imaginary_fourier_transform']['prec'] = self.prec
+        h5_grp['imaginary_fourier_transform']['eps'] = self.eps
         h5_grp['imaginary_fourier_transform']['basis'] = "ir"
 
     def __str__(self):
         return ("Mesh details on the imaginary axis\n"
                 "----------------------------------\n"
                 "Intermediate Representation\n"
-                "precision = {}\n"
+                "epsilon = {}\n"
                 "beta = {}\n"
                 "frequency cutoff = {}\n"
                 "lambda = {}\n"
                 "nt_f, nw_f = {}, {}\n"
                 "nt_b, nw_b = {}, {}\n".format(
-            self.prec, self.beta, self.wmax, self.lmbda,
+            self.eps, self.beta, self.wmax, self.lmbda,
             self.nt_f, self.nw_f, self.nt_b, self.nw_b))
 
     def __eq__(self, other):
-        if not isinstance(other, _IAFTIRAdapter):
-            return NotImplemented
-
         return (
-                self.beta == other.beta and
-                self.lmbda == other.lmbda and
-                self.prec == other.prec
+            isinstance(other, _IAFTIRAdapter) and 
+            self.beta == other.beta and
+            self.wmax == other.wmax and
+            self.lmbda == other.lmbda and
+            self.eps == other.eps
         )
-
-    def _normalize_stats(stats_input: str) -> str:
-        """
-        Normalize stats input to short form ('f' or 'b').
-        Accepts both short forms ('f', 'b') and long forms ('fermion', 'boson').
-
-        :param stats_input: str
-        Statistics string ('f', 'fermion', 'b', or 'boson')
-        :return: str
-        Normalized short form ('f' or 'b')
-        :raises ValueError: if stats_input is not a recognized statistics format
-        """
-        if stats_input == 'f' or stats_input == 'fermion':
-            return 'f'
-        elif stats_input == 'b' or stats_input == 'boson':
-            return 'b'
-        else:
-            raise ValueError(
-                "Unknown statistics '{}'. Acceptable options are 'f'/'fermion' for fermions "
-                "and 'b'/'boson' for bosons.".format(stats_input)
-            )
 
     def tau_mesh(self, stats: str):
         """
@@ -196,7 +187,7 @@ class _IAFTIRAdapter(object):
             imaginary time mesh points in [0, beta)
         """
         stats = _normalize_stats(stats)
-        if stats not in self.statisics:
+        if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
         return np.array(self._tau_mesh_f, dtype=float) if stats == 'f' else np.array(self._tau_mesh_b, dtype=float)
@@ -214,7 +205,7 @@ class _IAFTIRAdapter(object):
             Matsubara frequency indices
         """
         stats = _normalize_stats(stats)
-        if stats not in self.statisics:
+        if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
         wn_mesh = np.array(self._wn_mesh_f, dtype=int) if stats == 'f' else np.array(self._wn_mesh_b, dtype=int)
@@ -229,7 +220,7 @@ class _IAFTIRAdapter(object):
 
     def tau_to_w(self, Ot, stats: str):
         stats = _normalize_stats(stats)
-        if stats not in self.statisics:
+        if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
         Twt = self.Twt_ff if stats == 'f' else self.Twt_bb
@@ -273,7 +264,7 @@ class _IAFTIRAdapter(object):
 
     def w_to_tau(self, Ow, stats):
         stats = _normalize_stats(stats)
-        if stats not in self.statisics:
+        if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
         Ttw = self.Ttw_ff if stats == 'f' else self.Ttw_bb
@@ -327,7 +318,7 @@ class _IAFTIRAdapter(object):
 
     def _w_interpolate(self, Ow, wn_mesh_interp, stats: str, *, ir_notation: bool=True, ph_sym: bool=False):
         stats = _normalize_stats(stats)
-        if stats not in self.statisics:
+        if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
 
@@ -383,7 +374,7 @@ class _IAFTIRAdapter(object):
 
     def _tau_interpolate(self, Ot, tau_mesh_interp, stats: str, ph_sym: bool=False):
         stats = _normalize_stats(stats)
-        if stats not in self.statisics:
+        if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
 
@@ -422,7 +413,7 @@ class _IAFTIRAdapter(object):
             self.check_leakage(Ot_, stats, name, w_input=False)
             return
 
-        if stats not in self.statisics:
+        if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
         nts = self.nt_f if stats == 'f' else self.nt_b
@@ -453,7 +444,7 @@ class _IAFTIRAdapter(object):
             self.check_leakage_phsym(Ot_, stats, name, w_input=False)
             return
 
-        if stats not in self.statisics:
+        if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
 

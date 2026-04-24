@@ -674,7 +674,7 @@ void hf_downfold(eri_t &eri, ptree const& pt) {
   std::string output = outdir + "/" + prefix;
 
   // initialize
-  imag_axes_ft::IAFT ft(pt, true);
+  imag_axes_ft::IAFT ft(pt, true, mf::wmax_from_mf(*mf));
   hamilt::pseudopot psp(*mf);
   write_mf_data(*mf, ft, psp, output);
   MBState mb_state(ft, output, mf, wannier_file, trans_home_cell, false);

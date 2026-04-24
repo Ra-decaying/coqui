@@ -361,12 +361,13 @@ namespace bdft_tests {
     solve_gdf_thc_gw(mf, gdf_dir);
   }
 
+#ifdef ENABLE_DLR
   TEST_CASE("thc_gw_dlr_vs_ir", "[methods][thc][gw][qe][iaft][dlr][ir]") {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
     auto solve_thc_gw = [&](std::shared_ptr<mf::MF> &mf, double wmax) {
 
-      imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::ir_basis);
+      imag_axes_ft::IAFT ft(1000, wmax, imag_axes_ft::dlr_basis);
       std::string output = "coqui";
 
       solvers::hf_t hf;
@@ -405,5 +406,6 @@ namespace bdft_tests {
       solve_thc_gw(mf, 100.0);
     }
   }
+#endif
 
 } // bdft_tests
