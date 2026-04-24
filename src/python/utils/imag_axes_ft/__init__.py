@@ -19,6 +19,9 @@ limitations under the License.
 """
 
 from .iaft import IAFT
-from coqui._lib.iaft_module import build_g_tau_ref, build_g_iw_ref
-
-__all__ = ["IAFT", "build_g_tau_ref", "build_g_iw_ref"]
+__all__ = ["IAFT"]
+try:
+    from coqui._lib.iaft_module import build_g_tau_ref, build_g_iw_ref
+    __all__ += ["build_g_tau_ref", "build_g_iw_ref"]
+except ImportError:
+    pass

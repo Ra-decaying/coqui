@@ -98,11 +98,13 @@ class _IAFTIRAdapter(object):
         self.beta = beta
 
         if eps is not None and (prec is None or prec == "custom"):
-            assert isinstance(eps, (float, int)), "eps should be a float or integer value"
+            if not isinstance(eps, (float, int)):
+                raise TypeError("eps should be a float or integer value, got type {}".format(type(eps)))
             self.prec = "custom"
-            self.eps = eps
+            self.eps = float(eps)
         else:
-            assert prec is not None, "Either prec or eps must be provided"
+            if prec is None:
+                raise ValueError("prec must be provided when eps is not provided")
             self.prec = prec
             self.eps = set_epsilon(prec)
 
@@ -331,7 +333,7 @@ class _IAFTIRAdapter(object):
             wn_mesh_interp = np.array([wn_mesh_interp], dtype=int)
         
         if ir_notation:
-            wn_indices = np.asarray(wn_mesh_interp)
+            wn_indices = np.asarray(wn_mesh_interp, dtype=int)
         if not ir_notation:
             wn_indices = np.array([2 * n + 1 if stats == 'f' else 2 * n for n in wn_mesh_interp], dtype=int)
 
@@ -375,7 +377,7 @@ class _IAFTIRAdapter(object):
         else:
             return self._tau_interpolate(Ot, target, stats, rel_notation=rel_notation, ph_sym=ph_sym)
 
-    def tau_interpolate_phsym(self, Ot, target, *, rel_notation: bool=False, stats: str):
+    def tau_interpolate_phsym(self, Ot, target, stats: str, *, rel_notation: bool=False):
         return self.tau_interpolate(Ot, target, stats, rel_notation=rel_notation, ph_sym=True)
 
     def _tau_interpolate(self, Ot, tau_mesh_interp, stats: str, *, rel_notation: bool=False, ph_sym: bool=False):
