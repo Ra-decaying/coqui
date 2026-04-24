@@ -162,12 +162,9 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
 
   using namespace solvers;
-<<<<<<< HEAD
-  hf_t hf(hf_div_treatment);
-=======
-  hf_t hf(string_to_div_enum(hf_div_treatment));
 
->>>>>>> 286d038 (merge MBPT gradient driver into MBPT driver, HF gradient into HF)
+  hf_t hf(hf_div_treatment);
+
   if(solver_type == "rpa") {
 
     simple_dyson dyson(mf.get(), &ft, mu_tol);
