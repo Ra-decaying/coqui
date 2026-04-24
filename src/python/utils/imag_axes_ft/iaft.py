@@ -215,7 +215,7 @@ class _IAFTCppAdapter(object):
             self.basis == other.basis
         )
 
-    def tau_mesh(self, stats: str):
+    def tau_mesh(self, stats: str, rel_notation: bool=False):
         """
         Return imaginary-time sampling points, following the convention t = [-1, 1]. 
         
@@ -225,7 +225,11 @@ class _IAFTCppAdapter(object):
             imaginary-time sampling points
         """
         stats = _normalize_stats(stats)
-        return np.array(self._tau_mesh_f, dtype=float) if stats=="fermion" else np.array(self._tau_mesh_b, dtype=float)
+        if rel_notation:
+            return np.array(self._tau_mesh_f, dtype=float) if stats=="fermion" else np.array(self._tau_mesh_b, dtype=float)
+        else:
+            tau_mesh = np.array(self._tau_mesh_f, dtype=float) if stats=="fermion" else np.array(self._tau_mesh_b, dtype=float)
+            return (tau_mesh + 1.0) * self.beta / 2.0
 
     def wn_mesh(self, stats: str, ir_notation: bool=True, *, positive_only=False):
         """
@@ -319,14 +323,14 @@ class _IAFTCppAdapter(object):
         Ot = Ot_2d.reshape((Ot_2d.shape[0],) + Ow_shape[1:])
         return Ot
 
-    def w_interpolate(self, Ow, target, stats: str, ir_notation: bool=True, ph_sym: bool=False):
+    def w_interpolate(self, Ow, target, stats: str, *, ir_notation: bool=True, ph_sym: bool=False):
         if isinstance(target, _IAFTCppAdapter):
             wn_mesh = target.wn_mesh(stats, ir_notation=ir_notation, positive_only=ph_sym)
             return self._w_interpolate(Ow, wn_mesh, stats, ph_sym=ph_sym, ir_notation=ir_notation)
         else:
             return self._w_interpolate(Ow, target, stats, ph_sym=ph_sym, ir_notation=ir_notation)
 
-    def w_interpolate_phsym(self, Ow, target, stats: str, ir_notation: bool=True):
+    def w_interpolate_phsym(self, Ow, target, stats: str, *, ir_notation: bool=True):
         return self.w_interpolate(Ow, target, stats, ir_notation=ir_notation, ph_sym=True)
 
     def _w_interpolate(self, Ow, wn_mesh_interp, stats: str, *, ph_sym: bool=False, ir_notation: bool=True):
@@ -351,22 +355,47 @@ class _IAFTCppAdapter(object):
         Ow_interp = Ow_interp.reshape((Ow_interp.shape[0],) + Ow_shape[1:])
         return Ow_interp
 
-    def tau_interpolate(self, Ot, target, stats: str, ph_sym: bool=False):
+    def tau_interpolate(self, Ot, target, stats: str, *, rel_notation: bool=False, ph_sym: bool=False):
         if isinstance(target, _IAFTCppAdapter):
-            tau_mesh = target._tau_mesh_f if _normalize_stats(stats)=='fermion' else target._tau_mesh_b
+            tau_mesh = target.tau_mesh(stats, rel_notation=rel_notation)  # get tau mesh in current notation
             if ph_sym:
                 nt_half = tau_mesh.shape[0] // 2 + tau_mesh.shape[0] % 2
                 tau_mesh = tau_mesh[:nt_half]
-            return self._tau_interpolate(Ot, tau_mesh, ph_sym)
+            return self._tau_interpolate(Ot, tau_mesh, rel_notation=rel_notation, ph_sym=ph_sym)
         else:
-            return self._tau_interpolate(Ot, target, ph_sym)
+            return self._tau_interpolate(Ot, target, rel_notation=rel_notation, ph_sym=ph_sym)
 
-    def tau_interpolate_phsym(self, Ot, target, stats: str):
-        return self.tau_interpolate(Ot, target, stats, ph_sym=True)
+    def tau_interpolate_phsym(self, Ot, target, stats: str, *, rel_notation: bool=False):
+        return self.tau_interpolate(Ot, target, stats, rel_notation=rel_notation, ph_sym=True)
 
-    def _tau_interpolate(self, Ot, tau_mesh_interp, ph_sym: bool=False):
-        if isinstance(tau_mesh_interp, float):
-            tau_mesh_interp = np.array([tau_mesh_interp], dtype=float)
+    def _tau_interpolate(self, Ot, tau_mesh_interp, *, rel_notation: bool=False, ph_sym: bool=False):
+        if np.isscalar(tau_mesh_interp):
+            try:
+                tau_mesh_interp = np.array([tau_mesh_interp], dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise TypeError(
+                    "tau_mesh_interp must be a number, a list of numbers, or a 1D numpy array of numbers."
+                ) from exc
+        elif isinstance(tau_mesh_interp, (list, tuple, np.ndarray)):
+            try:
+                tau_mesh_interp = np.asarray(tau_mesh_interp, dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise TypeError(
+                    "tau_mesh_interp must be a number, a list of numbers, or a 1D numpy array of numbers."
+                ) from exc
+        else:
+            raise TypeError(
+                "tau_mesh_interp must be a number, a list of numbers, or a 1D numpy array of numbers."
+            )
+
+        if tau_mesh_interp.ndim != 1:
+            raise ValueError(
+                "tau_mesh_interp must be one-dimensional, got shape {}.".format(tau_mesh_interp.shape)
+            )
+        
+        if not rel_notation:
+            # convert to [-1, 1] notation for IAFTCpp
+            tau_mesh_interp = tau_mesh_interp * 2.0 / self.beta - 1.0
 
         T_tt = self._iaft_cpp.construct_tau_interpolate_matrix(tau_mesh_interp, ph_sym=ph_sym)
         if Ot.shape[0] != T_tt.shape[1]:
@@ -548,8 +577,8 @@ class IAFT(object):
     def wn_mesh(self, stats: str, ir_notation: bool=True, *, positive_only=False):
         return self._impl.wn_mesh(stats, ir_notation, positive_only=positive_only)
     
-    def tau_mesh(self, stats: str):
-        return self._impl.tau_mesh(stats)
+    def tau_mesh(self, stats: str, rel_notation: bool=False):
+        return self._impl.tau_mesh(stats, rel_notation=rel_notation)
 
     def tau_to_w(self, Ot, stats: str, ph_sym: bool=False):
         return self._impl.tau_to_w(Ot, stats) if not ph_sym else self._impl.tau_to_w_phsym(Ot, stats)
@@ -563,23 +592,23 @@ class IAFT(object):
     def w_to_tau_phsym(self, Ow, stats: str):
         return self._impl.w_to_tau_phsym(Ow, stats)
 
-    def w_interpolate(self, Ow, target, stats: str, ir_notation: bool=True, ph_sym: bool=False):
+    def w_interpolate(self, Ow, target, stats: str, *, ir_notation: bool=True, ph_sym: bool=False):
         if isinstance(target, IAFT):
-            return self._impl.w_interpolate(Ow, target._impl, stats, ir_notation, ph_sym)
+            return self._impl.w_interpolate(Ow, target._impl, stats, ir_notation=ir_notation, ph_sym=ph_sym)
         else:
-            return self._impl.w_interpolate(Ow, target, stats, ir_notation, ph_sym)
+            return self._impl.w_interpolate(Ow, target, stats, ir_notation=ir_notation, ph_sym=ph_sym)
 
-    def w_interpolate_phsym(self, Ow, target, stats: str, ir_notation: bool=True):
-        return self.w_interpolate(Ow, target, stats, ir_notation, ph_sym=True)
+    def w_interpolate_phsym(self, Ow, target, stats: str, *, ir_notation: bool=True):
+        return self.w_interpolate(Ow, target, stats, ir_notation=ir_notation, ph_sym=True)
 
-    def tau_interpolate(self, Ot, target, stats: str, ph_sym: bool=False):
+    def tau_interpolate(self, Ot, target, stats: str, *, rel_notation: bool=False, ph_sym: bool=False):
         if isinstance(target, IAFT):
-            return self._impl.tau_interpolate(Ot, target._impl, stats, ph_sym)
+            return self._impl.tau_interpolate(Ot, target._impl, stats, rel_notation=rel_notation, ph_sym=ph_sym)
         else:
-            return self._impl.tau_interpolate(Ot, target, stats, ph_sym)
+            return self._impl.tau_interpolate(Ot, target, stats, rel_notation=rel_notation, ph_sym=ph_sym)
 
-    def tau_interpolate_phsym(self, Ot, target, stats: str):
-        return self.tau_interpolate(Ot, target, stats, ph_sym=True)
+    def tau_interpolate_phsym(self, Ot, target, stats: str, *, rel_notation: bool=False):
+        return self.tau_interpolate(Ot, target, stats, rel_notation=rel_notation, ph_sym=True)
 
     def check_leakage(self, Ot, stats: str, name: str="", w_input: bool=False, ):
         return self._impl.check_leakage(Ot, stats, name, w_input)
@@ -603,7 +632,7 @@ class IAFT(object):
             raise ImportError(
                 "build_g_tau_ref requires IAFTCpp binding from CoQuí C++ library."
             ) from _IAFT_CPP_IMPORT_ERROR
-        return build_g_tau_ref(self.tau_mesh(stats), self.beta, norb, ph_sym)
+        return build_g_tau_ref(self.tau_mesh(stats, rel_notation=True), self.beta, norb, ph_sym)
 
 
     def build_g_iw_ref(self, norb: int, stats: str, ph_sym: bool = False) -> np.ndarray:
@@ -643,12 +672,12 @@ if __name__ == '__main__':
 
     # wn in spare_ir notation
     w_interp = np.array([-1,1,3,5], dtype=int)
-    Gw_interp = ft.w_interpolate(Gw, w_interp, 'f', True)
+    Gw_interp = ft.w_interpolate(Gw, w_interp, 'f', ir_notation=True)
     print(Gw_interp.shape)
 
     # wn in physical notation
     w_interp = np.array([-1,0,1,2,3,4], dtype=int)
-    Gw_interp = ft.w_interpolate(Gw, w_interp, 'f', False)
+    Gw_interp = ft.w_interpolate(Gw, w_interp, 'f', ir_notation=False)
     print(Gw_interp.shape)
 
     Gt2 = ft.w_to_tau(Gw, 'f')

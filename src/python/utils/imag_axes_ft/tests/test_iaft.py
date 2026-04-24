@@ -75,12 +75,12 @@ def compare_sparse_ir_h5(wmax: float, prec: str):
     with HDFArchive(ir_filename(ir.lmbda, ir.eps), "r") as ar:
         tau_mesh = ar["fermion"]["tau_mesh"]
         wn_mesh = ar["fermion"]["wn_mesh"]
-        assert np.allclose(tau_mesh, ir.tau_mesh(stats="f"), atol=1e-12)
+        assert np.allclose(tau_mesh, ir.tau_mesh(stats="f", rel_notation=True), atol=1e-12)
         assert np.allclose(wn_mesh, ir.wn_mesh(stats='f'), atol=1e-12)
 
         tau_mesh = ar["boson"]["tau_mesh"]
         wn_mesh = ar["boson"]["wn_mesh"]
-        assert np.allclose(tau_mesh, ir.tau_mesh(stats="b"), atol=1e-12)
+        assert np.allclose(tau_mesh, ir.tau_mesh(stats="b", rel_notation=True), atol=1e-12)
         assert np.allclose(wn_mesh, ir.wn_mesh(stats='b'), atol=1e-12)
 
         Ttw = ar["fermion"]["Ttw"] * np.sqrt(2)
@@ -135,7 +135,7 @@ def test_fourier_transform(stats, ph_sym, basis):
     # tau interpolation
     iaft_interp = IAFT(beta=beta, wmax=10.0, prec="high", basis=basis)
     G_tau_interp_ref = iaft_interp.build_g_tau_ref(norb, stats, ph_sym)  # shape (nt_f, norb, norb)
-    G_tau_interp = iaft.tau_interpolate(G_tau_ref, iaft_interp, stats, ph_sym)
+    G_tau_interp = iaft.tau_interpolate(G_tau_ref, iaft_interp, stats, ph_sym=ph_sym)
 
     assert np.allclose(G_tau_interp, G_tau_interp_ref, atol=1e-8), (
         f"Max deviation: {np.max(np.abs(G_tau_interp - G_tau_interp_ref))}"
@@ -243,3 +243,25 @@ def test_iaft_restores_from_ir_checkpoint():
         assert restored.wmax == pytest.approx(20.0)
         assert restored.prec == 'low'
         assert restored.basis == 'ir'
+
+@pytest.mark.parametrize("basis", [
+    ("dlr"),
+    ("ir"),
+])
+def test_tau_notation(basis):
+    iaft = IAFT(beta=5.0, wmax=10.0, prec="low", basis=basis)
+    # by default, tau_mesh should be in physical notation
+    taus_abs = iaft.tau_mesh('f')
+    assert np.all(taus_abs >= 0) and np.all(taus_abs <= iaft.beta)
+
+    # if rel_notation=True, tau_mesh should be in [-1, 1] 
+    taus_rel = iaft.tau_mesh('f', rel_notation=True)
+    assert np.all(taus_rel >= -1) and np.all(taus_rel <= 1)
+
+    # by default, tau_interpolate interprets tau points in physical notation
+    G_tau = iaft.build_g_tau_ref(2, 'f', ph_sym=False)
+    Dm_abs = -1.0 * iaft.tau_interpolate(G_tau, iaft.beta, 'f')
+    Dm_rel = -1.0 * iaft.tau_interpolate(G_tau, 1.0, 'f', rel_notation=True)
+    assert np.allclose(Dm_abs, Dm_rel, atol=1e-12)
+
+

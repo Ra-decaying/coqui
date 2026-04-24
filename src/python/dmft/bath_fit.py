@@ -69,7 +69,7 @@ def bath_fitting(A_wsab, iw_mesh, statistics, Np=5,
     return A_out
 
 
-def causal_projection_boson(A_iw, ir_kernel, causal_params, 
+def causal_projection_boson(A_iw, iaft, causal_params, 
                             ph_symmetry=False, w0_regularization=None, target_name=""):
     """
     Perform causal projection for bosonic Green's functions.
@@ -81,7 +81,7 @@ def causal_projection_boson(A_iw, ir_kernel, causal_params,
 
     Parameters:
         A_iw (numpy.ndarray): Input bosonic Green's function data.
-        ir_kernel: Kernel object providing the Matsubara frequency mesh and
+        iaft: Kernel object providing the Matsubara frequency mesh and
                    other transformations.
         causal_params (dict): Parameters for the causal projection, including:
                               - 'nbath_per_orbital': Number of bath orbitals.
@@ -101,7 +101,7 @@ def causal_projection_boson(A_iw, ir_kernel, causal_params,
     if causal_params is None:
         return A_iw
 
-    iw_mesh_b = ir_kernel.wn_mesh('b', positive_only=ph_symmetry) * np.pi / ir_kernel.beta
+    iw_mesh_b = iaft.wn_mesh('b', positive_only=ph_symmetry) * np.pi / iaft.beta
 
     if w0_regularization is not None:
         A_iw = apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name)
@@ -127,7 +127,7 @@ def causal_projection_boson(A_iw, ir_kernel, causal_params,
     return A_iw_fit
 
 
-def fit_impurity_results_boson(imp_res, ir_kernel, causal_params):
+def fit_impurity_results_boson(imp_res, iaft, causal_params):
     if causal_params is None or causal_params.get("target", "both")=="local":
         return
 
@@ -135,12 +135,12 @@ def fit_impurity_results_boson(imp_res, ir_kernel, causal_params):
     if mpi.is_master_node():
         fit_res = {
             "Pi_iw_data": causal_projection_boson(
-                imp_res["Pi_iw_data"][0], ir_kernel, causal_params, 
+                imp_res["Pi_iw_data"][0], iaft, causal_params, 
                 ph_symmetry=True, w0_regularization=causal_params.get("w0_treatment_for_pi", None), 
                 target_name="impurity polarizability"
             ),
             "W_iw_data": causal_projection_boson(
-                imp_res["W_iw_data"][0], ir_kernel, causal_params, 
+                imp_res["W_iw_data"][0], iaft, causal_params, 
                 ph_symmetry=True, w0_regularization=causal_params.get("w0_treatment_for_w", None), 
                 target_name="impurity screened interaction"
             )
@@ -150,20 +150,20 @@ def fit_impurity_results_boson(imp_res, ir_kernel, causal_params):
     imp_res["W_iw_data"][0] = fit_res["W_iw_data"]
 
 
-def fit_local_results_boson(local_res, ir_kernel, causal_params):
+def fit_local_results_boson(local_res, iaft, causal_params):
     if causal_params is None or causal_params.get("target", "both")=="impurity":
         return
 
     wloc_t_fit = None
     if mpi.is_master_node():
-        wloc_iw = ir_kernel.tau_to_w_phsym(local_res["Wloc_t"], 'b')
+        wloc_iw = iaft.tau_to_w_phsym(local_res["Wloc_t"], 'b')
         nbnd = wloc_iw.shape[-1]
         wloc_iw_fit = causal_projection_boson(
-            wloc_iw.reshape(-1, nbnd*nbnd, nbnd*nbnd), ir_kernel, causal_params,
+            wloc_iw.reshape(-1, nbnd*nbnd, nbnd*nbnd), iaft, causal_params,
             ph_symmetry=True, w0_regularization=causal_params.get("w0_treatment_for_w", None), 
             target_name="local screened interaction"
         )
-        wloc_t_fit = ir_kernel.w_to_tau_phsym(
+        wloc_t_fit = iaft.w_to_tau_phsym(
             wloc_iw_fit.reshape(-1, nbnd, nbnd, nbnd, nbnd), 'b'
         )
 
@@ -171,7 +171,7 @@ def fit_local_results_boson(local_res, ir_kernel, causal_params):
     local_res["Wloc_t"] = wloc_t_fit
 
 
-def fit_u_weiss(u_weiss_iw, ir_kernel, causal_params):
+def fit_u_weiss(u_weiss_iw, iaft, causal_params):
     if causal_params is None or causal_params.get("target", "both")=="impurity":
         return u_weiss_iw
 
@@ -179,7 +179,7 @@ def fit_u_weiss(u_weiss_iw, ir_kernel, causal_params):
     if mpi.is_master_node():
         nbnd = u_weiss_iw.shape[-1]
         u_iw_fit = causal_projection_boson(
-            u_weiss_iw.reshape(-1, nbnd*nbnd, nbnd*nbnd), ir_kernel, causal_params,
+            u_weiss_iw.reshape(-1, nbnd*nbnd, nbnd*nbnd), iaft, causal_params,
             ph_symmetry=True, w0_regularization=causal_params.get("w0_treatment_for_weiss", None), 
             target_name="bosonic Weiss field"
         )

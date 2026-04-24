@@ -178,11 +178,13 @@ class _IAFTIRAdapter(object):
             self.eps == other.eps
         )
 
-    def tau_mesh(self, stats: str):
+    def tau_mesh(self, stats: str, rel_notation: bool=False):
         """
         Return imaginary time mesh points, following the convention t = [-1, 1].
         :param stats: str
             statistics: 'f' for fermions and 'b' for bosons
+        :param rel_notation: bool
+            Whether to return relative notation (t in [-1, 1]) or absolute notation (t in [0, beta))
         :return: numpy.ndarray(dim=1)
             imaginary time mesh points in [0, beta)
         """
@@ -190,7 +192,10 @@ class _IAFTIRAdapter(object):
         if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
-        return np.array(self._tau_mesh_f, dtype=float) if stats == 'f' else np.array(self._tau_mesh_b, dtype=float)
+        tau_mesh = np.array(self._tau_mesh_f, dtype=float) if stats == 'f' else np.array(self._tau_mesh_b, dtype=float)
+        if not rel_notation:
+            tau_mesh = (tau_mesh + 1.0) * self.beta / 2.0
+        return tau_mesh
 
     def wn_mesh(self, stats: str, ir_notation: bool=True, *, positive_only=False):
         """
@@ -358,28 +363,54 @@ class _IAFTIRAdapter(object):
         Ow_interp = Ow_interp.reshape((wn_indices.shape[0],) + Ow_shape[1:])
         return Ow_interp
 
-    def tau_interpolate(self, Ot, target, stats: str, ph_sym: bool=False):
+    def tau_interpolate(self, Ot, target, stats: str, *, rel_notation: bool=False, ph_sym: bool=False):
         stats = _normalize_stats(stats)
         if isinstance(target, _IAFTIRAdapter):
-            tau_mesh = target._tau_mesh_f if stats == 'f' else target._tau_mesh_b
+            #tau_mesh = target._tau_mesh_f if stats == 'f' else target._tau_mesh_b
+            tau_mesh = target.tau_mesh(stats, rel_notation=rel_notation)
             if ph_sym:
                 nt_half = tau_mesh.shape[0] // 2 + tau_mesh.shape[0] % 2
                 tau_mesh = tau_mesh[:nt_half]
-            return self._tau_interpolate(Ot, tau_mesh, stats, ph_sym)
+            return self._tau_interpolate(Ot, tau_mesh, stats, rel_notation=rel_notation, ph_sym=ph_sym)
         else:
-            return self._tau_interpolate(Ot, target, stats, ph_sym)
+            return self._tau_interpolate(Ot, target, stats, rel_notation=rel_notation, ph_sym=ph_sym)
 
-    def tau_interpolate_phsym(self, Ot, target, stats: str):
-        return self.tau_interpolate(Ot, target, stats, ph_sym=True)
+    def tau_interpolate_phsym(self, Ot, target, *, rel_notation: bool=False, stats: str):
+        return self.tau_interpolate(Ot, target, stats, rel_notation=rel_notation, ph_sym=True)
 
-    def _tau_interpolate(self, Ot, tau_mesh_interp, stats: str, ph_sym: bool=False):
+    def _tau_interpolate(self, Ot, tau_mesh_interp, stats: str, *, rel_notation: bool=False, ph_sym: bool=False):
         stats = _normalize_stats(stats)
         if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
+        
+        if np.isscalar(tau_mesh_interp):
+            try:
+                tau_mesh_interp = np.array([tau_mesh_interp], dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise TypeError(
+                    "tau_mesh_interp must be a number, a list of numbers, or a 1D numpy array of numbers."
+                ) from exc
+        elif isinstance(tau_mesh_interp, (list, tuple, np.ndarray)):
+            try:
+                tau_mesh_interp = np.asarray(tau_mesh_interp, dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise TypeError(
+                    "tau_mesh_interp must be a number, a list of numbers, or a 1D numpy array of numbers."
+                ) from exc
+        else:
+            raise TypeError(
+                "tau_mesh_interp must be a number, a list of numbers, or a 1D numpy array of numbers."
+            )
 
-        # convert to [0, beta] notation for sparse_ir library
-        tau_mesh_interp = 0.5 * (tau_mesh_interp + 1.0) * self.beta
+        if tau_mesh_interp.ndim != 1:
+            raise ValueError(
+                "tau_mesh_interp must be one-dimensional, got shape {}.".format(tau_mesh_interp.shape)
+            )
+
+        if rel_notation:
+            # convert to [0, beta] notation for sparse_ir library
+            tau_mesh_interp = 0.5 * (tau_mesh_interp + 1.0) * self.beta
 
         Tlt = self.Tlt_ff if stats == 'f' else self.Tlt_bb
         nt = self.nt_f if stats == 'f' else self.nt_b

@@ -72,9 +72,9 @@ def get_proj_info(modest_proj):
             'kpts_w90': modest_proj.kpts}
 
 
-def set_n_iw(ir_kernel):
-    iw_idx_f = ir_kernel.wn_mesh('f', False)
-    iw_idx_b = ir_kernel.wn_mesh('b', False)
+def set_n_iw(iaft):
+    iw_idx_f = iaft.wn_mesh('f', False)
+    iw_idx_b = iaft.wn_mesh('b', False)
     max_idx = max(abs(iw_idx_f[0]), abs(iw_idx_f[-1]), abs(iw_idx_b[0]), abs(iw_idx_b[-1]))
     return int(max_idx + 1)
 
@@ -205,7 +205,7 @@ def estimate_zero_moment(Aw, iw_mesh):
     return t
 
 
-def extract_h0_and_delta(g_weiss_wsab, ir_kernel, high_freq_multiplier=10):
+def extract_h0_and_delta(g_weiss_wsab, iaft, high_freq_multiplier=10):
     """
     Estimate the static one-body term h₀ (as t_sIab) and the hybridization function Δ(iω)
     from a Weiss Green's function G₀(iω) sampled on a fermionic Matsubara mesh.
@@ -221,9 +221,9 @@ def extract_h0_and_delta(g_weiss_wsab, ir_kernel, high_freq_multiplier=10):
     Parameters
     ----------
     g_weiss_wsab : ndarray, complex, shape (nw, nspin, nbnd, nbnd)
-        Weiss Green's function G₀(iωₙ) on the fermionic Matsubara mesh returned by `ir_kernel`.
+        Weiss Green's function G₀(iωₙ) on the fermionic Matsubara mesh returned by `iaft`.
         The leading dimension is frequency index; s,a,b are spin and orbital indices.
-    ir_kernel : IAFT object
+    iaft : IAFT object
     high_freq_multiplier : float, default 10
         Multiplier applied to the last few (three) IR fermionic frequencies (in IR notation)
         before converting to physical Matsubara frequencies, to push evaluation deep into
@@ -243,9 +243,9 @@ def extract_h0_and_delta(g_weiss_wsab, ir_kernel, high_freq_multiplier=10):
     nspin = g_weiss_wsab.shape[1]
     
     # 1) Interpolate G0 to very high fermionic frequencies to improve the accuracy of high-frequency fitting
-    iwn_interp = ir_kernel.wn_mesh('f', ir_notation=False)[-3:] * high_freq_multiplier
-    g_weiss_interp = ir_kernel.w_interpolate(g_weiss_wsab, iwn_interp, 'f', ir_notation=False)
-    iwn_interp = (2*iwn_interp.astype(float) + 1) * np.pi / ir_kernel.beta
+    iwn_interp = iaft.wn_mesh('f', ir_notation=False)[-3:] * high_freq_multiplier
+    g_weiss_interp = iaft.w_interpolate(g_weiss_wsab, iwn_interp, 'f', ir_notation=False)
+    iwn_interp = (2*iwn_interp.astype(float) + 1) * np.pi / iaft.beta
     weiss_tmp = np.zeros(g_weiss_interp.shape, dtype=complex)
     for n, g in enumerate(g_weiss_interp):
         for s in range(nspin):
@@ -255,7 +255,7 @@ def extract_h0_and_delta(g_weiss_wsab, ir_kernel, high_freq_multiplier=10):
     t_sIab_estimate = estimate_zero_moment(weiss_tmp, iwn_interp)
 
     # 3) Construct Δ(iω) = iω·I - t_sIab - [G0(iω)]^{-1} on the original mesh
-    iwn_mesh_imp = ir_kernel.wn_mesh('f') * np.pi / ir_kernel.beta
+    iwn_mesh_imp = iaft.wn_mesh('f') * np.pi / iaft.beta
     delta_estimate = np.zeros(g_weiss_wsab.shape, dtype=complex)
     nbnd = t_sIab_estimate.shape[-1]
     for n in range(delta_estimate.shape[0]):
@@ -265,14 +265,14 @@ def extract_h0_and_delta(g_weiss_wsab, ir_kernel, high_freq_multiplier=10):
 
     # 4) checking the leakage of the resulting Δ(iω)
     if mpi.is_master_node():
-        ir_kernel.check_leakage(delta_estimate, 'f', 'delta', w_input=True)
+        iaft.check_leakage(delta_estimate, 'f', 'delta', w_input=True)
     mpi.report("")
     mpi.barrier()
 
     return t_sIab_estimate, delta_estimate
 
 # TODO merge call compute_weiss_fields_w internally to avoid code duplication
-def init_weiss_fields_w(*, ir_kernel, local_gf, init_imp_results="dc", density_only=False):
+def init_weiss_fields_w(*, iaft, local_gf, init_imp_results="dc", density_only=False):
     # checking inputs
     missing = {"Gloc_t", "Wloc_t", "Vloc"} - local_gf.keys()
     if missing:
@@ -284,7 +284,7 @@ def init_weiss_fields_w(*, ir_kernel, local_gf, init_imp_results="dc", density_o
     # bosonic first
     if init_imp_results == "dc":
         mpi.report("Evaluate the bosonic Weiss field at the RPA level.")
-        pi_imp_w = ir_kernel.tau_to_w_phsym(eval_pi_rpa(local_gf["Gloc_t"], density_only=density_only), stats='b')
+        pi_imp_w = iaft.tau_to_w_phsym(eval_pi_rpa(local_gf["Gloc_t"], density_only=density_only), stats='b')
         if len(pi_imp_w.shape) == 3:
             pi_imp_w = density_density_to_product_basis(pi_imp_w)
     else:
@@ -293,11 +293,11 @@ def init_weiss_fields_w(*, ir_kernel, local_gf, init_imp_results="dc", density_o
 
     u_weiss_w = compute_weiss_boson_w(
         local_gf["Vloc"],
-        ir_kernel.tau_to_w_phsym(local_gf["Wloc_t"], stats='b'),
+        iaft.tau_to_w_phsym(local_gf["Wloc_t"], stats='b'),
         pi_imp_w
     )
     if mpi.is_master_node():
-        ir_kernel.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
+        iaft.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
     mpi.report("")
     mpi.barrier()
 
@@ -305,21 +305,21 @@ def init_weiss_fields_w(*, ir_kernel, local_gf, init_imp_results="dc", density_o
     if init_imp_results == "dc":
         mpi.report("Evaluate the fermionic Weiss field using the local GW self-energy.")
         vhf_imp = eval_hf_dc(
-            -ir_kernel.tau_interpolate(local_gf["Gloc_t"], [ir_kernel.beta], stats='f')[0],
+            -iaft.tau_interpolate(local_gf["Gloc_t"], iaft.beta, stats='f')[0],
             local_gf["Vloc"],
             u_weiss_w[0]+local_gf["Vloc"]
         )
-        sigma_imp_w = ir_kernel.tau_to_w(eval_gw_dc_t(local_gf["Gloc_t"], local_gf["Wloc_t"]), stats='f')
+        sigma_imp_w = iaft.tau_to_w(eval_gw_dc_t(local_gf["Gloc_t"], local_gf["Wloc_t"]), stats='f')
     else:
         mpi.report("Evaluate the fermionic Weiss field using zero impurity self-energy.")
         vhf_imp, sigma_imp_w = None, None
 
     g_weiss_w = compute_weiss_fermion_w(
-        ir_kernel.tau_to_w(local_gf["Gloc_t"], stats='f'),
+        iaft.tau_to_w(local_gf["Gloc_t"], stats='f'),
         vhf_imp, sigma_imp_w
     )
     if mpi.is_master_node():
-        ir_kernel.check_leakage(g_weiss_w, 'f', 'g_weiss', w_input=True)
+        iaft.check_leakage(g_weiss_w, 'f', 'g_weiss', w_input=True)
     mpi.report("")
     mpi.barrier()
 
@@ -327,7 +327,7 @@ def init_weiss_fields_w(*, ir_kernel, local_gf, init_imp_results="dc", density_o
 
 
 
-def compute_weiss_fields_w(*, ir_kernel, local_gf, impurity_selfenergies, density_only=False):
+def compute_weiss_fields_w(*, iaft, local_gf, impurity_selfenergies, density_only=False):
     # checking inputs 
     missing = {"Gloc_t", "Wloc_t", "Vloc"} - local_gf.keys()
     if missing:
@@ -348,11 +348,11 @@ def compute_weiss_fields_w(*, ir_kernel, local_gf, impurity_selfenergies, densit
         
     u_weiss_w = compute_weiss_boson_w(
         local_gf["Vloc"],
-        ir_kernel.tau_to_w_phsym(local_gf["Wloc_t"], stats='b'),
+        iaft.tau_to_w_phsym(local_gf["Wloc_t"], stats='b'),
         pi_imp_w_pb
     )
     if mpi.is_master_node():
-        ir_kernel.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
+        iaft.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
     mpi.report("")
     mpi.barrier()
 
@@ -362,12 +362,12 @@ def compute_weiss_fields_w(*, ir_kernel, local_gf, impurity_selfenergies, densit
     sigma_imp_w = impurity_selfenergies["Sigma_imp_w"]
 
     g_weiss_w = compute_weiss_fermion_w(
-        ir_kernel.tau_to_w(local_gf["Gloc_t"], stats='f'),
+        iaft.tau_to_w(local_gf["Gloc_t"], stats='f'),
         vhf_imp, sigma_imp_w
     )
 
     if mpi.is_master_node():
-        ir_kernel.check_leakage(g_weiss_w, 'f', 'g_weiss', w_input=True)
+        iaft.check_leakage(g_weiss_w, 'f', 'g_weiss', w_input=True)
     mpi.report("")
     mpi.barrier()
 
@@ -486,16 +486,16 @@ def eval_gw_dc_t(G_tsab, W_tabcd):
     return sigma_tsab
 
 
-def solve_gw_dc(G_t, V, W_t, u_weiss_iw, ir_kernel, density_only=True,
+def solve_gw_dc(G_t, V, W_t, u_weiss_iw, iaft, density_only=True,
                 *, gf_struct=None):
     # TODO density-density approximation to V and W_t
-    dm = -ir_kernel.tau_interpolate(G_t, [ir_kernel.beta], stats='f')[0]
+    dm = -iaft.tau_interpolate(G_t, iaft.beta, stats='f')[0]
     vhf_dc = eval_hf_dc(dm, V, u_weiss_iw[0]+V)
     
-    sigma_dc_iw = ir_kernel.tau_to_w(eval_gw_dc_t(G_t, W_t), stats='f')
+    sigma_dc_iw = iaft.tau_to_w(eval_gw_dc_t(G_t, W_t), stats='f')
 
     # (niw, norb, norb) if density_only else (niw, norb, norb, norb, norb)
-    pi_dc_iw = ir_kernel.tau_to_w_phsym(eval_pi_rpa(G_t, density_only=density_only), stats='b')
+    pi_dc_iw = iaft.tau_to_w_phsym(eval_pi_rpa(G_t, density_only=density_only), stats='b')
 
     if gf_struct is not None:
         # convert to block matrix format
