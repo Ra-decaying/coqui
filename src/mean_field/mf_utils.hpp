@@ -22,6 +22,7 @@
 #ifndef MEANFIELD_MF_UTILS_HPP 
 #define MEANFIELD_MF_UTILS_HPP 
 
+#include <algorithm>
 #include <map>
 
 #include "IO/AppAbort.hpp"
@@ -175,6 +176,31 @@ inline std::string get_mf(const std::shared_ptr<utils::mpi_context_t<comm_t>> &m
   utils::check(found, "Error: No {} input block found.", mf_tag);
   return name;
 };
+
+/*
+ * Computes a suitable value of wmax (in a.u.) from the eigenvalue bandwidth of a MF object.
+ * wmax is defined as max(|emax - efermi|, |emin - efermi|), i.e. the half-bandwidth
+ * measured from the Fermi energy. An optional padding factor (default 1.5) is applied
+ * to provide a small safety margin for the imaginary-axis basis.
+ *
+ * Parameters:
+ *   mf            : MF object whose eigval() is used to determine the bandwidth.
+ *   padding_factor: multiplicative safety factor applied to the raw half-bandwidth (default 1.5).
+ *
+ * Returns: wmax in Hartree.
+ */
+inline double wmax_from_mf(const MF& mf, double padding_factor = 1.5)
+{
+  auto ev = mf.eigval();
+  auto [it_min, it_max] = std::minmax_element(ev.data(), ev.data() + ev.size());
+  double emin = *it_min, emax = *it_max;
+  double ef   = mf.efermi();
+  double wmax = std::max(std::abs(emax - ef), std::abs(emin - ef));
+  if (wmax <= 0.0) {
+    utils::check(false, "Error in wmax_from_mf: non-positive bandwidth detected. Cannot determine wmax from the spectrum of the MF object.");
+  }
+  return padding_factor * wmax;
+}
 
 } // mf
 

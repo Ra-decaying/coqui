@@ -1,24 +1,3 @@
-/**
- * ==========================================================================
- * CoQuí: Correlated Quantum ínterface
- *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- * ==========================================================================
- */
-
-
 
 // C.f. https://numpy.org/doc/1.21/reference/c-api/array.html#importing-the-api
 #define PY_ARRAY_UNIQUE_SYMBOL _cpp2py_ARRAY_API
@@ -52,10 +31,22 @@ static auto const fun_0 = c2py::dispatcher_f_kw_t{
     c2py::cfun(
         [](const std::string &solver_type, const std::string &mbpt_params,
            coqui_py::ThcCoulomb &h_int,
-           const nda::array<ComplexType, 5> &C_ksIai,
-           const nda::array<long, 3> &band_window,
-           const nda::array<double, 2> &kpts_crys,
-           std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
+           const nda::basic_array<std::complex<double>, 5, nda::C_layout, 'A',
+                                  nda::heap_basic<nda::mem::mallocator<
+                                      nda::mem::AddressSpace::Host>>> &C_ksIai,
+           const nda::basic_array<long, 3, nda::C_layout, 'A',
+                                  nda::heap_basic<nda::mem::mallocator<
+                                      nda::mem::AddressSpace::Host>>>
+               &band_window,
+           const nda::basic_array<double, 2, nda::C_layout, 'A',
+                                  nda::heap_basic<nda::mem::mallocator<
+                                      nda::mem::AddressSpace::Host>>>
+               &kpts_crys,
+           std::optional<std::map<
+               std::string,
+               nda::basic_array<std::complex<double>, 5, nda::C_layout, 'A',
+                                nda::heap_basic<nda::mem::mallocator<
+                                    nda::mem::AddressSpace::Host>>>>>
                local_polarizabilities) {
           return coqui_py::mbpt(solver_type, mbpt_params, h_int, C_ksIai,
                                 band_window, kpts_crys, local_polarizabilities);
@@ -65,10 +56,22 @@ static auto const fun_0 = c2py::dispatcher_f_kw_t{
     c2py::cfun(
         [](const std::string &solver_type, const std::string &mbpt_params,
            coqui_py::CholCoulomb &h_int,
-           const nda::array<ComplexType, 5> &C_ksIai,
-           const nda::array<long, 3> &band_window,
-           const nda::array<double, 2> &kpts_crys,
-           std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
+           const nda::basic_array<std::complex<double>, 5, nda::C_layout, 'A',
+                                  nda::heap_basic<nda::mem::mallocator<
+                                      nda::mem::AddressSpace::Host>>> &C_ksIai,
+           const nda::basic_array<long, 3, nda::C_layout, 'A',
+                                  nda::heap_basic<nda::mem::mallocator<
+                                      nda::mem::AddressSpace::Host>>>
+               &band_window,
+           const nda::basic_array<double, 2, nda::C_layout, 'A',
+                                  nda::heap_basic<nda::mem::mallocator<
+                                      nda::mem::AddressSpace::Host>>>
+               &kpts_crys,
+           std::optional<std::map<
+               std::string,
+               nda::basic_array<std::complex<double>, 5, nda::C_layout, 'A',
+                                nda::heap_basic<nda::mem::mallocator<
+                                    nda::mem::AddressSpace::Host>>>>>
                local_polarizabilities) {
           return coqui_py::mbpt(solver_type, mbpt_params, h_int, C_ksIai,
                                 band_window, kpts_crys, local_polarizabilities);

@@ -481,13 +481,13 @@ namespace methods {
     sSigma_correction_upfold.set_zero();
 
     nda::array<ComplexType, 5> Sigma_imp_tsIab(mb_state.ft->nt_f(), _MF->nspin(), nImps, nImpOrbs, nImpOrbs);
-    mb_state.ft->w_to_tau(mb_state.Sigma_imp_wsIab.value(), Sigma_imp_tsIab, imag_axes_ft::fermi);
-    mb_state.ft->check_leakage(Sigma_imp_tsIab, imag_axes_ft::fermi, sSigma_tskij.communicator(), "impurity self-energy");
+    mb_state.ft->w_to_tau(mb_state.Sigma_imp_wsIab.value(), Sigma_imp_tsIab, imag_axes_ft::fermion);
+    mb_state.ft->check_leakage(Sigma_imp_tsIab, imag_axes_ft::fermion, sSigma_tskij.communicator(), "impurity self-energy");
 
     if (subtract_dc) {
       nda::array<ComplexType, 5> Sigma_dc_tsIab(mb_state.ft->nt_f(), _MF->nspin(), nImps, nImpOrbs, nImpOrbs);
-      mb_state.ft->w_to_tau(mb_state.Sigma_dc_wsIab.value(), Sigma_dc_tsIab, imag_axes_ft::fermi);
-      mb_state.ft->check_leakage(Sigma_dc_tsIab, imag_axes_ft::fermi, sSigma_tskij.communicator(), "DC self-energy");
+      mb_state.ft->w_to_tau(mb_state.Sigma_dc_wsIab.value(), Sigma_dc_tsIab, imag_axes_ft::fermion);
+      mb_state.ft->check_leakage(Sigma_dc_tsIab, imag_axes_ft::fermion, sSigma_tskij.communicator(), "DC self-energy");
       Sigma_imp_tsIab -= Sigma_dc_tsIab;
     }
 

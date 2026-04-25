@@ -57,7 +57,7 @@ namespace bdft_tests {
     double wmax = 120.0;
 
     std::string coqui_prefix = "downfold_1e_mb";
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis);
     iter_scf::iter_scf_t iter_sol("damping");
 
     auto downfold = [&](
@@ -120,7 +120,7 @@ namespace bdft_tests {
       nda::array<ComplexType, 5> Sigma_tsIab(ft.nt_f(), Sigma_dc_wsIab.shape(1),
                                              Sigma_dc_wsIab.shape(2), Sigma_dc_wsIab.shape(3),
                                              Sigma_dc_wsIab.shape(4));
-      ft.w_to_tau(Sigma_dc_wsIab, Sigma_tsIab, imag_axes_ft::fermi);
+      ft.w_to_tau(Sigma_dc_wsIab, Sigma_tsIab, imag_axes_ft::fermion);
       app_log(2, "Sigma_dc_tsIab: {0:.12f}, {1:.12f}, {2:.12f}",
               Sigma_tsIab(ft.nt_f()-1,0,0,0,0).real(), Sigma_tsIab(ft.nt_f()-1,0,0,1,1).real(),
               Sigma_tsIab(ft.nt_f()-1,0,0,0,1).real());
@@ -159,7 +159,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
     double wmax = 1.2;
 
     std::string coqui_prefix = "downfold_1e_mb";
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis);
     iter_scf::iter_scf_t iter_sol("damping");
 
     auto downfold = [&](
@@ -278,7 +278,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
     double wmax = 3.0;
 
     std::string coqui_prefix = "downfold_gloc";
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis);
 
     auto downfold = [&](
         std::shared_ptr<mf::MF> &mf, std::string wannier_file,
@@ -319,7 +319,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
   TEST_CASE("downfold_Gloc_to_h5", "[methods][embed]") {
     auto& mpi = utils::make_unit_test_mpi_context();
 
-    imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::ir_source, "high", false);
+    imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::ir_basis, "high", false);
 
     auto downfold = [&](mf::MF &mf, std::string wannier_file) {
       // write dft data
@@ -457,7 +457,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
                                                  1e-10, mf->ecutrho(), 1, 1024));
 
       std::string prefix = "coqui";
-      imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::ir_source, "high", true);
+      imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::ir_basis, "high", true);
       simple_dyson dyson(mf.get(), &ft);
       write_mf_data(*mf, ft, dyson, prefix);
       mpi->comm.barrier();
@@ -547,7 +547,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       double wmax = 1.2;
       std::string precision = "high";
       bool verbose = true;
-      imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, precision, verbose);
+      imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis, precision, verbose);
       simple_dyson dyson(mf.get(), &ft);
       write_mf_data(*mf, ft, dyson, prefix);
       mpi->comm.barrier();
@@ -646,7 +646,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
                                                  1e-10, mf->ecutrho(), 1, 1024));
 
       std::string prefix = "coqui";
-      imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::ir_source, "high", true);
+      imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::ir_basis, "high", true);
       simple_dyson dyson(mf.get(), &ft);
       write_mf_data(*mf, ft, dyson, prefix);
       mpi->comm.barrier();
@@ -727,7 +727,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
         std::shared_ptr<mf::MF> &mf, std::string wannier_file) {
 
       std::string prefix = "coqui";
-      imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::ir_source, "high", true);
+      imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::ir_basis, "high", true);
       solvers::hf_t hf;
       solvers::gw_t gw(&ft, "gygi_smallest_q", prefix);
       solvers::scr_coulomb_t scr_eri(&ft, "rpa", "gygi_smallest_q");

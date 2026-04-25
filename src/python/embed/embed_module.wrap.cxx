@@ -29,12 +29,29 @@ using c2py::operator""_a;
 // dmft_embed
 static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &embed_params,
-       const nda::array<ComplexType, 5> &projector_ksIai,
-       const nda::array<long, 3> &band_window,
-       const nda::array<double, 2> &kpts_crys,
-       std::optional<std::map<std::string, nda::array<ComplexType, 4>>>
+       const nda::basic_array<
+           std::complex<double>, 5, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           &projector_ksIai,
+       const nda::basic_array<
+           long, 3, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           &band_window,
+       const nda::basic_array<
+           double, 2, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           &kpts_crys,
+       std::optional<std::map<
+           std::string,
+           nda::basic_array<std::complex<double>, 4, nda::C_layout, 'A',
+                            nda::heap_basic<nda::mem::mallocator<
+                                nda::mem::AddressSpace::Host>>>>>
            local_hf_potentials,
-       std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
+       std::optional<std::map<
+           std::string,
+           nda::basic_array<std::complex<double>, 5, nda::C_layout, 'A',
+                            nda::heap_basic<nda::mem::mallocator<
+                                nda::mem::AddressSpace::Host>>>>>
            local_selfenergies) {
       return coqui_py::dmft_embed(mf, embed_params, projector_ksIai,
                                   band_window, kpts_crys, local_hf_potentials,
@@ -46,9 +63,17 @@ static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cfun(
 // dmft_embed_with_projector_from_h5
 static auto const fun_1 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &embed_params,
-       std::optional<std::map<std::string, nda::array<ComplexType, 4>>>
+       std::optional<std::map<
+           std::string,
+           nda::basic_array<std::complex<double>, 4, nda::C_layout, 'A',
+                            nda::heap_basic<nda::mem::mallocator<
+                                nda::mem::AddressSpace::Host>>>>>
            local_hf_potentials,
-       std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
+       std::optional<std::map<
+           std::string,
+           nda::basic_array<std::complex<double>, 5, nda::C_layout, 'A',
+                            nda::heap_basic<nda::mem::mallocator<
+                                nda::mem::AddressSpace::Host>>>>>
            local_selfenergies) {
       return coqui_py::dmft_embed_with_projector_from_h5(
           mf, embed_params, local_hf_potentials, local_selfenergies);
@@ -65,7 +90,11 @@ static auto const fun_2 = c2py::dispatcher_f_kw_t{c2py::cfun(
 // downfold_2e
 static auto const fun_3 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](coqui_py::ThcCoulomb &eri, const std::string &df_params,
-       std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
+       std::optional<std::map<
+           std::string,
+           nda::basic_array<std::complex<double>, 5, nda::C_layout, 'A',
+                            nda::heap_basic<nda::mem::mallocator<
+                                nda::mem::AddressSpace::Host>>>>>
            local_polarizabilities) {
       return coqui_py::downfold_2e(eri, df_params, local_polarizabilities);
     },
@@ -74,10 +103,23 @@ static auto const fun_3 = c2py::dispatcher_f_kw_t{c2py::cfun(
 // downfold_coulomb
 static auto const fun_4 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](coqui_py::ThcCoulomb &eri, const std::string &df_params,
-       const nda::array<ComplexType, 5> &projector_ksIai,
-       const nda::array<long, 3> &band_window,
-       const nda::array<double, 2> &kpts_crys,
-       std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
+       const nda::basic_array<
+           std::complex<double>, 5, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           &projector_ksIai,
+       const nda::basic_array<
+           long, 3, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           &band_window,
+       const nda::basic_array<
+           double, 2, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           &kpts_crys,
+       std::optional<std::map<
+           std::string,
+           nda::basic_array<std::complex<double>, 5, nda::C_layout, 'A',
+                            nda::heap_basic<nda::mem::mallocator<
+                                nda::mem::AddressSpace::Host>>>>>
            local_polarizabilities) {
       return coqui_py::downfold_coulomb(eri, df_params, projector_ksIai,
                                         band_window, kpts_crys,
@@ -89,7 +131,11 @@ static auto const fun_4 = c2py::dispatcher_f_kw_t{c2py::cfun(
 // downfold_coulomb_with_projector_from_h5
 static auto const fun_5 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](coqui_py::ThcCoulomb &eri, const std::string &df_params,
-       std::optional<std::map<std::string, nda::array<ComplexType, 5>>>
+       std::optional<std::map<
+           std::string,
+           nda::basic_array<std::complex<double>, 5, nda::C_layout, 'A',
+                            nda::heap_basic<nda::mem::mallocator<
+                                nda::mem::AddressSpace::Host>>>>>
            local_polarizabilities) {
       return coqui_py::downfold_coulomb_with_projector_from_h5(
           eri, df_params, local_polarizabilities);
@@ -99,9 +145,18 @@ static auto const fun_5 = c2py::dispatcher_f_kw_t{c2py::cfun(
 // downfold_gloc
 static auto const fun_6 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &df_params,
-       const nda::array<ComplexType, 5> &projector_ksIai,
-       const nda::array<long, 3> &band_window,
-       const nda::array<double, 2> &kpts_crys) {
+       const nda::basic_array<
+           std::complex<double>, 5, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           &projector_ksIai,
+       const nda::basic_array<
+           long, 3, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           &band_window,
+       const nda::basic_array<
+           double, 2, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           &kpts_crys) {
       return coqui_py::downfold_gloc(mf, df_params, projector_ksIai,
                                      band_window, kpts_crys);
     },

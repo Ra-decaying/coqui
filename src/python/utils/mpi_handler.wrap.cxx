@@ -39,49 +39,73 @@ const std::string c2py::tp_ctor_doc<coqui_py::MpiHandler> =
     init_0.doc(R"DOC()DOC");
 // barrier
 static auto const fun_0 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::MpiHandler const &self) { return self.barrier(); }, "self")};
+    [](coqui_py::MpiHandler const &self) -> decltype(auto) {
+      return self.barrier();
+    },
+    "self")};
 
 // comm_rank
 static auto const fun_1 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::MpiHandler const &self) { return self.comm_rank(); }, "self")};
+    [](coqui_py::MpiHandler const &self) -> decltype(auto) {
+      return self.comm_rank();
+    },
+    "self")};
 
 // comm_size
 static auto const fun_2 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::MpiHandler const &self) { return self.comm_size(); }, "self")};
+    [](coqui_py::MpiHandler const &self) -> decltype(auto) {
+      return self.comm_size();
+    },
+    "self")};
 
 // internode_barrier
 static auto const fun_3 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::MpiHandler const &self) { return self.internode_barrier(); },
+    [](coqui_py::MpiHandler const &self) -> decltype(auto) {
+      return self.internode_barrier();
+    },
     "self")};
 
 // internode_rank
 static auto const fun_4 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::MpiHandler const &self) { return self.internode_rank(); },
+    [](coqui_py::MpiHandler const &self) -> decltype(auto) {
+      return self.internode_rank();
+    },
     "self")};
 
 // internode_size
 static auto const fun_5 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::MpiHandler const &self) { return self.internode_size(); },
+    [](coqui_py::MpiHandler const &self) -> decltype(auto) {
+      return self.internode_size();
+    },
     "self")};
 
 // intranode_barrier
 static auto const fun_6 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::MpiHandler const &self) { return self.intranode_barrier(); },
+    [](coqui_py::MpiHandler const &self) -> decltype(auto) {
+      return self.intranode_barrier();
+    },
     "self")};
 
 // intranode_rank
 static auto const fun_7 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::MpiHandler const &self) { return self.intranode_rank(); },
+    [](coqui_py::MpiHandler const &self) -> decltype(auto) {
+      return self.intranode_rank();
+    },
     "self")};
 
 // intranode_size
 static auto const fun_8 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::MpiHandler const &self) { return self.intranode_size(); },
+    [](coqui_py::MpiHandler const &self) -> decltype(auto) {
+      return self.intranode_size();
+    },
     "self")};
 
 // root
 static auto const fun_9 = c2py::dispatcher_f_kw_t{c2py::cmethod(
-    [](coqui_py::MpiHandler const &self) { return self.root(); }, "self")};
+    [](coqui_py::MpiHandler const &self) -> decltype(auto) {
+      return self.root();
+    },
+    "self")};
 
 static const auto doc_d_0 = fun_0.doc(R"DOC(
 MPI barrier for the global communicator.

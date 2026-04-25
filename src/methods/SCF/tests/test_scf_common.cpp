@@ -89,7 +89,7 @@ namespace bdft_tests {
 
     double beta = 1000;
     double wmax = 1.2;
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis);
 
     auto [sMO_skij, sE_ski] = get_mf_MOs(*context, mf, psp);
     double mu = 0.175;
@@ -102,7 +102,7 @@ namespace bdft_tests {
         *context, {ft.nt_f(), mf.nspin(), mf.nkpts(), mf.nbnd(), mf.nbnd()});
     update_Dm(sDm_skij, sMO_skij, sE_ski, mu, ft.beta());
     update_G(sG_tskij, sMO_skij, sE_ski, mu, ft);
-    ft.check_leakage(sG_tskij, imag_axes_ft::fermi, "Green's function");
+    ft.check_leakage(sG_tskij, imag_axes_ft::fermion, "Green's function");
 
     h5::file file(filepath+"/hf_Gw_Gt_beta1000_wmax1.2_high.h5", 'r');
     h5::group grp(file);

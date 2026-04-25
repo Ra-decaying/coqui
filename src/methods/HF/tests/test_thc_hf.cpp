@@ -116,7 +116,7 @@ namespace bdft_tests {
   TEST_CASE("thc_hf_qe", "[methods][thc][hf][qe]") {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
-    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_basis);
 
     auto solve_thc_hf = [&](
         std::shared_ptr<mf::MF> &mf, std::string cd_dir, double e0) {
@@ -187,7 +187,7 @@ namespace bdft_tests {
   TEST_CASE("thc_qphf_qe", "[methods][thc][hf][qe]") {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
-    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_basis);
 
     auto solve_thc_qphf = [&](std::shared_ptr<mf::MF> &mf) {
       solvers::hf_t hf;
@@ -251,7 +251,7 @@ namespace bdft_tests {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "pyscf_si222"));
-    imag_axes_ft::IAFT ft(5000, 2.4, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(5000, 2.4, imag_axes_ft::ir_basis);
     solvers::hf_t hf;
 
     /**
@@ -360,7 +360,7 @@ namespace bdft_tests {
   TEST_CASE("thc_hf_mol", "[methods][thc][hf][pyscf][mol]") {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
-    imag_axes_ft::IAFT ft(2000, 6.0, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(2000, 6.0, imag_axes_ft::ir_basis);
 
     auto solve_gdf_thc_hf = [&](std::shared_ptr<mf::MF> &mf, std::string gdf_dir) {
       solvers::hf_t hf;
@@ -388,5 +388,46 @@ namespace bdft_tests {
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "pyscf_h2o_mol"));
     solve_gdf_thc_hf(mf, gdf_dir);
   }
+
+#ifdef ENABLE_DLR
+  TEST_CASE("thc_hf_dlr_vs_ir", "[methods][thc][hf][qe][iaft][dlr][ir]") {
+    auto& mpi_context = utils::make_unit_test_mpi_context();
+
+    imag_axes_ft::IAFT ft(1000, 10.0, imag_axes_ft::dlr_basis);
+
+    auto solve_thc_hf = [&](std::shared_ptr<mf::MF> &mf, double e0) {
+      solvers::hf_t hf;
+      /**
+       * References are obtained from chol-hf with Cholesky tolerance = 1e-10 wiht IR basis
+       * The accuracy is roughly 1e-5 at alpha=20 for this system.
+       **/
+      thc_reader_t thc(mf, make_thc_reader_ptree(mf->nbnd()*20, "", "incore", "", "bdft", 1e-10, mf->ecutrho(),
+                       1, 1024));
+      auto eri = mb_eri_t(thc, thc);
+      simple_dyson dyson(mf.get(), &ft);
+      iter_scf::iter_scf_t iter_sol("damping");
+      MBState mb_state(mpi_context, ft, "coqui");
+      auto [e_hf, e_corr] = scf_loop(mb_state, dyson, eri, ft,
+                                     solvers::mb_solver_t(&hf), &iter_sol,
+                                     1, false, 1e-9, false);
+      VALUE_EQUAL(e_hf, e0, 1e-5);
+
+      if (mpi_context->comm.root()) {
+        remove("./coqui.mbpt.h5");
+      }
+      mpi_context->comm.barrier();
+    };
+
+    SECTION("222_sym") {
+      auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "qe_lih222_sym"));
+      solve_thc_hf(mf, -4.2818278244126935);
+    }
+
+    SECTION("223_sym") {
+      auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "qe_lih223_sym"));
+      solve_thc_hf(mf, -4.287485045424232);
+    }
+  }
+#endif
 
 } // bdft_tests

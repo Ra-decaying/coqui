@@ -34,7 +34,7 @@ namespace bdft_tests {
   template<int N>
   using shape_t = std::array<long,N>;
 
-  TEST_CASE("ir_read", "[ir_read]") {
+  TEST_CASE("ir_read", "[iaft][ir]") {
     double beta = 1000;
     double lambda = 1.2e4;
     imag_axes_ft::ir::IR myir(beta, lambda/beta, "high");

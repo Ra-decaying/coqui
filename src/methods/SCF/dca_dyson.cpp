@@ -198,10 +198,10 @@ void dca_dyson::solve_dyson(Dm_t&_sDm_skij, G_t&_G_shm, const F_t&_sF_skij, cons
                                                        {_FT->nt_f(), _MF->nspin(), _MF->nkpts(), _MF->nbnd(), _MF->nbnd()});
     auto Gt_loc = dG_tskij.local();
     auto Gw_loc = dG_wskij_tmp.local();
-    _FT->w_to_tau(Gw_loc, Gt_loc, imag_axes_ft::fermi);
+    _FT->w_to_tau(Gw_loc, Gt_loc, imag_axes_ft::fermion);
     dG_wskij_tmp.reset();
 
-    _FT->check_leakage(dG_tskij, imag_axes_ft::fermi, "Green's function");
+    _FT->check_leakage(dG_tskij, imag_axes_ft::fermion, "Green's function");
 
     // Gather to shared memory
     auto G_shm = _G_shm.local();
@@ -263,7 +263,7 @@ void dca_dyson::compute_eigenspectra(double mu, [[maybe_unused]] const X_t&_sF_s
   auto S_inv = sS_inv.local();
 
   for (size_t n = _context.comm.rank(); n < _FT->nw_f(); n+= _context.comm.size()) {
-    _FT->tau_to_w(_G_shm.local(), Gw_skij, imag_axes_ft::fermi, n);
+    _FT->tau_to_w(_G_shm.local(), Gw_skij, imag_axes_ft::fermion, n);
     long wn = _FT->wn_mesh()(n);
     ComplexType omega_mu = _FT->omega(wn) + mu;
     for (size_t i = 0; i < _MF->nspin()*_MF->nkpts(); ++i) {

@@ -59,9 +59,10 @@ void write_metadata(communicator_t &comm, const mf::MF &mf, const imag_axes_ft::
     nda::h5_write(mf_grp, "eigvals", mf.eigval(), false);
 
     auto iaft_grp = grp.create_group("imaginary_fourier_transform");
-    std::string iaft_source = imag_axes_ft::source_enum_to_string(ft.source());
-    h5::h5_write(iaft_grp, "source", iaft_source);
+    std::string iaft_basis = imag_axes_ft::basis_enum_to_string(ft.basis());
+    h5::h5_write(iaft_grp, "basis", iaft_basis);
     h5::h5_write(iaft_grp, "prec", ft.prec());
+    h5::h5_write(iaft_grp, "eps", ft.eps());
     h5::h5_write(iaft_grp, "beta", ft.beta());
     h5::h5_write(iaft_grp, "wmax", ft.wmax());
     h5::h5_write(iaft_grp, "lambda", ft.lambda());

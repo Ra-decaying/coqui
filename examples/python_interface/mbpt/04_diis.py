@@ -24,8 +24,10 @@ svo_thc = coqui.make_thc_coulomb(mf=svo_mf, params=eri_params)
 # GW
 gw_params = {
     "beta": 200,
-    "wmax": 3.0,
-    "iaft_prec": "medium",
+    "iaft": {
+        "wmax": 3.0,
+        "prec": "medium"
+    },
     "niter": 10,
     "output": "svo_gw",
     "iter_alg": {

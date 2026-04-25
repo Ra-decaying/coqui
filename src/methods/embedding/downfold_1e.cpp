@@ -95,7 +95,7 @@ namespace methods {
 
     _Timer.start("DF_DOWNFOLD");
     auto Gloc_tsIab = (force_real)? proj.downfold_loc<true>(sG_tskij, "Gloc") : proj.downfold_loc<false>(sG_tskij, "Gloc");
-    ft->check_leakage(Gloc_tsIab, imag_axes_ft::fermi, std::addressof(mpi->comm), "Local Green's function");
+    ft->check_leakage(Gloc_tsIab, imag_axes_ft::fermion, std::addressof(mpi->comm), "Local Green's function");
     _Timer.stop("DF_DOWNFOLD");
 
     _Timer.stop("DF_TOTAL");
@@ -403,7 +403,7 @@ namespace methods {
       auto Gloc_tsIab = (force_real)? proj.downfold_loc<true>(sG_tskij, "Gloc") : proj.downfold_loc<false>(sG_tskij, "Gloc");
       Vhf_loc_sIab = (force_real)? proj.downfold_loc<true>(sVhf_skij, "Vhf_loc") : proj.downfold_loc<false>(sVhf_skij, "Vhf_loc");
       auto Sigma_tsIab = (force_real)? proj.downfold_loc<true>(sSigma_tskij, "Sigma_loc") : proj.downfold_loc<false>(sSigma_tskij, "Sigma_loc");
-      ft->tau_to_w(Sigma_tsIab, Sigma_loc_wsIab, imag_axes_ft::fermi);
+      ft->tau_to_w(Sigma_tsIab, Sigma_loc_wsIab, imag_axes_ft::fermion);
       _Timer.stop("DF_DOWNFOLD");
 
       _Timer.start("DF_DC");
@@ -433,7 +433,7 @@ namespace methods {
       }
 
       _Timer.start("DF_G_WEISS");
-      ft->tau_to_w(Gloc_tsIab, Gloc_wsIab, imag_axes_ft::fermi);
+      ft->tau_to_w(Gloc_tsIab, Gloc_wsIab, imag_axes_ft::fermion);
       if (g_weiss_type == "dmft") {
         // Calculate the fermionic Weiss field:
         //     g_weiss(w)^{-1} = Gloc(w)^{-1} + vhf_imp + sigma_imp(w)
@@ -468,8 +468,8 @@ namespace methods {
 
     {
       nda::array<ComplexType, 5> g_weiss_tsIab(ft->nt_f(), _MF->nspin(), nImps, nImpOrbs, nImpOrbs);
-      ft->w_to_tau(g_weiss_wsIab, g_weiss_tsIab, imag_axes_ft::fermi);
-      ft->check_leakage(g_weiss_tsIab, imag_axes_ft::fermi, std::addressof(mpi->comm), "Fermionic Weiss field");
+      ft->w_to_tau(g_weiss_wsIab, g_weiss_tsIab, imag_axes_ft::fermion);
+      ft->check_leakage(g_weiss_tsIab, imag_axes_ft::fermion, std::addressof(mpi->comm), "Fermionic Weiss field");
     }
     auto H0_loc_sIab = (force_real)?
         proj.downfold_loc<true>(dyson.sH0_skij(), "H0_loc") :
@@ -705,7 +705,7 @@ namespace methods {
                            mu, sMO_skia, sE_ska, qp_context, force_real, format_type) :
         read_double_counting_qp(filename, weiss_f_iter, *ft);
     nda::array<ComplexType, 5> Sigma_dc_wsIab(ft->nw_f(), _MF->nspin(), nImps, nImpOrbs, nImpOrbs);
-    ft->tau_to_w(Sigma_dc_tsIab, Sigma_dc_wsIab, imag_axes_ft::fermi);
+    ft->tau_to_w(Sigma_dc_tsIab, Sigma_dc_wsIab, imag_axes_ft::fermion);
 
     mb_state.Vhf_dc_sIab = Vhf_dc_sIab;
     mb_state.Vcorr_dc_sIab = Vcorr_dc_sIab;
@@ -768,7 +768,7 @@ namespace methods {
         proj.downfold_loc<true>(sG_tskij, "Gtot_loc") :
         proj.downfold_loc<false>(sG_tskij, "Gtot_loc");
     nda::array<ComplexType, 5> Gloc_wsIab(ft->nw_f(), _MF->nspin(), nImps, nImpOrbs, nImpOrbs);
-    ft->tau_to_w(Sigma_dc_tsIab, Gloc_wsIab, imag_axes_ft::fermi);
+    ft->tau_to_w(Sigma_dc_tsIab, Gloc_wsIab, imag_axes_ft::fermion);
     auto H0_loc_sIab = (force_real)?
         proj.downfold_loc<true>(dyson.sH0_skij(), "H0_loc") :
         proj.downfold_loc<false>(dyson.sH0_skij(), "H0_loc");
@@ -1234,7 +1234,7 @@ namespace methods {
     nda::h5_read(iter_grp, "Sigma_dc_wsIab", Sigma_dc_wsIab);
 
     nda::array<ComplexType, 5> Sigma_dc_tsIab(ft.nt_f(), _MF->nspin(), nImps, nImpOrbs, nImpOrbs);
-    ft.w_to_tau(Sigma_dc_wsIab, Sigma_dc_tsIab, imag_axes_ft::fermi);
+    ft.w_to_tau(Sigma_dc_wsIab, Sigma_dc_tsIab, imag_axes_ft::fermion);
 
     return std::make_tuple(Vhf_dc_sIab, Vcorr_dc_sIab, Sigma_dc_tsIab);
   }

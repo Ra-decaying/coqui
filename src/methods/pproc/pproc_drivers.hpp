@@ -50,7 +50,7 @@ namespace methods {
    * Optional arguments for pp_type = ac (analytical continuation):
    *   - ac_alg: algorithm for analytical continuation, allowed options: pade
    *   - dataset: input dataset
-   *   - stats: statistics, allowed options: fermi, boson
+   *   - stats: statistics, allowed options: fermion, boson
    *   - w_min: minimum real frequency
    *   - w_max: maximum real frequency
    *   - Nw: number of real frequency points
@@ -73,7 +73,7 @@ namespace methods {
       auto dataset = io::get_value_with_default<std::string>(pt,"dataset","G_tskij");
 
       auto ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
-      auto stats   = io::get_value_with_default<std::string>(pt,"stats","fermi");
+      auto stats   = io::get_value_with_default<std::string>(pt,"stats","fermion");
       auto w_min   = io::get_value_with_default<double>(pt,"w_min",-10.0);
       auto w_max   = io::get_value_with_default<double>(pt,"w_max",10.0);
       auto Nw      = io::get_value_with_default<int>(pt,"Nw",5000);
@@ -107,7 +107,7 @@ namespace methods {
 
         // dump mf data to "scf_output".mbpt.h5
         auto psp = hamilt::make_pseudopot(*mf);
-        imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, iaft_prec, true);
+        imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis, iaft_prec, true);
         write_mf_data(*mf, ft, *psp.get(), scf_output);
       }
       pp.wannier_interpolation(*mf, pt, wannier_file, "quasiparticle", "scf", iteration, trans_home_cell);
@@ -127,7 +127,7 @@ namespace methods {
       auto w_min   = io::get_value_with_default<double>(pt,"w_min",-1.0);
       auto w_max   = io::get_value_with_default<double>(pt,"w_max",1.0);
       auto Nw      = io::get_value_with_default<int>(pt,"Nw",1000);
-      analyt_cont::ac_context_t ac_context(ac_alg, imag_axes_ft::fermi, Nfit, eta, w_min, w_max, Nw);
+      analyt_cont::ac_context_t ac_context(ac_alg, imag_axes_ft::fermion, Nfit, eta, w_min, w_max, Nw);
 
       pp.spectral_interpolation(*mf, pt, wannier_file, ac_context, grp_name, iteration, trans_home_cell);
 
@@ -147,7 +147,7 @@ namespace methods {
       auto w_min   = io::get_value_with_default<double>(pt,"w_min",-1.0);
       auto w_max   = io::get_value_with_default<double>(pt,"w_max",1.0);
       auto Nw      = io::get_value_with_default<int>(pt,"Nw",1000);
-      analyt_cont::ac_context_t ac_context(ac_alg, imag_axes_ft::fermi, Nfit, eta, w_min, w_max, Nw);
+      analyt_cont::ac_context_t ac_context(ac_alg, imag_axes_ft::fermion, Nfit, eta, w_min, w_max, Nw);
 
       pp.local_density_of_state(*mf, wannier_file, ac_context, grp_name, iteration, trans_home_cell);
 
@@ -173,7 +173,7 @@ namespace methods {
         auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
 
         // dump mf data to "scf_output".mbpt.h5
-        imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, iaft_prec, true);
+        imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis, iaft_prec, true);
         write_mf_data(*mf, ft, *psp.get(), scf_output);
       }
 

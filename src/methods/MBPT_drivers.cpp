@@ -53,7 +53,7 @@ namespace methods
 
 // Helper function to prepare checkpoint file for downfold_coulomb
 inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& output, 
-                                 std::string const& greens_func_source, ptree const& pt) {
+                              std::string const& greens_func_source, ptree const& pt) {
   
   if (greens_func_source == "mf" and std::filesystem::exists(output+".mbpt.h5")) {
     
@@ -68,10 +68,7 @@ inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& out
 
   } else if (greens_func_source == "mf" and not std::filesystem::exists(output+".mbpt.h5")) {
     
-    auto beta = io::get_value_with_default<double>(pt,"beta", 1000.0);
-    auto wmax = io::get_value_with_default<double>(pt,"wmax", 12.0);
-    auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_source, iaft_prec, false);
+    imag_axes_ft::IAFT ft(pt, false, mf::wmax_from_mf(*mf));
     hamilt::pseudopot psp(*mf);
     write_mf_data(*mf, ft, psp, output);
   
@@ -93,7 +90,8 @@ inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& out
  * Many-body perturbation calculations from a given mean-field and ERI objects with arguments in property tree.
  * Optional arguments (with default values):
  *  - beta: "1000" Inverse temperature (a.u.)
- *  - wmax: "12.0" Frequency cutoff for the IAFT grids (a.u.)
+ *  - wmax: Optional. Frequency cutoff for the IAFT grids (a.u.).
+ *          If not provided, wmax is estimated from mean_field. 
  *  - iaft_prec: "high" Precision of IAFT grids. {choices: "high", "medium", "low"}
  *  - div_treatment: "gygi" Divergent treatment for Coulomb kernel. {choices: "ignore_g0", "gygi"}
  *  - hf_div_treatment: "gygi" Divergent treatment for Coulomb kernel in HF. {choices: "ignore_g0", "gygi"}
@@ -128,10 +126,6 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   auto greens_func_source = io::get_value_with_default<std::string>(pt,"greens_func_source", "scf");
   auto greens_func_iteration = io::get_value_with_default<long>(pt, "greens_func_iteration", -1);
 
-  auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
-  auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
-  auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
-
   bool chkpt_exist = std::filesystem::exists(output + ".mbpt.h5");
   if (restart and !chkpt_exist) {
     restart = false;
@@ -153,9 +147,10 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     app_log(1, "╚══════════════════════════════════════════════════════════╝\n");
   }
 
-  imag_axes_ft::IAFT ft = (!restart)?
-      imag_axes_ft::IAFT(beta, wmax, imag_axes_ft::ir_source, iaft_prec) :
-      imag_axes_ft::read_iaft(output+".mbpt.h5");
+  imag_axes_ft::IAFT ft(
+    !restart ? imag_axes_ft::IAFT(pt, false, mf::wmax_from_mf(*mf))
+             : imag_axes_ft::read_iaft(output+".mbpt.h5", false)
+  );
 
   std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
 
@@ -387,12 +382,10 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
 
   auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
 
-  auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
-  auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
-  auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
-  imag_axes_ft::IAFT ft = (!restart)?
-                          imag_axes_ft::IAFT(beta, wmax, imag_axes_ft::ir_source, iaft_prec) :
-                          imag_axes_ft::read_iaft(output+".mbpt.h5");
+  imag_axes_ft::IAFT ft(
+    !restart ? imag_axes_ft::IAFT(pt, false, mf::wmax_from_mf(*mf))
+             : imag_axes_ft::read_iaft(output+".mbpt.h5", false)
+  );
 
   std::unique_ptr<iter_scf::iter_scf_t> iter_solver;
 
@@ -681,11 +674,7 @@ void hf_downfold(eri_t &eri, ptree const& pt) {
   std::string output = outdir + "/" + prefix;
 
   // initialize
-  imag_axes_ft::IAFT ft(
-      io::get_value_with_default<double>(pt,"beta",1000.0),
-      io::get_value_with_default<double>(pt,"wmax",12.0),
-      imag_axes_ft::ir_source,
-      io::get_value_with_default<std::string>(pt, "iaft_prec", "high"), true);
+  imag_axes_ft::IAFT ft(pt, true, mf::wmax_from_mf(*mf));
   hamilt::pseudopot psp(*mf);
   write_mf_data(*mf, ft, psp, output);
   MBState mb_state(ft, output, mf, wannier_file, trans_home_cell, false);

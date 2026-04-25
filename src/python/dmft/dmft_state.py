@@ -77,11 +77,11 @@ def save_impurity_results(solver_results, solver_chkpt, iteration=-1, impurity_i
     mpi.barrier()
 
 
-def save_impurity_inputs(solver_inputs, solver_chkpt, iteration=-1, impurity_index=-1, *, ir_kernel=None):
+def save_impurity_inputs(solver_inputs, solver_chkpt, iteration=-1, impurity_index=-1, *, iaft=None):
     if mpi.is_master_node():
         with HDFArchive(solver_chkpt, 'a') as ar:
-            if ir_kernel:
-                ir_kernel.save(ar)
+            if iaft:
+                iaft.save(ar)
             if "dmft" not in ar.keys():
                 ar.create_group("dmft")
             dmft_io.save_impurities(
@@ -91,11 +91,11 @@ def save_impurity_inputs(solver_inputs, solver_chkpt, iteration=-1, impurity_ind
     mpi.barrier()
 
 
-def save(solver_results, solver_inputs, solver_chkpt, iteration=-1, *, ir_kernel=None):
+def save(solver_results, solver_inputs, solver_chkpt, iteration=-1, *, iaft=None):
     if mpi.is_master_node():
         with HDFArchive(solver_chkpt, 'a') as ar:
-            if ir_kernel:
-                ir_kernel.save(ar)
+            if iaft:
+                iaft.save(ar)
             if "dmft" not in ar.keys():
                 ar.create_group("dmft")
             dmft_io.save_impurities(
@@ -109,13 +109,13 @@ class DMFTState(object):
     """
     """
     def __init__(self, embedding_1e, embedding_2e,
-                 iw_mesh_f, iw_mesh_b, ir_crystal,
+                 iw_mesh_f, iw_mesh_b, iaft_crystal,
                  spin_average=False, screen_type='gw_edmft',
                  verbal=False):
         self.iteration = 0
         self.spin_average = spin_average
         self.embedding = {'1e': embedding_1e, '2e': embedding_2e}
-        self.ir_kernel = ir_crystal
+        self.iaft = iaft_crystal
 
         self.local_sigma_w = None
         self.local_sigma_infty = None
@@ -175,23 +175,23 @@ class DMFTState(object):
     # TODO make_dmft_state without an existing coqui_h5. Directly take the IR parameters as input. 
     @classmethod
     def make_dmft_state(cls, coqui_h5, embedding_1e, embedding_2e,
-                        wmax_imp=None, prec_imp=None, spin_average=False,
+                        wmax_imp=None, eps_imp=None, spin_average=False,
                         screen_type='gw_edmft', verbal=False):
         from triqs.gf import MeshDLRImFreq
-        ir_kernel = IAFT.from_coqui_chkpt(coqui_h5, verbose=verbal)
+        iaft = IAFT.from_coqui_chkpt(coqui_h5, verbose=verbal)
         # Compatible TRIQS meshes: one for fermion and one for boson, where all triqs Gfs live.
         if wmax_imp is None:
-            wmax_imp = ir_kernel.wmax
-        if prec_imp is None:
-            prec_imp = ir_kernel.prec
+            wmax_imp = iaft.wmax
+        if eps_imp is None:
+            eps_imp = iaft.eps
         iw_mesh_f = MeshDLRImFreq(
-            beta=ir_kernel.beta, statistic='Fermion', w_max=wmax_imp, eps=prec_imp, symmetrize=True
+            beta=iaft.beta, statistic='Fermion', w_max=wmax_imp, eps=eps_imp, symmetrize=True
         )
         iw_mesh_b = MeshDLRImFreq(
-            beta=ir_kernel.beta, statistic='Boson', w_max=wmax_imp, eps=prec_imp, symmetrize=True
+            beta=iaft.beta, statistic='Boson', w_max=wmax_imp, eps=eps_imp, symmetrize=True
         )
         return cls(embedding_1e, embedding_2e, iw_mesh_f, iw_mesh_b,
-                   ir_kernel, spin_average, screen_type, verbal)
+                   iaft, spin_average, screen_type, verbal)
 
 
     def load(self, solver_chkpt):
@@ -203,14 +203,14 @@ class DMFTState(object):
         self.iteration = dmft_io.update_impurity_results_from_chkpt(self.solver_results, solver_chkpt) + 1
 
         # check dimensions of loaded impurity results
-        nw_b_half = self.ir_kernel.nw_b//2 if self.ir_kernel.nw_b%2==0 else self.ir_kernel.nw_b//2 + 1
+        nw_b_half = self.iaft.nw_b//2 if self.iaft.nw_b%2==0 else self.iaft.nw_b//2 + 1
         for imp_idx, res in enumerate(self.solver_results):
             for blk_idx, (blk_name, blk_dim) in enumerate(res['gf_struct']):
                 assert (res['Sigma_infty'][blk_idx].shape[0] == blk_dim and
                         res['Sigma_infty'][blk_idx].shape[1] == blk_dim), (
                     "Incompatible block dimension for the loaded impurity Sigma"
                 )
-                assert res['Sigma_iw_data'][blk_idx].shape[0] == self.ir_kernel.nw_f, (
+                assert res['Sigma_iw_data'][blk_idx].shape[0] == self.iaft.nw_f, (
                     "Incompatible fermionic Matsubara mesh for the loaded impurity Sigma"
                 )
                 assert (res['Sigma_iw_data'][blk_idx].shape[1] == blk_dim and
@@ -231,17 +231,17 @@ class DMFTState(object):
             self.embedding['1e'], self.embedding['2e'], self.solver_results, self.spin_average
         )
         if mpi.is_master_node():
-            self.ir_kernel.check_leakage(self.local_sigma_w["imp"], stats='f', name='Sigma_imp', w_input=True)
-            self.ir_kernel.check_leakage(self.local_sigma_w["dc"], stats='f', name='Sigma_dc', w_input=True)
-            self.ir_kernel.check_leakage_phsym(self.local_pi_w["imp"], stats='b', name='Pi_imp', w_input=True)
-            self.ir_kernel.check_leakage_phsym(self.local_pi_w["dc"], stats='b', name='Pi_dc', w_input=True)
+            self.iaft.check_leakage(self.local_sigma_w["imp"], stats='f', name='Sigma_imp', w_input=True)
+            self.iaft.check_leakage(self.local_sigma_w["dc"], stats='f', name='Sigma_dc', w_input=True)
+            self.iaft.check_leakage_phsym(self.local_pi_w["imp"], stats='b', name='Pi_imp', w_input=True)
+            self.iaft.check_leakage_phsym(self.local_pi_w["dc"], stats='b', name='Pi_dc', w_input=True)
             mpi.report("")
         mpi.barrier()
 
 
     def save_impurity_inputs(self, solver_chkpt, impurity_index):
         save_impurity_inputs(
-            self.solver_inputs, solver_chkpt, self.iteration, impurity_index, ir_kernel=self.ir_kernel
+            self.solver_inputs, solver_chkpt, self.iteration, impurity_index, iaft=self.iaft
         )
 
     def save_impurity_results(self, solver_chkpt, impurity_index):
@@ -251,7 +251,7 @@ class DMFTState(object):
 
     def save(self, solver_chkpt):
         save(self.solver_results, self.solver_inputs,
-             solver_chkpt, self.iteration, ir_kernel=self.ir_kernel)
+             solver_chkpt, self.iteration, iaft=self.iaft)
 
 
     def embed_impurity_results(self):
@@ -286,10 +286,10 @@ class DMFTState(object):
         self.local_pi_w        = local_pi_w
 
         if mpi.is_master_node():
-            self.ir_kernel.check_leakage(self.local_sigma_w["imp"], stats='f', name='Sigma_imp', w_input=True)
-            self.ir_kernel.check_leakage(self.local_sigma_w["dc"], stats='f', name='Sigma_dc', w_input=True)
-            self.ir_kernel.check_leakage_phsym(self.local_pi_w["imp"], stats='b', name='Pi_imp', w_input=True)
-            self.ir_kernel.check_leakage_phsym(self.local_pi_w["dc"], stats='b', name='Pi_dc', w_input=True)
+            self.iaft.check_leakage(self.local_sigma_w["imp"], stats='f', name='Sigma_imp', w_input=True)
+            self.iaft.check_leakage(self.local_sigma_w["dc"], stats='f', name='Sigma_dc', w_input=True)
+            self.iaft.check_leakage_phsym(self.local_pi_w["imp"], stats='b', name='Pi_imp', w_input=True)
+            self.iaft.check_leakage_phsym(self.local_pi_w["dc"], stats='b', name='Pi_dc', w_input=True)
             mpi.report("")
         mpi.barrier()
 

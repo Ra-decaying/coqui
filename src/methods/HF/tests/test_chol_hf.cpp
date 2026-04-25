@@ -53,7 +53,7 @@ namespace bdft_tests {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "qe_lih222"));
-    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_source);
+    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_basis);
     solvers::hf_t hf;
 
     /**

@@ -120,10 +120,10 @@ namespace methods {
                                                          {_nts, _ns, _nkpts_ibz, _nbnd, _nbnd});
       auto Gt_loc = dG_tskij.local();
       auto Gw_loc = dG_wskij_tmp.local();
-      _FT->w_to_tau(Gw_loc, Gt_loc, imag_axes_ft::fermi);
+      _FT->w_to_tau(Gw_loc, Gt_loc, imag_axes_ft::fermion);
       dG_wskij_tmp.reset();
 
-      _FT->check_leakage(dG_tskij, imag_axes_ft::fermi, "Green's function");
+      _FT->check_leakage(dG_tskij, imag_axes_ft::fermion, "Green's function");
 
       // Gather to shared memory
       _Timer.start("DYSON_GATHER");
@@ -175,7 +175,7 @@ namespace methods {
     sS_inv.win().fence();
 
     for (size_t n = _context->comm.rank(); n < _nw; n+=_context->comm.size()) {
-      _FT->tau_to_w(_Sigma_shm.local(), Sigmaw_skij, imag_axes_ft::fermi, n);
+      _FT->tau_to_w(_Sigma_shm.local(), Sigmaw_skij, imag_axes_ft::fermion, n);
       for (size_t i = 0; i < _ns*_nkpts_ibz; ++i) {
         size_t is = i / _nkpts_ibz; // i = is * _nkpts_ibz + ik
         size_t ik = i % _nkpts_ibz;

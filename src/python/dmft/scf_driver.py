@@ -82,7 +82,7 @@ def run_gw_edmft(mf, thc, proj_info, embedding_1e, inner_loop_alg=1, **gw_edmft_
     dmft_state = coqui_dmft.DMFTState.make_dmft_state(
         coqui_chkpt_h5, embedding_1e, embedding_2e,
         wmax_imp=impurity_params.pop('dlr_wmax', None),
-        prec_imp=impurity_params.pop('dlr_eps', None),
+        eps_imp=impurity_params.pop('dlr_eps', None),
         spin_average=mf.nspin()==1,
         screen_type=wloc_params['screen_type'],
         verbal=coqui_mpi.root()
@@ -191,8 +191,8 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h5,
         Gloc_t = coqui.downfold_local_gf(mf, gloc_params, projector_info=proj_info)
 
         if coqui_mpi.root():
-            dmft_state.ir_kernel.check_leakage(Gloc_t, stats='f', name='Gloc in the full MLWF space')
-            dmft_state.ir_kernel.check_leakage_phsym(Wloc_t, stats='b', name='Wloc in the full MLWF space')
+            dmft_state.iaft.check_leakage(Gloc_t, stats='f', name='Gloc in the full MLWF space')
+            dmft_state.iaft.check_leakage_phsym(Wloc_t, stats='b', name='Wloc in the full MLWF space')
 
         # Convert spin axis → list of length nspin
         Vloc, Wloc_t = [Vloc], [Wloc_t]
@@ -217,27 +217,27 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h5,
             Input['Vloc'] = coqui_dmft.chemistry_to_product_basis(V)
 
             coqui_dmft.fit_local_results_boson(
-                Input, dmft_state.ir_kernel, solver_params.get("causal_projection")
+                Input, dmft_state.iaft, solver_params.get("causal_projection")
             )
 
             # Fermionic and bosonic Weiss fields
             Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(
-                coqui_mpi, Res, Input, solver_params, dmft_state.ir_kernel
+                coqui_mpi, Res, Input, solver_params, dmft_state.iaft
             )
             Input['u_weiss_iw'] = coqui_dmft.fit_u_weiss(
-                Input['u_weiss_iw'], dmft_state.ir_kernel, solver_params.get("causal_projection")
+                Input['u_weiss_iw'], dmft_state.iaft, solver_params.get("causal_projection")
             )
 
             # h0: (nspin, norb, norb), delta_iw: (niw, nspin, norb, norb)
             Input['h0'], Input['delta_iw'] = coqui_dmft.extract_h0_and_delta(
-                Input['g_weiss_iw'], dmft_state.ir_kernel
+                Input['g_weiss_iw'], dmft_state.iaft
             )
 
             Ub, Ubp, Jb_spin, Jb_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc'])
             U, Up, J_spin, J_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc']+Input['u_weiss_iw'][0])
-            dm = -dmft_state.ir_kernel.tau_interpolate(
+            dm = -dmft_state.iaft.tau_interpolate(
                 coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
-                [dmft_state.ir_kernel.beta], 'f')[0]
+                dmft_state.iaft.beta, 'f')[0]
             Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
             if coqui_mpi.root():
                 print("Hubbard-Kanamori interaction at bare and zero frequency")
@@ -258,7 +258,7 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h5,
             # Convert CoQuí outputs to TRIQS containers
             h0, delta_iw, h_int, u_weiss_iw = coqui_dmft.to_triqs_containers(
                 Input['h0'], Input['delta_iw'], Input['Vloc'], Input['u_weiss_iw'],
-                dmft_state.ir_kernel, gf_struct = Res['gf_struct'],
+                dmft_state.iaft, gf_struct = Res['gf_struct'],
                 triqs_iw_mesh = {"fermion": Res['iw_mesh_f'], "boson": Res['iw_mesh_b']},
                 density_hamiltonian = True, real_hamiltonian = True,
                 screen_j_in_u_dd = solver_params.get('screen_j', False)
@@ -285,11 +285,11 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h5,
             )
             # convert from triqs Gf to numpy arrays and ir mesh
             Res.update(coqui_dmft.imp_results_to_raw_data(
-                Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], dmft_state.ir_kernel)
+                Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], dmft_state.iaft)
             )
             # Causal projection
             coqui_dmft.fit_impurity_results_boson(
-                Res, dmft_state.ir_kernel, solver_params.get("causal_projection"))
+                Res, dmft_state.iaft, solver_params.get("causal_projection"))
 
             # TODO Option to use Gimp and Wimp
             # GW double counting contributions
@@ -297,7 +297,7 @@ def _edmft_loop(mf, thc, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h5,
                 coqui_dmft.solve_gw_dc(
                     coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Res['gf_struct']),
                     Input['Vloc'], Input['Wloc_t'], Input['u_weiss_iw'],
-                    dmft_state.ir_kernel, density_only=True,
+                    dmft_state.iaft, density_only=True,
                     gf_struct=Res['gf_struct']
                 )
             )
@@ -348,8 +348,8 @@ def _edmft_loop_fixed_gloc_and_wloc(
     Gloc_t = coqui.downfold_local_gf(mf, gloc_params, projector_info=proj_info)
 
     if coqui_mpi.root():
-        dmft_state.ir_kernel.check_leakage(Gloc_t, stats='f', name='Gloc in the full MLWF space')
-        dmft_state.ir_kernel.check_leakage_phsym(Wloc_t, stats='b', name='Wloc in the full MLWF space')
+        dmft_state.iaft.check_leakage(Gloc_t, stats='f', name='Gloc in the full MLWF space')
+        dmft_state.iaft.check_leakage_phsym(Wloc_t, stats='b', name='Wloc in the full MLWF space')
 
     # Convert spin axis → list of length nspin
     Gloc_t = [Gloc_t[:, s] for s in range(Gloc_t.shape[1])]
@@ -374,26 +374,26 @@ def _edmft_loop_fixed_gloc_and_wloc(
             Input['Vloc'] = coqui_dmft.chemistry_to_product_basis(V)
 
             coqui_dmft.fit_local_results_boson(
-                Input, dmft_state.ir_kernel, solver_params.get("causal_projection"))
+                Input, dmft_state.iaft, solver_params.get("causal_projection"))
 
             # Fermionic and bosonic Weiss fields
             Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(
-                coqui_mpi, Res, Input, solver_params, dmft_state.ir_kernel
+                coqui_mpi, Res, Input, solver_params, dmft_state.iaft
             )
             Input['u_weiss_iw'] = coqui_dmft.fit_u_weiss(
-                Input['u_weiss_iw'], dmft_state.ir_kernel, solver_params.get("causal_projection")
+                Input['u_weiss_iw'], dmft_state.iaft, solver_params.get("causal_projection")
             )
 
             # h0: (nspin, norb, norb), delta_iw: (niw, nspin, norb, norb)
             Input['h0'], Input['delta_iw'] = coqui_dmft.extract_h0_and_delta(
-                Input['g_weiss_iw'], dmft_state.ir_kernel
+                Input['g_weiss_iw'], dmft_state.iaft
             )
 
             Ub, Ubp, Jb_spin, Jb_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc'])
             U, Up, J_spin, J_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc']+Input['u_weiss_iw'][0])
-            dm = -dmft_state.ir_kernel.tau_interpolate(
+            dm = -dmft_state.iaft.tau_interpolate(
                 coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
-                [dmft_state.ir_kernel.beta], 'f')[0]
+                dmft_state.iaft.beta, 'f')[0]
             Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
             if coqui_mpi.root():
                 print("Hubbard-Kanamori interaction at bare and zero frequency")
@@ -414,7 +414,7 @@ def _edmft_loop_fixed_gloc_and_wloc(
             # Convert CoQuí outputs to TRIQS containers
             h0, delta_iw, h_int, u_weiss_iw = coqui_dmft.to_triqs_containers(
                 Input['h0'], Input['delta_iw'], Input['Vloc'], Input['u_weiss_iw'],
-                dmft_state.ir_kernel, gf_struct = Res['gf_struct'],
+                dmft_state.iaft, gf_struct = Res['gf_struct'],
                 triqs_iw_mesh = {"fermion": Res['iw_mesh_f'], "boson": Res['iw_mesh_b']},
                 density_hamiltonian = True, real_hamiltonian = True,
                 screen_j_in_u_dd = solver_params.get('screen_j', False)
@@ -441,18 +441,18 @@ def _edmft_loop_fixed_gloc_and_wloc(
             )
             # convert from triqs Gf to numpy arrays and ir mesh
             Res.update(coqui_dmft.imp_results_to_raw_data(
-                Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], dmft_state.ir_kernel)
+                Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], dmft_state.iaft)
             )
             # Causal projection
             coqui_dmft.fit_impurity_results_boson(
-                Res, dmft_state.ir_kernel, solver_params.get("causal_projection"))
+                Res, dmft_state.iaft, solver_params.get("causal_projection"))
 
             # GW double counting contributions
             Res.update(
                 coqui_dmft.solve_gw_dc(
                     coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Res['gf_struct']),
                     Input['Vloc'], Input['Wloc_t'], Input['u_weiss_iw'],
-                    dmft_state.ir_kernel, density_only=True,
+                    dmft_state.iaft, density_only=True,
                     gf_struct=Res['gf_struct']
                 )
             )
@@ -482,7 +482,7 @@ def _edmft_loop_fixed_gloc_and_wloc(
     coqui_mpi.barrier()
 
 
-def _compute_weiss_fields(coqui_mpi, imp_results, imp_inputs, solver_params, ir_kernel):
+def _compute_weiss_fields(coqui_mpi, imp_results, imp_inputs, solver_params, iaft):
 
     gloc_t_mat = coqui_dmft.blk_arr_to_arr(imp_inputs['Gloc_t'], imp_inputs['gf_struct'])
 
@@ -497,7 +497,7 @@ def _compute_weiss_fields(coqui_mpi, imp_results, imp_inputs, solver_params, ir_
                 print("screen_type = \"rpa\" -> "
                       "Set impurity polarizability to RPA for bosonic Weiss field.\n")
             # eval Pi_dc using the current Gloc
-            pi_imp = ir_kernel.tau_to_w_phsym(
+            pi_imp = iaft.tau_to_w_phsym(
                 coqui_dmft.eval_pi_rpa(gloc_t_mat, density_only=True), stats='b'
             )
         else:
@@ -505,7 +505,7 @@ def _compute_weiss_fields(coqui_mpi, imp_results, imp_inputs, solver_params, ir_
 
         return (
             coqui_dmft.compute_weiss_fields_w(
-                ir_kernel = ir_kernel,
+                iaft = iaft,
                 local_gf = {
                     "Gloc_t": gloc_t_mat,
                     "Wloc_t": imp_inputs['Wloc_t'],
@@ -522,7 +522,7 @@ def _compute_weiss_fields(coqui_mpi, imp_results, imp_inputs, solver_params, ir_
     else:
         return (
             coqui_dmft.init_weiss_fields_w(
-                ir_kernel = ir_kernel,
+                iaft = iaft,
                 local_gf = {
                     "Gloc_t": gloc_t_mat,
                     "Wloc_t": imp_inputs['Wloc_t'],
@@ -597,8 +597,8 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
         imp_params['solver'], coqui_mpi.comm_size()
     )
 
-    ir_kernel = IAFT.from_coqui_chkpt(imp_params['chkpt_h5'], verbose=coqui_mpi.root())
-    wmax_imp, prec_imp = imp_params.pop('dlr_wmax', ir_kernel.wmax), imp_params.pop('dlr_eps', ir_kernel.prec)
+    iaft = IAFT.from_coqui_chkpt(imp_params['chkpt_h5'], verbose=coqui_mpi.root())
+    wmax_imp, eps_imp = imp_params.pop('dlr_wmax', iaft.wmax), imp_params.pop('dlr_eps', iaft.eps)
 
     solver_inputs = coqui_dmft.read_impurity_chkpt(
         imp_params['chkpt_h5'], dmft_iteration, read="inputs", impurity_indices=imp_indices
@@ -610,14 +610,14 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
         Input = solver_inputs[imp_index]
 
         Input['u_weiss_iw'] = coqui_dmft.fit_u_weiss(
-            Input['u_weiss_iw'], ir_kernel, solver_params.get("causal_projection")
+            Input['u_weiss_iw'], iaft, solver_params.get("causal_projection")
         )
 
         Ub, Ubp, Jb_spin, Jb_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc'])
         U, Up, J_spin, J_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc']+Input['u_weiss_iw'][0])
-        dm = -ir_kernel.tau_interpolate(
+        dm = -iaft.tau_interpolate(
             coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
-            [ir_kernel.beta], 'f')[0]
+            iaft.beta, 'f')[0]
         Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
         if coqui_mpi.root():
             print("Hubbard-Kanamori interaction at bare and zero frequency")
@@ -634,14 +634,14 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
             print(f"Spin down: {np.diag(dm[1]).real}\n")
 
         if coqui_mpi.root():
-            ir_kernel.check_leakage(Input['delta_iw'], 'f', 'delta', w_input=True)
-            ir_kernel.check_leakage_phsym(Input['u_weiss_iw'], 'b', 'u_weiss', w_input=True)
+            iaft.check_leakage(Input['delta_iw'], 'f', 'delta', w_input=True)
+            iaft.check_leakage_phsym(Input['u_weiss_iw'], 'b', 'u_weiss', w_input=True)
 
         # Convert CoQuí outputs to TRIQS containers
         h0, delta_iw, h_int, u_weiss_iw = coqui_dmft.to_triqs_containers(
             Input['h0'], Input['delta_iw'], Input['Vloc'], Input['u_weiss_iw'],
-            ir_kernel, gf_struct = Input['gf_struct'],
-            triqs_iw_mesh = {"dlr_wmax": wmax_imp, "dlr_eps": prec_imp},
+            iaft, gf_struct = Input['gf_struct'],
+            triqs_iw_mesh = {"dlr_wmax": wmax_imp, "dlr_eps": eps_imp},
             density_hamiltonian = True, real_hamiltonian = True,
             screen_j_in_u_dd = solver_params.get('screen_j', False)
         )
@@ -665,12 +665,12 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
 
         # convert from triqs Gf to numpy arrays and ir mesh
         Res.update(coqui_dmft.imp_results_to_raw_data(
-            Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], ir_kernel)
+            Res['G_iw'], Res['Sigma_iw'], Res['W_iw'], Res['Pi_iw'], iaft)
         )
 
         # Causal projection
         coqui_dmft.fit_impurity_results_boson(
-            Res, ir_kernel, solver_params.get("causal_projection"))
+            Res, iaft, solver_params.get("causal_projection"))
 
         solver_results.append(Res)
 
