@@ -20,7 +20,7 @@ mf_params = {
     "outdir": qe_dir,
     "nbnd": 40
 }
-si_mf = coqui.make_mf(mpi, params=mf_params, mf_type="qe")
+svo_mf = coqui.make_mf(mpi, params=mf_params, mf_type="qe")
 
 # construct thc handler and compute the thc integrals during initialization
 eri_params = {
@@ -34,8 +34,10 @@ gw_params = {
     "output": "qpg0w0",
     "niter": 1,
     "beta": 200,
-    "wmax": 3.0,
-    "iaft_prec": "medium",
+    "iaft": {
+        "wmax": 3.0,
+        "prec": "medium"
+    },
     "qp_type": "sc",
     "ac_alg": "pade",
     "eta": 1e-6,
@@ -45,26 +47,24 @@ coqui.run_qpg0w0(params=gw_params, h_int=svo_thc)
 
 # Wannier interpolation for G0W0
 winter_params = {
-        "outdir": "./",
-        "prefix": "qpg0w0",
-        "iteration": 1,
-        "wannier_file": wan_h5, 
-        "bands_num_npoints": 100, 
-        "kpath": """
-          W 0.50 0.25 0.75 
-          G 0.00 0.00 0.00
-          X 0.50 0.00 0.50
-          W 0.50 0.25 0.75
-          L 0.50 0.50 0.50
-          G 0.00 0.00 0.00
-        """
-    }
+    "outdir": "./",
+    "prefix": "qpg0w0",
+    "iteration": 1,
+    "wannier_file": wan_h5, 
+    "bands_num_npoints": 100, 
+    "kpath": """
+      G 0.00 0.00 0.00
+      X 0.00 0.50 0.00
+      M 0.50 0.50 0.00
+      G 0.00 0.00 0.00
+    """
+}
 
-band_interpolation(si_mf, winter_params)
+band_interpolation(svo_mf, winter_params)
 
 # Wannier interpolation for PBE 
 winter_params["iteration"] = 0
-band_interpolation(si_mf, winter_params)
+band_interpolation(svo_mf, winter_params)
 
 mpi.barrier()
 
