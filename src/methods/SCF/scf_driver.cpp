@@ -64,7 +64,7 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
     app_log(1, "    - Iteration            = {}", input_iter);
   }
   app_log(1, "  Number of processors     = {} cores per node, {} nodes\n",
-          mpi->comm.size(), mpi->internode_comm.size());
+          mpi->node_comm.size(), mpi->internode_comm.size());
   FT.metadata_log();
 
   Timer.start("SCF_TOTAL");
@@ -266,7 +266,7 @@ double qp_scf_loop(
   app_log(1, "  Checkpoint HDF5             = {}", mb_state.coqui_prefix+".mbpt.h5");
   app_log(1, "  Restart                     = {}", (restart)? "yes" : "no");
   app_log(1, "  Number of processors        = {} cores per node, {} nodes\n",
-          mpi->comm.size(), mpi->internode_comm.size());
+          mpi->node_comm.size(), mpi->internode_comm.size());
   FT.metadata_log();
 
   Timer.start("SCF_TOTAL");
@@ -280,7 +280,7 @@ double qp_scf_loop(
   auto& sE_ska = mb_state.sE_ska.value();
   double mu = 0.0;
 
-  // psuedo potential handler 
+  // pseudopotential handler 
   auto psp = hamilt::make_pseudopot(*mf);
   long init_it = 0;
   if (!restart) {

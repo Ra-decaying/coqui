@@ -506,9 +506,11 @@ auto qp_approx(const sArray_t<Array_view_5D_t> &sSigma_tskij,
       double eps_b = sE_ska.local()(s, k, b).real() - mu;
       sVcorr_skij.local()(s, k, a, b) = 0.5 * ( AC.evaluate(ComplexType(eps_a, qp_params.eta), I)
                                                  + AC.evaluate(ComplexType(eps_b, qp_params.eta), I) );
-    } else {
+    } else if (qp_params.off_diag_mode == "fermi") {
       double eps_a = (a == b)? sE_ska.local()(s, k, a).real() - mu : 0.0;
       sVcorr_skij.local()(s, k, a, b) = AC.evaluate(ComplexType(eps_a, qp_params.eta), I);
+    } else {
+      utils::check(false, "qp_approx: unknown off-diagonal mode: {}", qp_params.off_diag_mode);
     }
   }
   sVcorr_skij.win().fence();
@@ -582,7 +584,7 @@ void add_qpscf_vcorr(MBState &mb_state,
   if (mpi->node_comm.root()) sHeff_skij.local() += sVcorr_skij.local();
   mpi->comm.barrier();
  
-  // deallocatation
+  // deallocation
   mb_state.dW_qtPQ.reset();
   mb_state.sG_tskij.reset();
   mb_state.sSigma_tskij.reset();

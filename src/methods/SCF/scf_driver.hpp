@@ -39,7 +39,7 @@
 
 namespace methods {
 /**
- * Generic self-consistent loop for full-freuqency Green's function methods. 
+ * Generic self-consistent loop for full-frequency Green's function methods. 
  * The template parameters allow for different types of self-energy solvers (e.g. HF, GW, GF2) 
  * and different types of Coulomb Hamiltonian representations (e.g. THC, Cholesky).
  */

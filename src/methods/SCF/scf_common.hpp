@@ -137,7 +137,7 @@ double compute_Nelec(double mu, const mf::MF &mf, const sArray_t<Array_view_3D_t
  * @param sMO_skia      - [INPUT] MO coefficients
  * @param mu            - [INPUT] chemical potential
  * @param FT            - [INPUT] Fourier transform driver on imaginary axes
- * @param qp_params    - [INPUT] setups for quasi-paritcle eqn
+ * @param qp_params    - [INPUT] setups for quasiparticle eqn
  */
 void solve_qp_eqn(sArray_t<Array_view_3D_t> &sE_ska,
                   const sArray_t<Array_view_5D_t> &sSigma_tskij,

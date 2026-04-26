@@ -116,7 +116,7 @@ public:
   // Head (G=G'=0) of the inverse dielectric function in the long wavelength limit (q->0 and w->0)
   std::optional<nda::array<ComplexType, 1> > eps_inv_head;
 
-  /** Quansi-paritcle SCF specific */
+  /** Quasiparticle SCF specific */
   // Effective QP Hamiltonian in QP-SCF
   std::optional<sArray_t<nda::array_view<ComplexType, 4> > > sHeff_skij;
   // QP coefficients
@@ -125,14 +125,14 @@ public:
   std::optional<sArray_t<nda::array_view<ComplexType, 3> > > sE_ska;
 
   
-  /** local quantities in MLWF basisfor quantum embedding */
+  /** local quantities in MLWF basis for quantum embedding */
   // Projector from Bloch states to MLWFs. 
   std::optional<projector_boson_t> proj_boson;
   // Dynamic part of the impurity self-energy
   std::optional<nda::array<ComplexType, 5> > Sigma_imp_wsIab;
   // Static part of the impurity self-energy
   std::optional<nda::array<ComplexType, 4> > Vhf_imp_sIab;
-  // Dyanmic part of the double-counting self-energy
+  // Dynamic part of the double-counting self-energy
   std::optional<nda::array<ComplexType, 5> > Sigma_dc_wsIab;
   // Static part of the double-counting self-energy
   std::optional<nda::array<ComplexType, 4> > Vhf_dc_sIab;
