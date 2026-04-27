@@ -130,7 +130,7 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
         auto dV = mb_eri_t.corr_eri->get().dV(0, 1, 2, 0, 0);
         auto V2D = nda::reshape(V, std::array<long, 2>{mf->nbnd_aux(), mf->nbnd()*mf->nbnd()});
         auto dV2D = nda::reshape(dV, std::array<long, 2>{mf->nbnd_aux(), mf->nbnd()*mf->nbnd()});
-        auto d2e = nda::array<ComplexType, 4>::zeros({2, 2, 2, 2});
+        auto d2e = nda::array<ComplexType, 4>::zeros({mf->nbnd(), mf->nbnd(), mf->nbnd(), mf->nbnd()});
         auto d2e2D = nda::reshape(d2e, std::array<long, 2>{mf->nbnd()*mf->nbnd(), mf->nbnd()*mf->nbnd()});
 
         nda::blas::gemm(1.0, nda::transpose(V2D), dV2D, 1.0, d2e2D);
@@ -138,16 +138,16 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
 
 
         auto tbdm = hf_grad.eval_2bdm(sDm_skij.local());
-        // auto tbdm += gw_grad.eval_2bdm(sG_tskij.local(), mb_eri_t.corr_eri->get());
+        tbdm += gw_grad.eval_2bdm(sG_tskij.local(), mb_eri_t.corr_eri->get(), false);
 
-        for (size_t is1 = 0; is1 < 2; ++is1) {
-          for (size_t is2 = 0; is2 < 2; ++is2) {
+        for (size_t is1 = 0; is1 < mf->nspin(); ++is1) {
+          for (size_t is2 = 0; is2 < mf->nspin(); ++is2) {
             std::cout << std::endl;
             std::cout << "spin 1 = " << is1 << ", " << "spin 2 = " << is2 << std::endl;
-            for (size_t p = 0; p < 2; ++p) {
-              for (size_t q = 0; q < 2; ++q) {
-                for (size_t r = 0; r < 2; ++r) {
-                  for (size_t s = 0; s < 2; ++s) {
+            for (size_t p = 0; p < mf->nbnd(); ++p) {
+              for (size_t q = 0; q < mf->nbnd(); ++q) {
+                for (size_t r = 0; r < mf->nbnd(); ++r) {
+                  for (size_t s = 0; s < mf->nbnd(); ++s) {
                     std::cout << "p = " << p << ", ";
                     std::cout << "q = " << q << ", ";
                     std::cout << "r = " << r << ", ";

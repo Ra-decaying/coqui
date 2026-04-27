@@ -39,7 +39,8 @@ namespace methods {
                    "hf_t::cholesky_hf_grad::evaluate: Symmetry not yet implemented.");
 
       for( auto& v: {"TOTAL", "ALLOC", "COMM", "EVAL_2BDM_INTERMEDIATE",
-                     "EVAL_DYSON_P", "EVAL_P0", "IMAG_FT"} ) {
+                     "EVAL_DYSON_P", "EVAL_GRAD_INTERMEDIATE1", "EVAL_GRAD_INTERMEDIATE2",
+                     "EVAL_P0", "IMAG_FT"} ) {
         _Timer.add(v);
       }
 
@@ -122,17 +123,27 @@ namespace methods {
     }
 
     nda::array<ComplexType, 6> gw_gradient_t::eval_2bdm(const nda::MemoryArrayOfRank<5> auto &G_tskij,
-                                                        Cholesky_ERI auto &&chol)
+                                                        Cholesky_ERI auto &&chol, bool PHsym)
     {
       decltype(nda::range::all) all;
 
       auto mpi = chol.mpi();
 
+      size_t nt = 0;
+      size_t nw = 0;
+      if (PHsym) {
+        nt = (_ft->nt_b()%2==0)? _ft->nt_b()/2 : _ft->nt_b()/2 + 1;
+        nw = (_ft->nw_b()%2==0)? _ft->nw_b()/2 : _ft->nw_b()/2 + 1;
+      } else {
+        nt = _ft->nt_f();
+        nw = _ft->nw_b();
+      }
+
       _Timer.start("ALLOC");
 
-      sArray_t<nda::array_view<ComplexType, 3>> sP0_tPQ(*mpi, {_ft->nt_f(), _nbnd_aux, _nbnd_aux});
-      sArray_t<nda::array_view<ComplexType, 3>> sP0_wPQ(*mpi, {_ft->nw_b(), _nbnd_aux, _nbnd_aux});
-      sArray_t<nda::array_view<ComplexType, 5>> sInter_tsijQ(*mpi, {_ft->nt_f(), _nspin, _nbnd, _nbnd, _nbnd_aux});
+      sArray_t<nda::array_view<ComplexType, 3>> sP0_tPQ(*mpi, {nt, _nbnd_aux, _nbnd_aux});
+      sArray_t<nda::array_view<ComplexType, 3>> sP0_wPQ(*mpi, {nw, _nbnd_aux, _nbnd_aux});
+      sArray_t<nda::array_view<ComplexType, 5>> sInter_tsijQ(*mpi, {nt, _nspin, _nbnd, _nbnd, _nbnd_aux});
 
       auto tbdm_sspqrs = nda::array<ComplexType, 6>::zeros({_nspin, _nspin, _nbnd, _nbnd, _nbnd, _nbnd});
 
@@ -147,44 +158,56 @@ namespace methods {
         _Timer.stop("EVAL_P0");
 
         _Timer.start("EVAL_DYSON_P");
-        eval_dyson_P(sP0_tPQ, sP0_wPQ, false);
+        eval_dyson_P(sP0_tPQ, sP0_wPQ, PHsym);
         _Timer.stop("EVAL_DYSON_P");
 
         _Timer.start("EVAL_2BDM_INTERMEDIATE");
+        _Timer.start("IMAG_FT");
         eval_2bdm_intermediate(iq, G_tskij, sInter_tsijQ, chol, nbnd_aux_batch, (iq == 0)? true : false);
-        auto inter_2bdm_wsijQ = nda::array<ComplexType, 5>::zeros({_ft->nw_b(), _nspin, _nbnd, _nbnd, _nbnd_aux});
-        _ft->tau_to_w(sInter_tsijQ.local(), imag_axes_ft::fermi, inter_2bdm_wsijQ, imag_axes_ft::boson);
+        auto inter_2bdm_wsijQ = nda::array<ComplexType, 5>::zeros({nw, _nspin, _nbnd, _nbnd, _nbnd_aux});
+        if (PHsym) {
+          _ft->tau_to_w_PHsym(sInter_tsijQ.local(), inter_2bdm_wsijQ);
+        } else {
+          _ft->tau_to_w(sInter_tsijQ.local(), imag_axes_ft::fermi, inter_2bdm_wsijQ, imag_axes_ft::boson);
+        }
         _Timer.stop("IMAG_FT");
         _Timer.stop("EVAL_2BDM_INTERMEDIATE");
 
-        auto tbdm_tijkl = nda::array<ComplexType, 5>::zeros({_ft->nt_f(), _nbnd, _nbnd, _nbnd, _nbnd});
-        auto tbdm_wijkl = nda::array<ComplexType, 5>::zeros({_ft->nw_b(), _nbnd, _nbnd, _nbnd, _nbnd});
+        auto tbdm_tijkl = nda::array<ComplexType, 5>::zeros({nt, _nbnd, _nbnd, _nbnd, _nbnd});
+        auto tbdm_wijkl = nda::array<ComplexType, 5>::zeros({nw, _nbnd, _nbnd, _nbnd, _nbnd});
         auto tbdm_klij = nda::array<ComplexType, 4>::zeros({_nbnd, _nbnd, _nbnd, _nbnd});
         auto tbdm_kl_ij = nda::reshape(tbdm_klij, shape_t<2>{_nbnd*_nbnd, _nbnd*_nbnd});
 
         for (size_t is1 = 0; is1 < _nspin; ++is1) {
           for (size_t is2 = 0; is2 < _nspin; ++is2) {
 
-            for (size_t w = 0; w < _ft->nw_b(); ++w) {
+            for (size_t iwn = 0; iwn < nw; ++iwn) {
               auto inter_ijQ = nda::array<ComplexType, 3>::zeros({_nbnd, _nbnd, _nbnd_aux});
               auto inter_klP = nda::array<ComplexType, 3>::zeros({_nbnd, _nbnd, _nbnd_aux});
               auto inter_ij_Q = nda::reshape(inter_ijQ, shape_t<2>{_nbnd*_nbnd, _nbnd_aux});
               auto inter_kl_P = nda::reshape(inter_klP, shape_t<2>{_nbnd*_nbnd, _nbnd_aux});
-              inter_ijQ = inter_2bdm_wsijQ(w, is1, all, all, all);
-              inter_klP = inter_2bdm_wsijQ(w, is2, all, all, all);
+              inter_ijQ = inter_2bdm_wsijQ(iwn, is1, all, all, all);
+              inter_klP = inter_2bdm_wsijQ(iwn, is2, all, all, all);
 
               auto tmp_klQ = nda::array<ComplexType, 3>::zeros({_nbnd, _nbnd, _nbnd_aux});
               auto tmp_kl_Q = nda::reshape(tmp_klQ, shape_t<2>{_nbnd*_nbnd, _nbnd_aux});
 
               auto eye = nda::eye<ComplexType>(_nbnd_aux);
               auto tmp_PQ = nda::array<ComplexType, 2>::zeros({_nbnd_aux, _nbnd_aux});
-              tmp_PQ = eye + sP0_wPQ.local()(w, all, all);
+              tmp_PQ = eye + sP0_wPQ.local()(iwn, all, all);
               nda::blas::gemm(inter_kl_P, tmp_PQ, tmp_kl_Q);
               nda::blas::gemm(-1.0, tmp_kl_Q, nda::transpose(inter_ij_Q), 0.0, tbdm_kl_ij);
-              tbdm_wijkl(w, all, all, all, all) = tbdm_klij;
+              tbdm_wijkl(iwn, all, all, all, all) = tbdm_klij;
             }
-            _ft->w_to_tau(tbdm_wijkl, imag_axes_ft::boson, tbdm_tijkl, imag_axes_ft::fermi);
-            _ft->tau_to_beta(tbdm_tijkl, tbdm_sspqrs(is1, is2, nda::ellipsis{}));
+
+            if (PHsym) {
+              _ft->w_to_tau_PHsym(tbdm_wijkl, tbdm_tijkl);
+              _ft->tau_to_beta_PHsym(tbdm_tijkl, tbdm_klij);
+              tbdm_sspqrs(is1, is2, nda::ellipsis{}) = tbdm_klij;
+            } else {
+              _ft->w_to_tau(tbdm_wijkl, imag_axes_ft::boson, tbdm_tijkl, imag_axes_ft::fermi);
+              _ft->tau_to_beta(tbdm_tijkl, tbdm_sspqrs(is1, is2, nda::ellipsis{}));
+            }
 
           }
         }
@@ -239,7 +262,7 @@ namespace methods {
       return trace_beta(0);
     }
 
-    // similar to gw_t::evaluate_P0, but with options with or without particle-hole symmetry
+    // similar to gw_t::evaluate_P0
     // JHL: for the evaluation of 2-RDM, should we sum over all k-points in this step?
     template<nda::MemoryArray Array_3D_t>
     void gw_gradient_t::eval_P0(size_t iq, const nda::MemoryArrayOfRank<5> auto &G_tskij,
@@ -649,8 +672,8 @@ namespace methods {
     template Arr2D gw_gradient_t::eval_grad_2e(const Arr5D&, chol_reader_t&);
     template Arr2D gw_gradient_t::eval_grad_2e(const Arrv5D&, chol_reader_t&);
 
-    template Arr6D gw_gradient_t::eval_2bdm(const Arr5D&, chol_reader_t&);
-    template Arr6D gw_gradient_t::eval_2bdm(const Arrv5D&, chol_reader_t&);
+    template Arr6D gw_gradient_t::eval_2bdm(const Arr5D&, chol_reader_t&, bool);
+    template Arr6D gw_gradient_t::eval_2bdm(const Arrv5D&, chol_reader_t&, bool);
 
     template ComplexType gw_gradient_t::eval_grad_2e(size_t, size_t, size_t, const Arr5D&, sArray_t<Arr3D>&,
                                                      sArray_t<Arr4D>&, sArray_t<Arr4D>&, sArray_t<Arr4D>&, chol_reader_t&);
@@ -661,9 +684,9 @@ namespace methods {
     template ComplexType gw_gradient_t::eval_grad_2e(size_t, size_t, size_t, const Arr5D&, sArray_t<Arrv3D>&,
                                                      sArray_t<Arrv4D>&, sArray_t<Arrv4D>&, sArray_t<Arrv4D>&, chol_reader_t&);
 
-    template void gw_gradient_t::eval_P0(size_t, const Arr5D &, sArray_t<Arrv3D>&, chol_reader_t&, int , bool);
-    template void gw_gradient_t::eval_P0(size_t, const Arrv5D &, sArray_t<Arrv3D>&, chol_reader_t&, int , bool);
-    template void gw_gradient_t::eval_P0(size_t, const Arrv5D2 &, sArray_t<Arrv3D>&, chol_reader_t&, int , bool);
+    template void gw_gradient_t::eval_P0(size_t, const Arr5D&, sArray_t<Arrv3D>&, chol_reader_t&, int, bool);
+    template void gw_gradient_t::eval_P0(size_t, const Arrv5D&, sArray_t<Arrv3D>&, chol_reader_t&, int, bool);
+    template void gw_gradient_t::eval_P0(size_t, const Arrv5D2&, sArray_t<Arrv3D>&, chol_reader_t&, int, bool);
 
     template void gw_gradient_t::eval_grad_intermediate1(size_t, size_t, size_t, const Arr5D&, sArray_t<Arr4D>&, sArray_t<Arr4D>&,
                                                          chol_reader_t&, int, bool);
@@ -683,18 +706,18 @@ namespace methods {
     template void gw_gradient_t::eval_grad_intermediate2(size_t, const Arrv5D&, sArray_t<Arrv4D>&, sArray_t<Arrv4D>&,
                                                          chol_reader_t&, int, bool);
 
-    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arr5D &, sArray_t<Arr5D>&,
-                                                        chol_reader_t&, int , bool);
-    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arr5D &, sArray_t<Arrv5D>&,
-                                                        chol_reader_t&, int , bool);
-    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D &, sArray_t<Arr5D>&,
-                                                        chol_reader_t&, int , bool);
-    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D &, sArray_t<Arrv5D>&,
-                                                        chol_reader_t&, int , bool);
-    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D2 &, sArray_t<Arr5D>&,
-                                                        chol_reader_t&, int , bool);
-    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D2 &, sArray_t<Arrv5D>&,
-                                                        chol_reader_t&, int , bool);
+    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arr5D&, sArray_t<Arr5D>&,
+                                                        chol_reader_t&, int, bool);
+    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arr5D&, sArray_t<Arrv5D>&,
+                                                        chol_reader_t&, int, bool);
+    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D&, sArray_t<Arr5D>&,
+                                                        chol_reader_t&, int, bool);
+    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D&, sArray_t<Arrv5D>&,
+                                                        chol_reader_t&, int, bool);
+    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D2&, sArray_t<Arr5D>&,
+                                                        chol_reader_t&, int, bool);
+    template void gw_gradient_t::eval_2bdm_intermediate(size_t, const Arrv5D2&, sArray_t<Arrv5D>&,
+                                                        chol_reader_t&, int, bool);
 
 
   } // namespace solvers

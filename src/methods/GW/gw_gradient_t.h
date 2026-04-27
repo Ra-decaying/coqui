@@ -53,7 +53,7 @@ namespace methods {
                                             Cholesky_ERI auto && chol);
 
     nda::array<ComplexType, 6> eval_2bdm(const nda::MemoryArrayOfRank<5> auto &G_tskij,
-                                         Cholesky_ERI auto && chol);
+                                         Cholesky_ERI auto && chol, bool PHsym = true);
 
     template<nda::MemoryArray Array_3D_t, nda::MemoryArray Array_4D_t>
     ComplexType eval_grad_2e(size_t iq, size_t iatom, size_t idirection,
@@ -82,11 +82,11 @@ namespace methods {
 
     template<nda::MemoryArray Array_5D_t>
     void eval_2bdm_intermediate(size_t iq, const nda::MemoryArrayOfRank<5> auto &G_tskij,
-                                sArray_t<Array_5D_t> &sInter_tsijQ,
-                                Cholesky_ERI auto &chol, int batch_size, bool print_mpi);
+                                sArray_t<Array_5D_t> &sInter_tsijQ, Cholesky_ERI auto &chol,
+                                int batch_size, bool print_mpi);
 
     template<nda::MemoryArray Array_3D_t>
-    void eval_dyson_P(sArray_t<Array_3D_t> &sP0_tPQ, sArray_t<Array_3D_t> &sP0_wPQ, bool PHsym);
+    void eval_dyson_P(sArray_t<Array_3D_t> &sP0_tPQ, sArray_t<Array_3D_t> &sP0_wPQ, bool PHsym = true);
 
 
     void print_chol_gw_grad_timers();
