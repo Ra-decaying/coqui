@@ -245,15 +245,21 @@ namespace methods {
       RealType spin_factor = (_nspin == 1 and _npol == 1) ? 2.0 : 0.5;
 
       for (size_t iwn = 0; iwn < sP_wPQ.local().shape(0); ++iwn) {
+
+        auto eye = nda::eye<ComplexType>(_nbnd_aux);
+        auto tmp_PQ = nda::array<ComplexType, 2>::zeros({_nbnd_aux, _nbnd_aux});
+        tmp_PQ = eye + sP_wPQ.local()(iwn, all, all);
+
         for (size_t is1 = 0; is1 < _nspin; ++is1) {
           for (size_t is2 = 0; is2 < _nspin; ++is2) {
-            nda::blas::gemm(nda::transpose(sInter1_wsPQ.local()(iwn, is2, all, all)), sP_wPQ.local()(iwn, all, all), tmp1);
+            nda::blas::gemm(nda::transpose(sInter1_wsPQ.local()(iwn, is2, all, all)),  tmp_PQ, tmp1);
             nda::blas::gemm(1.0, tmp1, sInter2_wsPQ.local()(iwn, is1, all, all), 0.0, tmp2);
-            nda::blas::gemm(nda::transpose(sInter2_wsPQ.local()(iwn, is2, all, all)), sP_wPQ.local()(iwn, all, all), tmp1);
+            nda::blas::gemm(nda::transpose(sInter2_wsPQ.local()(iwn, is2, all, all)),  tmp_PQ, tmp1);
             nda::blas::gemm(1.0, tmp1, sInter1_wsPQ.local()(iwn, is1, all, all), 1.0, tmp2);
             trace_w(iwn, 0) += nda::trace(tmp2) * spin_factor;
           }
         }
+
       }
 
       _ft->w_to_tau(trace_w, imag_axes_ft::boson, trace_t, imag_axes_ft::fermi);
@@ -365,8 +371,8 @@ namespace methods {
       }
 
       _Timer.start("ALLOC");
-      nda::array<ComplexType, 3> dL_Pab_conj(batch_size, _nbnd, _nbnd);
-      auto dL_Pa_b_conj = nda::reshape(dL_Pab_conj, shape_t<2>{batch_size*_nbnd, _nbnd});
+      nda::array<ComplexType, 3> L_Pab_conj(batch_size, _nbnd, _nbnd);
+      auto L_Pa_b_conj = nda::reshape(L_Pab_conj, shape_t<2>{batch_size*_nbnd, _nbnd});
 
       nda::array<ComplexType, 3> X_Pac(batch_size, _nbnd, _nbnd);
       auto X_Pa_c = nda::reshape(X_Pac, shape_t<2>{batch_size*_nbnd, _nbnd});
@@ -390,15 +396,15 @@ namespace methods {
         for (size_t is = 0; is < _nspin; ++is) {
           for (size_t ik = 0; ik < _nkpts; ++ik) {
             long ikmq = chol.MF()->qk_to_k2(iq, ik); // K(ikmq) = K(ik) - Q(iq) + G
-            auto dL_Pab = chol.dV(iq, iatom, idirection, is, ik);
-            auto L_Qdc = chol.V(iq, is, ik);
+            auto L_Pab = chol.V(iq, is, ik);
+            auto dL_Qdc = chol.dV(iq, iatom, idirection, is, ik);
             auto Gmt_bc = nda::transpose(G_tskij(itt, is, ikmq, all, all));
             auto Gt_da  = nda::transpose(G_tskij(it, is, ik, all, all));
             for (size_t PP = dim1_rank; PP < n_batch; PP += dim1_comm_size) { // MPI
               nda::range P_range(PP*batch_size, (PP+1)*batch_size);
-              // X_Pac = dL_Pab_conj * Gmt_bc
-              dL_Pab_conj = nda::conj(dL_Pab(P_range, nda::ellipsis{}));
-              nda::blas::gemm(dL_Pa_b_conj, Gmt_bc, X_Pa_c);
+              // X_Pac = L_Pab_conj * Gmt_bc
+              L_Pab_conj = nda::conj(L_Pab(P_range, nda::ellipsis{}));
+              nda::blas::gemm(L_Pa_b_conj, Gmt_bc, X_Pa_c);
 
               // X2_acP = X_Pac
               X2_ac_P = nda::transpose(X_P_ac);
@@ -407,8 +413,8 @@ namespace methods {
               nda::blas::gemm(Gt_da, X2_a_cP, Y_d_cP);
 
               // Inter1_PQ = Y_dcP * dL_Qdc
-              auto L_Q_dc = nda::reshape(L_Qdc, shape_t<2>{_nbnd_aux, _nbnd*_nbnd});
-              nda::blas::gemm(L_Q_dc, Y_dc_P, Z_QP);
+              auto dL_Q_dc = nda::reshape(dL_Qdc, shape_t<2>{_nbnd_aux, _nbnd*_nbnd});
+              nda::blas::gemm(dL_Q_dc, Y_dc_P, Z_QP);
               sInter1_tsPQ.local()(it, is, P_range, all) += nda::transpose(Z_QP);
             }
           }
@@ -496,7 +502,7 @@ namespace methods {
               // Inter2_PQ = Y_dcP * L_Qdc (L_Pab)
               auto L_Q_dc = nda::reshape(L_Pab, shape_t<2>{_nbnd_aux, _nbnd*_nbnd});
               nda::blas::gemm(L_Q_dc, Y_dc_P, Z_QP);
-              sInter2_tsPQ.local()(it, is, P_range, all) += nda::transpose(Z_QP);
+              sInter2_tsPQ.local()(it, is, P_range, all) -= nda::transpose(Z_QP);
             }
           }
         }
