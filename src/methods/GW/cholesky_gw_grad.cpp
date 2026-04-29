@@ -236,9 +236,9 @@ namespace methods {
                               (iq == 0)? true : false);
       _Timer.stop("EVAL_GRAD_INTERMEDIATE1");
 
-      auto trace_w = nda::array<ComplexType, 2>::zeros({sInter1_tsPQ.local().shape(0), 1});
-      auto trace_t = nda::array<ComplexType, 2>::zeros({sInter1_tsPQ.local().shape(0), 1});
       auto trace_beta = nda::array<ComplexType, 1>::zeros({1});
+      auto trace_t = nda::array<ComplexType, 2>::zeros({sInter1_tsPQ.local().shape(0), 1});
+      auto trace_w = nda::array<ComplexType, 2>::zeros({sInter1_wsPQ.local().shape(0), 1});
       auto tmp1 = nda::array<ComplexType, 2>::zeros({_nbnd_aux, _nbnd_aux});
       auto tmp2 = nda::array<ComplexType, 2>::zeros({_nbnd_aux, _nbnd_aux});
 
