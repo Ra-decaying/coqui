@@ -227,8 +227,7 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
 
   if (mb_solver.hf != nullptr and mb_solver.corr == nullptr) {
 
-    eval_grand_potential(mpi->comm, *mf, FT, sF_skij, dyson.sH0_skij(), dyson.sS_skij(),
-                         sG_tskij, sSigma_tskij, energies, 0.0, mu, false);
+    eval_thermodynamic_properties(dyson, sF_skij, sG_tskij, sSigma_tskij, energies, 0.0, mu, false);
 
   } else if (std::is_same_v<corr_solver_t, solvers::gw_t> and mb_solver.corr != nullptr) {
 
@@ -236,8 +235,7 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
     if constexpr (requires { mb_solver.corr->rpa_energy(sG_tskij.local(), mb_eri.corr_eri->get()); }) {
       e_rpa = mb_solver.corr->rpa_energy(sG_tskij.local(), mb_eri.corr_eri->get());
     }
-    eval_grand_potential(mpi->comm, *mf, FT, sF_skij, dyson.sH0_skij(), dyson.sS_skij(),
-                         sG_tskij, sSigma_tskij, energies, e_rpa, mu, false);
+    eval_thermodynamic_properties(dyson, sF_skij, sG_tskij, sSigma_tskij, energies, e_rpa, mu, false);
 
   }
 
