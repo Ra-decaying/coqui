@@ -49,12 +49,17 @@ namespace wannier_tests {
 
     auto test_library_mode = [&](std::shared_ptr<mf::MF> &mf, std::string test_name) {
       auto [outdir, prefix] = utils::utest_filename(test_name);
-      
-      // Copy svo.win from test directory to current working directory
-      std::string source_win = outdir + "/../mlwf_dp/" + prefix + ".win";
-      std::string dest_win = prefix + ".win";
+
+      // Create temporary outdir under current working directory and copy seedname.win there.
+      auto tmp_outdir = std::filesystem::current_path() / ("wannier_tmp_" + prefix);
+      auto source_win = std::filesystem::path(outdir) / ".." / "mlwf_dp" / (prefix + ".win");
+      auto dest_win = tmp_outdir / (prefix + ".win");
       
       if (mpi->comm.root()) {
+        if (std::filesystem::exists(tmp_outdir)) {
+          std::filesystem::remove_all(tmp_outdir);
+        }
+        std::filesystem::create_directories(tmp_outdir);
         std::filesystem::copy_file(source_win, dest_win,
                                    std::filesystem::copy_options::overwrite_existing);
       }
@@ -62,7 +67,8 @@ namespace wannier_tests {
       
       // Build Wannier90 input parameters from wann.toml (mlwf_dp reference)
       ptree pt;
-      pt.put("prefix", prefix);  // Wannier90 expects .win in current directory
+      pt.put("outdir", tmp_outdir.string());
+      pt.put("prefix", prefix);  // CoQuí resolves seedname as outdir + "/" + prefix
 
       auto make_array_node = [](std::initializer_list<long> values) {
         ptree node;
@@ -90,13 +96,13 @@ namespace wannier_tests {
       mpi->comm.barrier();
 
       // Load the generated output file
-      std::string output_file = prefix + ".mlwf.h5";
+      auto output_file = tmp_outdir / (prefix + ".mlwf.h5");
       nda::array<ComplexType, 4> hopping_out;
       nda::array<ComplexType, 5> proj_mat_out;
       nda::array<double, 3> wan_centres_out;
 
       {
-        h5::file file(output_file, 'r');
+        h5::file file(output_file.string(), 'r');
         auto grp = h5::group(file).open_group("dft_input");
         nda::h5_read(grp, "hopping", hopping_out);
         nda::h5_read(grp, "proj_mat", proj_mat_out);
@@ -135,24 +141,11 @@ namespace wannier_tests {
       app_log(0, "wannier_tests: Successfully compared generated {}.mlwf.h5 with reference", prefix);
       mpi->comm.barrier();
       
-      // Clean up: remove copied .win and explicitly listed generated files
+      // Clean up: remove the temporary output directory and all generated Wannier90 files.
       if (mpi->comm.root()) {
-        std::filesystem::remove(dest_win);
-        std::filesystem::remove(output_file);
-        std::filesystem::remove(prefix + ".mmn");
-        std::filesystem::remove(prefix + ".amn");
-        std::filesystem::remove(prefix + ".eig");
-        std::filesystem::remove(prefix + ".nnkp");
-        std::filesystem::remove(prefix + "_u.mat");
-        std::filesystem::remove(prefix + "_u_dis.mat");
-        std::filesystem::remove(prefix + "_hr.dat");
-        std::filesystem::remove(prefix + "_wsvec.dat");
-        std::filesystem::remove(prefix + "_centres.xyz");
-        std::filesystem::remove(prefix + "_band.dat");
-        std::filesystem::remove(prefix + "_band.gnu");
-        std::filesystem::remove(prefix + "_band.kpt");
-        std::filesystem::remove(prefix + "_band.labelinfo.dat");
-        std::filesystem::remove(prefix + ".wout");
+        if (std::filesystem::exists(tmp_outdir)) {
+          std::filesystem::remove_all(tmp_outdir);
+        }
       }
       mpi->comm.barrier();
     };

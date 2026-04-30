@@ -40,6 +40,7 @@ svo_mf = coqui.make_mf(mpi, params=mf_params, mf_type="qe")
 
 # construct MLWFs via calling Wannier90 in the library mode
 w90_params = {
+    "outdir": "./",
     "prefix": "svo",     # equivalent to wannier90's seedname
 }
 coqui.wannier90(mf=svo_mf, params=w90_params)

@@ -59,7 +59,9 @@ void to_wannier90(mf::MF &mf, ptree &pt)
   app_log(1, "                Wannier90 Converter              "); 
   app_log(1, "*************************************************\n");
 
-  auto prefix = io::get_value<std::string>(pt,"prefix");
+  auto outdir = io::get_value_with_default<std::string>(pt, "outdir", "./");
+  auto prefix = io::get_value<std::string>(pt, "prefix");
+  auto resolved_prefix = outdir + "/" + prefix;
   // options
   auto write_mmn = io::get_value_with_default<bool>(pt,"write_mmn",true);
   auto write_amn = io::get_value_with_default<bool>(pt,"write_amn",true);
@@ -68,16 +70,16 @@ void to_wannier90(mf::MF &mf, ptree &pt)
 
   auto& mpi = *(mf.mpi());
 
-  utils::check(std::filesystem::exists(prefix+".nnkp"), 
-               "Wannier90 nnkp file not found:{}",prefix+".nnkp");
+  utils::check(std::filesystem::exists(resolved_prefix+".nnkp"), 
+               "Wannier90 nnkp file not found:{}",resolved_prefix+".nnkp");
   /*
    * Read nnkp file 
    */ 
-  auto [kp_map, wann_kp, nnkpts, proj, band_list, auto_projections] = detail::read_nnkp(mpi,mf,prefix+".nnkp");
+  auto [kp_map, wann_kp, nnkpts, proj, band_list, auto_projections] = detail::read_nnkp(mpi,mf,resolved_prefix+".nnkp");
 
   if(write_mmn) {
     app_log(2, " - Computing orbital overlaps, Mmn"); 
-    auto Mmn = detail::compute_mmn(mpi,mf,prefix,kp_map,wann_kp,nnkpts,band_list,false,true);
+    auto Mmn = detail::compute_mmn(mpi,mf,resolved_prefix,kp_map,wann_kp,nnkpts,band_list,false,true);
   }
   if(write_amn) {
     if(proj.size() > 0) {
@@ -90,7 +92,7 @@ void to_wannier90(mf::MF &mf, ptree &pt)
       utils::check(false, "to_wannier90: No projections or auto_projections found in nnkp file.");
   }
   if(write_eigv) {
-    auto eigv = detail::get_eig(mpi,mf,prefix,kp_map,band_list, true);
+    auto eigv = detail::get_eig(mpi,mf,resolved_prefix,kp_map,band_list, true);
   }
   mpi.comm.barrier();
 }
@@ -103,25 +105,28 @@ void wannier90_library_mode_from_nnkp(mf::MF &mf, ptree &pt)
   app_log(1, "*************************************************\n");
 
   auto& mpi = *(mf.mpi());
-  auto prefix = io::get_value<std::string>(pt,"prefix");
+  auto outdir = io::get_value_with_default<std::string>(pt, "outdir", "./");
+  auto prefix = io::get_value<std::string>(pt, "prefix");
+  auto resolved_prefix = outdir + "/" + prefix;
+  
   int nproj = 0;
 
-  utils::check(std::filesystem::exists(prefix+".nnkp"), 
-               "Wannier90 nnkp file not found:{}",prefix+".nnkp");
-  utils::check(std::filesystem::exists(prefix+".win"), 
-               "Wannier90 win file not found:{}",prefix+".win");
+  utils::check(std::filesystem::exists(resolved_prefix+".nnkp"), 
+               "Wannier90 nnkp file not found:{}",resolved_prefix+".nnkp");
+  utils::check(std::filesystem::exists(resolved_prefix+".win"), 
+               "Wannier90 win file not found:{}",resolved_prefix+".win");
 
   /*
    * Read nnkp file 
    */ 
-  auto [kp_map, wann_kp, nnkpts, proj, band_list, auto_projections] = detail::read_nnkp(mpi,mf,prefix+".nnkp");
+  auto [kp_map, wann_kp, nnkpts, proj, band_list, auto_projections] = detail::read_nnkp(mpi,mf,resolved_prefix+".nnkp");
 
   /*
    * Generate mmn, amn and eig files.
    */
   {
     app_log(2, " - Computing orbital overlaps, Mmn"); 
-    auto Mmn = detail::compute_mmn(mpi,mf,prefix,kp_map,wann_kp,nnkpts,band_list,false,true);
+    auto Mmn = detail::compute_mmn(mpi,mf,resolved_prefix,kp_map,wann_kp,nnkpts,band_list,false,true);
   }
   {
     if(proj.size() > 0) {
@@ -136,7 +141,7 @@ void wannier90_library_mode_from_nnkp(mf::MF &mf, ptree &pt)
       utils::check(false, "to_wannier90: No projections or auto_projections found in nnkp file.");
   }
   { 
-    auto eigv = detail::get_eig(mpi,mf,prefix,kp_map,band_list,true);
+    auto eigv = detail::get_eig(mpi,mf,resolved_prefix,kp_map,band_list,true);
   }
   mpi.comm.barrier();
 
@@ -164,10 +169,12 @@ void wannier90_library_mode(mf::MF &mf, ptree &pt)
   app_log(1, "*************************************************\n");
 
   auto& mpi = *(mf.mpi());
-  auto prefix = io::get_value<std::string>(pt,"prefix");
+  auto outdir = io::get_value_with_default<std::string>(pt, "outdir", "./");
+  auto prefix = io::get_value<std::string>(pt, "prefix");
+  auto resolved_prefix = outdir + "/" + prefix;
 
-  utils::check(std::filesystem::exists(prefix+".win"), 
-               "Wannier90 win file not found:{}",prefix+".win");
+  utils::check(std::filesystem::exists(resolved_prefix+".win"), 
+               "Wannier90 win file not found:{}",resolved_prefix+".win");
 
   /*
    * 1. Read nnkp file 
@@ -198,11 +205,13 @@ void append_wannier90_win(mf::MF &mf, ptree &pt)
   auto& mpi = *(mf.mpi());
   if(mpi.comm.root()) {
 
-    auto prefix = io::get_value<std::string>(pt,"prefix");
-    utils::check(std::filesystem::exists(prefix+".win"), "Problems opening *win file:{}",prefix+".win");
+    auto outdir = io::get_value_with_default<std::string>(pt, "outdir", "./");
+    auto prefix = io::get_value<std::string>(pt, "prefix");
+    auto resolved_prefix = outdir + "/" + prefix;
+    utils::check(std::filesystem::exists(resolved_prefix+".win"), "Problems opening *win file:{}",resolved_prefix+".win");
 
     { // first check that input doesn't contain requested blocks
-      auto file_data = utils::read_file_to_string(prefix+".win");
+      auto file_data = utils::read_file_to_string(resolved_prefix+".win");
 
       if( io::get_value_with_default<bool>(pt,"atoms",true) ) 
         utils::check(file_data.find("begin atoms_cart") == std::string::npos and
@@ -219,8 +228,8 @@ void append_wannier90_win(mf::MF &mf, ptree &pt)
     }
   
     {
-      std::ofstream out(prefix+".win", std::ios_base::app);
-      utils::check(out.is_open(), "append_wannier90_win: Problems opening file: ",prefix+".win");    
+      std::ofstream out(resolved_prefix+".win", std::ios_base::app);
+      utils::check(out.is_open(), "append_wannier90_win: Problems opening file: ",resolved_prefix+".win");    
 
       if( io::get_value_with_default<bool>(pt,"atoms",true) )  {
         auto species = mf.species();
@@ -289,11 +298,13 @@ void mlwf_h5_from_wannier90_output(mf::MF &mf, ptree &pt)
   app_log(1, "*************************************************************\n");
 
   auto &mpi = *(mf.mpi());
+  auto outdir = io::get_value_with_default<std::string>(pt, "outdir", "./");
   auto prefix = io::get_value<std::string>(pt, "prefix");
+  auto resolved_prefix = outdir + "/" + prefix;
 
-  utils::check(std::filesystem::exists(prefix + ".win"),
+  utils::check(std::filesystem::exists(resolved_prefix + ".win"),
                "wan90.cpp::mlwf_h5_from_wannier90_output: Win file not found: {}.win",
-               prefix);
+               resolved_prefix);
 
   detail::mlwf_h5_from_wannier90_output_impl(mpi, mf, pt);
   mpi.comm.barrier();

@@ -51,6 +51,19 @@ namespace mpi3 = boost::mpi3;
 namespace methods
 {
 
+inline std::string resolve_mbpt_output_stem(ptree const& pt) {
+  auto output_opt = pt.get_optional<std::string>("output");
+  if (output_opt and !output_opt->empty()) return output_opt.value();
+
+  std::string err = std::string("Incorrect input - ");
+  auto outdir = io::get_value_with_default<std::string>(pt, "outdir", "./");
+  auto prefix = io::get_value<std::string>(pt,"prefix",err+"prefix");
+  if (prefix.empty()) {
+    utils::check(false, "Incorrect input - prefix cannot be empty string.");
+  }
+  return outdir + "/" + prefix;
+}
+
 // Helper function to prepare checkpoint file for downfold_coulomb
 inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& output, 
                               std::string const& greens_func_source, ptree const& pt) {
@@ -98,7 +111,9 @@ inline void ensure_checkpoint(std::shared_ptr<mf::MF> mf, std::string const& out
  *  - niter: "1" Number of iterations in the self-consistent loop.
  *  - conv_thr: "1e-9" Convergence threshold for the self-consistent loop.
  *  - const_mu: "false" Fix the chemical potential during the self-consistent loop.
- *  - output: "bdft.mbpt" Prefix of the output h5 file.
+ *  - output: Optional legacy output flag. If present, this is used directly.
+ *  - outdir: "./" Output directory used when output is not provided.
+ *  - prefix: "bdft.mbpt" Prefix used when output is not provided.
  *  - restart: "false" Restart from a previous bdft.scf calculation.
  *  - t_prescreen_thresh: "0.0" Threshold for prescreening in time (GF2 only for now)
  */
@@ -120,7 +135,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   auto conv_thr = io::get_value_with_default<double>(pt,"conv_thr",1e-8);
   auto const_mu = io::get_value_with_default<bool>(pt,"const_mu",false);
   auto mu_tol = io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9);
-  auto output = io::get_value_with_default<std::string>(pt,"output","bdft.mbpt");
+  auto output = resolve_mbpt_output_stem(pt);
 
   auto restart = io::get_value_with_default<bool>(pt,"restart",false);
   auto greens_func_source = io::get_value_with_default<std::string>(pt,"greens_func_source", "scf");
@@ -355,7 +370,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
   auto conv_thr = io::get_value_with_default<double>(pt,"conv_thr",1e-8);
   auto const_mu = io::get_value_with_default<bool>(pt,"const_mu",false);
   auto mu_tol = io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9);
-  auto output = io::get_value_with_default<std::string>(pt,"output","bdft.mbpt");
+  auto output = resolve_mbpt_output_stem(pt);
 
   auto restart = io::get_value_with_default<bool>(pt,"restart",false);
   auto greens_func_source = io::get_value_with_default<std::string>(pt,"greens_func_source", "scf");

@@ -1,7 +1,7 @@
 Examples - Many-Body Perturbation Theories (MBPTs)
 -----------------------------------------------
 
-**Last Updated:** May 28, 2024
+**Last Updated:** April 29, 2026
 
 A many-body calculation in `CoQui` requires an input `[interaction]`, 
 which includes the many-body Hamiltonian expanded in the provided 
@@ -9,6 +9,10 @@ single-particle basis.
 Additionally, all MBPTs in `CoQui` are finite-temperature calculations 
 conducted on the imaginary axis, with the temperature controlled by the 
 inverse temperature parameter `beta`. 
+
+MBPT checkpoint files are now preferably specified with `outdir` and `prefix`,
+which write to `outdir/prefix.mbpt.h5`. The legacy `output` key is still
+supported for backward compatibility.
 
 ## Representation on the Imaginary Axis
 MBPTs, including Hartree-Fock, in `CoQui` compute dynamic correlation functions 

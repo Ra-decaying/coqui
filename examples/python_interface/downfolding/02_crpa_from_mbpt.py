@@ -49,7 +49,8 @@ svo_thc = coqui.make_thc_coulomb(svo_mf, thc_params)
 
 gw_params = {
     "restart": False,     # read prior GW state if available
-    "output":  "svo",     # label/prefix for outputs
+    "outdir":  "./",
+    "prefix":  "svo",    # prefix for the checkpoint file
     "niter":   1,         # number of Dyson–SCF iterations
     "beta":    300,       # inverse temperature (Ha^{-1})
     "iaft": {

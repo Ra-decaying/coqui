@@ -22,7 +22,8 @@ thc = coqui.make_thc_coulomb(mf=mf, params=coqui_params['interaction']['thc'])
 # self-consistent GW as starting point
 gw_params = {
     "restart": False,
-    "output": coqui_params["gw_edmft"]["outdir"]+"/"+coqui_params["gw_edmft"]["prefix"],
+    "outdir": coqui_params["gw_edmft"]["outdir"],
+    "prefix": coqui_params["gw_edmft"]["prefix"],
     "beta": beta,
     "iaft": {
         "prec": "high"

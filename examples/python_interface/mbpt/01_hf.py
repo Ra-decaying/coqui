@@ -29,7 +29,8 @@ hf_params = {
         "prec": "medium",
     },
     "niter": 8,
-    "output": "svo_hf",
+    "outdir": "./",
+    "prefix": "svo_hf",
     "iter_alg": {
         "alg": "damping",
         "mixing": 0.7

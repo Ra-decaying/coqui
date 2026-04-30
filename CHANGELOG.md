@@ -3,6 +3,13 @@
 
 ## CoQui v0.3.0 [2026-04-29]
 
+### Improved
+
+- MBPT and Wannier90 routines now support explicit `outdir` parameter for consistent checkpoint and output file path handling.
+  - MBPT: Simplified path resolution logic. Uses legacy `output` key if present and non-empty, otherwise constructs path as `outdir + "/" + prefix` with `outdir` default of `"./"`.
+  - Wannier90: Added explicit `outdir` parameter to all public entrypoints (`to_wannier90`, `wannier90_library_mode`, `wannier90_library_mode_from_nnkp`, `append_wannier90_win`, `mlwf_h5_from_wannier90_output`). Output files are consistently placed at `outdir + "/" + prefix` with `outdir` default of `"./"`.
+  - Updated all corresponding Python wrapper docstrings and examples to document the new `outdir` parameter and expected file locations.
+
 ### Default Value Updates
 
 - Updated IAFT defaults:

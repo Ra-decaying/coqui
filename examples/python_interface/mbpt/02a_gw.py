@@ -28,7 +28,8 @@ gw_params = {
         "prec": "medium"
     },
     "niter": 4,
-    "output": "svo.gw",
+    "outdir": "./",
+    "prefix": "svo.gw",
     "iter_alg": {
         "alg": "damping",
         "mixing": 0.7

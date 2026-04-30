@@ -25,7 +25,8 @@ iaft_prec = "high"
 niter     = 12               # number of scf iteration
 restart   = false            # whether to restart from an existing checkpoint file
 conv_thr  = 1e-6
-output    = "scgw"               # prefix for the mbpt checkpoint file
+outdir    = "./"                 # directory for the mbpt checkpoint file
+prefix    = "scgw"               # prefix for the mbpt checkpoint file
 div_treatment = "gygi_extrplt"   # finite-size correction to the q->0 divergence in the GW self-energy.
                                  # The recommended option is "gygi_extrplt" for 3D and "gygi_extrplt_2d" for
                                  # layered materials.
