@@ -109,7 +109,7 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
     bool energy_converged = std::all_of(energies_diff.begin(), energies_diff.end(),
                                         [conv_tol](double x) { return std::abs(x) < conv_tol; });
     if (iter_solver!=nullptr) {
-      return (energy_converged and std::abs(F_conv) <= std::abs(conv_tol) and std::abs(Sigma_conv) <= std::abs(conv_tol));
+      return (energy_converged and std::abs(F_conv) <= std::abs(100*conv_tol) and std::abs(Sigma_conv) <= std::abs(100*conv_tol));
     } else {
       return energy_converged;
     }
