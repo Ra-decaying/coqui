@@ -23,24 +23,6 @@ import json
 from coqui._lib.eri_module import ThcCoulomb
 from coqui._lib.eri_module import run_isdf as isdf_cxx
 
-def thc_default_params():
-  """
-  Default parameters for the THC Coulomb interaction handler.
-
-  Returns
-  -------
-  dict
-      Default parameters for the THC Coulomb interaction.
-  """
-  return {
-      "init": True,
-      "nIpts": 0,
-      "thresh": 0.0,
-      "storage": "incore",
-      "save": "",
-      "cd_dir": "",
-      "chol_block_size": 8
-  }
 
 def make_thc_coulomb(mf, params):
   """
@@ -66,9 +48,10 @@ def make_thc_coulomb(mf, params):
         Threshold for the THC decomposition.
         Also acts as a stopping criterion.
 
-        Note: If both `nIpts` and `thresh` are provided, the THC algorithm terminates when either condition is met.
+        Defaults to 1e-5 when `nIpts=0`, or 1e-13 when `nIpts > 0`.
+        If both `nIpts` and `thresh` are provided explicitly (not as defaults), the THC algorithm terminates when either condition is met.
 
-      - ecut: float, default=mf.ecutrho()
+      - ecut: float, default=0.4 * mf.ecutrho()
         Plane wave cutoff used for the evaluation of coulomb matrix elements.
 
       - storage: str, default="incore"

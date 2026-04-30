@@ -34,6 +34,7 @@ def test_downfold(mpi):
         "storage": "incore",
         "nIpts": mf.nbnd() * 10,
         "thresh": 1e-10,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }
@@ -122,6 +123,7 @@ def test_local_coulomb_from_mf(mpi):
         "storage": "incore",
         "nIpts": mf.nbnd() * 10,
         "thresh": 1e-10,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }

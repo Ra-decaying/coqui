@@ -89,8 +89,8 @@ auto make_wfc_to_rho(utils::mpi_context_t<mpi3::communicator>& mpi,
 /*
  * Creates a thc object with arguments in property tree.
  *  Important options:
- *  - ecut: "same as MF", Plane wave cutoff used for the evaluation of coulomb matrix elements. 
- *  - thresh: "0.0", Threshold in cholesky decomposition. 
+ *  - ecut: "0.4 * ecutrho", Plane wave cutoff used for the evaluation of coulomb matrix elements.
+ *  - thresh: "1e-5", Threshold in cholesky decomposition.
  *  Performance related options:
  *  - matrix_block_size: 1024, Block size used in distributed arrays.
  *  - chol_block_size: "8", Block size in cholesky decomposition.
@@ -106,13 +106,13 @@ thc::thc(mf::MF *mf_,
   mpi(std::addressof(mpi_)),
   mf(mf_),
   Timer(),
-  ecut( io::get_value_with_default<double>(pt,"ecut",mf->ecutrho()) ),
+  ecut( io::get_value_with_default<double>(pt,"ecut",0.4*mf->ecutrho()) ),
   rho_g( detail::make_grid(mpi->comm,ecut,*mf) ),
   swfc_to_rho(detail::make_wfc_to_rho(*mpi,(mf->has_wfc_grid()?*(mf->wfc_truncated_grid()):rho_g),rho_g)),
   vG( io::check_child_exists(pt,"potential") ? io::find_child(pt,"potential") : ptree{}),
   default_block_size( io::get_value_with_default<int>(pt,"matrix_block_size",1024) ), 
   default_cholesky_block_size( io::get_value_with_default<int>(pt,"chol_block_size",8) ),
-  thresh( io::get_value_with_default<double>(pt,"thresh",1e-10) ),
+  thresh( io::get_value_with_default<double>(pt,"thresh",1e-5) ),
   nnr_blk( io::get_value_with_default<int>(pt,"r_blk",1) ),
   distr_tol( io::get_value_with_default<double>(pt,"distr_tol",0.2) ),
   memory_frac( io::get_value_with_default<double>(pt,"memory_frac",0.75) ),

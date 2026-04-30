@@ -57,7 +57,7 @@ namespace bdft_tests {
     double wmax = 120.0;
 
     std::string coqui_prefix = "downfold_1e_mb";
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis);
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis, "high");
     iter_scf::iter_scf_t iter_sol("damping");
 
     auto downfold = [&](
@@ -159,7 +159,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
     double wmax = 1.2;
 
     std::string coqui_prefix = "downfold_1e_mb";
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis);
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis, "high");
     iter_scf::iter_scf_t iter_sol("damping");
 
     auto downfold = [&](
@@ -278,7 +278,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
     double wmax = 3.0;
 
     std::string coqui_prefix = "downfold_gloc";
-    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis);
+    imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis, "high");
 
     auto downfold = [&](
         std::shared_ptr<mf::MF> &mf, std::string wannier_file,

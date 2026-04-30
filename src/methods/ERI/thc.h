@@ -69,8 +69,8 @@ class thc
   /*
    * Creates a thc object with arguments in property tree.
    *  Important options:
-   *  - ecut: "same as MF", Plane wave cutoff used for the evaluation of coulomb matrix elements. 
-   *  - thresh: "0.0", Threshold in cholesky decomposition. 
+   *  - ecut: "0.4 * ecutrho", Plane wave cutoff used for the evaluation of coulomb matrix elements.
+   *  - thresh: "1e-5", Threshold in cholesky decomposition.
    *  Performance related options:
    *  - matrix_block_size: 1024, Block size used in distributed arrays.
    *  - chol_block_size: "8", Block size in cholesky decomposition.
@@ -327,7 +327,7 @@ class thc
 
   long default_block_size;
   long default_cholesky_block_size;
-  double thresh=1e-10;
+  double thresh=1e-5;
   int nnr_blk = 1;
   double distr_tol = 0.2;
   double memory_frac = 0.75;
