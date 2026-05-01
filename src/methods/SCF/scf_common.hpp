@@ -268,7 +268,7 @@ double compute_Nelec(double mu, const nda::array<ComplexType, 4> &spectra,
  */
 template<typename comm_t, typename X_t>
 double solve_iterative(utils::mpi_context_t<comm_t> &context, iter_scf::iter_scf_t& iter_solver,
-                     long it, std::string h5_prefix, X_t &sHeff_skij);
+                     long it, std::string h5_prefix, X_t &sHeff_skij, const X_t &sS_skij);
 /**
  * Iterative solver for the SCF solution of self-energy
  * @param context      - [INPUT] mpi context

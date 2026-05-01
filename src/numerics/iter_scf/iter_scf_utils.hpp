@@ -76,7 +76,7 @@ namespace iter_scf {
         }
       }
     }
-    return iter_scf_t(damp_t(default_mixing));
+    return iter_scf_t(diis_t(default_mixing, 5, 3));
   }
 } // iter_scf
 

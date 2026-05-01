@@ -839,7 +839,7 @@ double update_mu(double old_mu, const mf::MF &mf, const X_t &sE_ski, double beta
 
 template<typename comm_t, typename X_t>
 double solve_iterative(utils::mpi_context_t<comm_t> &context, iter_scf::iter_scf_t& iter_solver,
-                       long it, std::string h5_prefix, X_t &sHeff_skij) {
+                       long it, std::string h5_prefix, X_t &sHeff_skij, const X_t &sS_skij) {
   double conv = 0;
   if (it == 1) {
     // Just check changes w.r.t. mf
@@ -868,6 +868,11 @@ double solve_iterative(utils::mpi_context_t<comm_t> &context, iter_scf::iter_scf
       conv =  std::abs((*max_iter));
     }
     context.node_comm.broadcast_n(&conv, 1, 0);
+    if (iter_solver.iter_alg() == iter_scf::DIIS and context.comm.root()) {
+      // Initialize DIIS solver at the root process since the solver currently doesn't support MPI
+      iter_solver.initialize(sHeff_skij.local(), sS_skij.local(), h5_prefix);
+    }
+    context.comm.barrier();
   } else {
     iter_solver.metadata_log();
     if (context.node_comm.root()) {
@@ -929,7 +934,7 @@ template std::tuple<double,double,bool> qp_eqn_secant(double, analyt_cont::AC_t 
 template std::tuple<double,bool> qp_eqn_spectral(double, analyt_cont::AC_t &, long, double, double, double, double);
 
 template double solve_iterative(utils::mpi_context_t<mpi3::communicator>&, iter_scf::iter_scf_t&, long, std::string,
-                                sArray_t<Array_view_4D_t>&);
+                                sArray_t<Array_view_4D_t>&, const sArray_t<Array_view_4D_t>&);
 template void compute_G_from_mf(h5::group, imag_axes_ft::IAFT&, sArray_t<nda::array_view<ComplexType, 5>>&);
 
 } // methods
