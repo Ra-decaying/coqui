@@ -131,6 +131,7 @@ namespace bdft_tests {
                                           double thc_tol,
                                           double e_hf_ref,
                                           double tol,
+                                          std::string commutator_type,
                                           const std::string &name_tag) {
       imag_axes_ft::IAFT ft(1000.0, 1.2, imag_axes_ft::dlr_basis);
       auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, mf_key));
@@ -151,7 +152,7 @@ namespace bdft_tests {
       };
 
       iter_scf::iter_scf_t damp_sol(iter_scf::damp_t(0.5));
-      iter_scf::iter_scf_t diis_sol(iter_scf::diis_t(0.5, 6, 2));
+      iter_scf::iter_scf_t diis_sol(iter_scf::diis_t(0.5, 6, 2, commutator_type));
 
       double e_damping = run_qphf(damp_sol, "qphf_" + name_tag + "_damping_test");
       double e_diis    = run_qphf(diis_sol, "qphf_" + name_tag + "_diis_test");
@@ -163,13 +164,19 @@ namespace bdft_tests {
     SECTION("qe_lih222") {
       // Orthogonal-basis regression.
       check_qphf_diis_vs_damping("qe_lih222", 12, 1e-12,
-                                 -4.284215374096246, 1e-6, "lih222");
+                                 -4.284215374096246, 1e-6, "commutator", "lih222");
+    }
+
+    SECTION("qe_lih222_vector_diff") {
+      // Orthogonal-basis regression.
+      check_qphf_diis_vs_damping("qe_lih222", 12, 1e-12,
+                                 -4.284215374096246, 1e-6, "vector_diff", "lih222");
     }
 
     SECTION("pyscf_si222") {
       // Non-orthogonal-basis regression.
       check_qphf_diis_vs_damping("pyscf_si222", 12, 1e-10,
-                                 0.8731465661058635, 1e-6, "si222");
+                                 0.8731465661058635, 1e-6, "commutator", "si222");
     }
   }
 

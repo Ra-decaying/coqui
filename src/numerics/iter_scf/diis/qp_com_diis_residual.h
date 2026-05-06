@@ -42,24 +42,32 @@ protected:
   Array_4D Dm_incoming;
   Array_4D S_overlap;
   std::string mbpt_output;
+  std::string residual_type = "commutator";
   long residual_iter = -1;
+  long previous_heff_vec_idx = -1;
 
 public:
   qp_com_diis_residual() = default;
 
   template<nda::MemoryArrayOfRank<4> S_t>
-  void initialize(opt_state<Heff>* current_state_, S_t &&S, std::string mbpt_output_) {
+  void initialize(opt_state<Heff>* current_state_, S_t &&S, std::string mbpt_output_,
+                  std::string residual_type_ = "commutator") {
     if(!com_initialized) {
       current_state = current_state_;
       S_overlap = nda::make_regular(S);
       mbpt_output = mbpt_output_;
     }
+    residual_type = residual_type_;
     is_initialized = true;
     com_initialized = true;
   }
 
   void set_iteration(long iter_) {
     residual_iter = iter_;
+  }
+
+  void set_previous_heff_vec_idx(long idx_) {
+    previous_heff_vec_idx = idx_;
   }
 
   void upload_dm() {
@@ -78,14 +86,36 @@ public:
     nda::h5_read(iter_grp, "Dm_skij", Dm_incoming);
   }
 
+  auto upload_previous_heff() {
+    utils::check(previous_heff_vec_idx >= 0,
+                 "qp_com_diis_residual::upload_previous_heff: previous Heff vector index must be non-negative.");
+    Heff h_prev;
+    h_prev.read_from_file("diis_heff_vectors.h5", static_cast<size_t>(previous_heff_vec_idx));
+    return h_prev.get_heff();
+  }
+
   bool get_diis_residual(Heff& res) override {
     utils::check(com_initialized, "QP commutator DIIS residual is not initialized");
-    upload_dm();
 
     auto H = current_state->get().get_heff();
     auto [ns, nk, nao, nao2] = H.shape();
     utils::check(nao == nao2,
                  "qp_com_diis_residual::get_diis_residual: Heff must be square matrices");
+
+    if (residual_type == "vector_diff") {
+      auto H_prev = upload_previous_heff();
+      auto [h_ns, h_nk, h_nao, h_nao2] = H_prev.shape();
+      utils::check(ns == h_ns and nk == h_nk and nao == h_nao and nao2 == h_nao2,
+                   "qp_com_diis_residual::get_diis_residual: current and previous Heff shapes do not match");
+      res.set_heff(nda::make_regular(H - H_prev));
+      return true;
+    }
+
+    utils::check(residual_type == "commutator",
+                 "qp_com_diis_residual::get_diis_residual: unknown residual_type = {}. Supported types are \"commutator\" and \"vector_diff\"",
+                 residual_type);
+
+    upload_dm();
 
     auto [d_ns, d_nk, d_nao, d_nao2] = Dm_incoming.shape();
     utils::check(ns == d_ns and nk == d_nk and nao == d_nao and nao2 == d_nao2,

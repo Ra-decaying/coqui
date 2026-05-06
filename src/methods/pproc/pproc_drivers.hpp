@@ -114,6 +114,8 @@ namespace methods {
 
     } else if (pp_type == "spectral_interpolation") {
 
+      auto ft = imag_axes_ft::read_iaft(outdir+"/"+prefix+".mbpt.h5", false);
+
       pproc_t pp(*mpi, prefix, outdir);
       auto wannier_file = io::get_value<std::string>(pt, "wannier_file", err+"wannier_file");
       auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
@@ -122,16 +124,22 @@ namespace methods {
       auto iteration = io::get_value_with_default<int>(pt, "iteration", -1);
 
       auto ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
-      auto eta     = io::get_value_with_default<double>(pt,"eta",0.001);
-      auto Nfit    = io::get_value_with_default<int>(pt, "Nfit", -1);
-      auto w_min   = io::get_value_with_default<double>(pt,"w_min",-1.0);
-      auto w_max   = io::get_value_with_default<double>(pt,"w_max",1.0);
-      auto Nw      = io::get_value_with_default<int>(pt,"Nw",1000);
+      auto eta     = io::get_value_with_default<double>(pt,"eta", M_PI/ft.beta());
+      auto Nfit    = io::get_value_with_default<int>(pt, "Nfit", ft.nw_f()/2);
+      if (Nfit > ft.nw_f()/2)  Nfit = ft.nw_f()/2;
+      // default w_min and w_max for +/- 10 eV
+      auto w_min   = io::get_value_with_default<double>(pt,"w_min",-0.367);
+      auto w_max   = io::get_value_with_default<double>(pt,"w_max",0.367);
+      utils::check(w_min < w_max, "w_min should be smaller than w_max in spectral_interpolation.");
+      // (w_max - w_min) / Nw = 0.05 => Nw = (w_max - w_min) / (0.05 / 27.2114079527)
+      auto Nw      = io::get_value_with_default<int>(pt, "Nw", int((w_max - w_min) * 27.2114079527 / 0.05));
       analyt_cont::ac_context_t ac_context(ac_alg, imag_axes_ft::fermion, Nfit, eta, w_min, w_max, Nw);
 
       pp.spectral_interpolation(*mf, pt, wannier_file, ac_context, grp_name, iteration, trans_home_cell);
 
     } else if (pp_type == "local_dos") {
+
+      auto ft = imag_axes_ft::read_iaft(outdir+"/"+prefix+".mbpt.h5", false);
 
       pproc_t pp(*mpi, prefix, outdir);
       // if wannier_file is not provided, calculate local DOS in the Bloch basis
@@ -142,11 +150,14 @@ namespace methods {
       auto iteration = io::get_value_with_default<int>(pt, "iteration", -1);
 
       auto ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
-      auto eta     = io::get_value_with_default<double>(pt,"eta",0.01);
-      auto Nfit    = io::get_value_with_default<int>(pt, "Nfit", -1);
-      auto w_min   = io::get_value_with_default<double>(pt,"w_min",-1.0);
-      auto w_max   = io::get_value_with_default<double>(pt,"w_max",1.0);
-      auto Nw      = io::get_value_with_default<int>(pt,"Nw",1000);
+      auto eta     = io::get_value_with_default<double>(pt,"eta", M_PI/ft.beta());
+      auto Nfit    = io::get_value_with_default<int>(pt, "Nfit", ft.nw_f()/2);
+      if (Nfit > ft.nw_f()/2)  Nfit = ft.nw_f()/2;
+      // default w_min and w_max for +/- 10 eV 
+      auto w_min   = io::get_value_with_default<double>(pt,"w_min",-0.367);
+      auto w_max   = io::get_value_with_default<double>(pt,"w_max",0.367);
+      // default to 0.05 eV resolution => Nw = (w_max - w_min) / (0.05 / 27.2114079527)
+      auto Nw      = io::get_value_with_default<int>(pt, "Nw", int((w_max - w_min) * 27.2114079527 / 0.05));
       analyt_cont::ac_context_t ac_context(ac_alg, imag_axes_ft::fermion, Nfit, eta, w_min, w_max, Nw);
 
       pp.local_density_of_state(*mf, wannier_file, ac_context, grp_name, iteration, trans_home_cell);

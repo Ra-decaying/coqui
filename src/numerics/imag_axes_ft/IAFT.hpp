@@ -58,7 +58,6 @@ namespace imag_axes_ft {
   public:
     C2PY_IGNORE
     IAFT(): grid_var{} { APP_ABORT(" imag_axes_ft::IAFT(): Empty state is not allowed. \n"); }
-    // TODO check "iaft" child ptree for IAFT parameters and fall back to the old interface if "iaft" child ptree does not exist.
     C2PY_IGNORE
     IAFT(ptree const& pt, bool print_meta_log = false, double wmax_default = 10.0) {
 

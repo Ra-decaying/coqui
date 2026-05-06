@@ -305,13 +305,13 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     auto keep_scr_coulomb_fixed = io::get_value_with_default<bool>(pt,"keep_scr_coulomb_fixed", false);
     auto qp_type = io::get_value_with_default<std::string>(pt,"qp_type","sc");
     auto ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
-    auto eta     = io::get_value_with_default<double>(pt,"eta",1.0/ft.beta());
+    auto eta     = io::get_value_with_default<double>(pt,"eta", M_PI/ft.beta());
     auto Nfit    = io::get_value_with_default<int>(pt,"Nfit",18);
     io::tolower(ac_alg);
     io::tolower(qp_type);
     qp_params_t qp_params(qp_type, ac_alg, Nfit, eta, conv_thr, "evscf", keep_scr_coulomb_fixed);
     if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
-      iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt));
+      iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt, 0.7, true));
     } else {
       iter_solver = nullptr;
     }
@@ -324,7 +324,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   } else if (solver_type == "qpgw") {
 
     auto ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
-    auto eta     = io::get_value_with_default<double>(pt,"eta",1.0/ft.beta());
+    auto eta     = io::get_value_with_default<double>(pt,"eta", M_PI/ft.beta());
     auto Nfit    = io::get_value_with_default<int>(pt,"Nfit",18);
     auto off_diag_mode = io::get_value_with_default<std::string>(pt,"off_diag_mode","fermi");
     io::tolower(ac_alg);
@@ -457,7 +457,7 @@ void downfolding_1e(std::shared_ptr<mf::MF> mf, ptree const& pt) {
                  "unknown off_diag_mode: {}. Valid options are \"fermi\" and \"qp_energy\"");
     qp_params_t qp_params("sc", ac_alg,
                 io::get_value_with_default<int>(pt,"Nfit",30),
-                io::get_value_with_default<double>(pt,"eta",1.0/ft.beta()),
+                io::get_value_with_default<double>(pt,"eta", M_PI/ft.beta()),
                 1e-8, "qpscf", false, off_diag_mode);
     embed.downfolding(mb_state, pt, &qp_params);
   } else {
@@ -784,7 +784,7 @@ void gw_downfold(eri_t &eri, ptree &pt) {
   qp_params_t qp_params(
       "sc", ac_alg,
       io::get_value_with_default<int>(pt,"Nfit",30),
-      io::get_value_with_default<double>(pt,"eta",1.0/ft.beta()),
+      io::get_value_with_default<double>(pt,"eta", M_PI/ft.beta()),
       1e-8, "qpscf", false, off_diag_mode);
   embed_t embed(*mf, wannier_file, trans_home_cell);
   pt.put("update_dc", true);

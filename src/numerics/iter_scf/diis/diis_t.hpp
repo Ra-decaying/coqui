@@ -22,6 +22,9 @@
 #ifndef COQUI_DIIS_T_HPP
 #define COQUI_DIIS_T_HPP
 
+#include <algorithm>
+#include <cctype>
+
 #include "configuration.hpp"
 #include "utilities/check.hpp"
 
@@ -58,8 +61,12 @@ namespace iter_scf {
 
   public:
     diis_t() = default;
-    diis_t(double mixing_, size_t max_subsp_size_, size_t warmup_iter_):
-        mixing(mixing_), max_subsp_size(max_subsp_size_), warmup_iter(warmup_iter_) {};
+    diis_t(double mixing_, size_t max_subsp_size_, size_t warmup_iter_,
+         std::string residual_type_ = "commutator"):
+        mixing(mixing_),
+        max_subsp_size(max_subsp_size_),
+        warmup_iter(warmup_iter_),
+        residual_type(normalize_residual_type(std::move(residual_type_))) {};
 
     diis_t(const diis_t& other) = default;
     diis_t(diis_t&& other) = default;
@@ -125,7 +132,7 @@ namespace iter_scf {
       extrapolated_heff_state.initialize(Heff(H));
       heff_x_vsp.initialize("diis_heff_vectors.h5");
       heff_res_vsp.initialize("diis_heff_residuals.h5");
-      qp_com_residual.initialize(&extrapolated_heff_state, S, mbpt_output);
+      qp_com_residual.initialize(&extrapolated_heff_state, S, mbpt_output, residual_type);
       h_alg.init(&extrapolated_heff_state, &qp_com_residual, &heff_x_vsp, &heff_res_vsp,
              max_subsp_size, true, Heff(H));
       initialized = true;
@@ -158,6 +165,7 @@ namespace iter_scf {
         h_alg.grow_xvsp_only = (heff_x_vsp.size() <= 1);
         h_alg.extrap = false;
         qp_com_residual.set_iteration(iter-1);
+        qp_com_residual.set_previous_heff_vec_idx(static_cast<long>(heff_x_vsp.size()) - 1);
         utils::check(h_alg.next_step(Heff(nda::make_regular(H))) == 0,
                "DIIS(QP): Unexpected extrapolation while DIIS algorithm is only growing the subspace");
         app_log(4, "DIIS(QP): DIIS vector space size: {}", heff_x_vsp.size());
@@ -169,6 +177,7 @@ namespace iter_scf {
         h_alg.extrap = true;
         h_alg.grow_xvsp_only = false;
         qp_com_residual.set_iteration(iter-1);
+        qp_com_residual.set_previous_heff_vec_idx(static_cast<long>(heff_x_vsp.size()) - 1);
         int is_extrapolated = h_alg.next_step(Heff(nda::make_regular(H)));
         if (is_extrapolated != 0) {
           auto Hdiff = nda::make_regular(H - h_alg.get_extrapolated_state().get_heff());
@@ -284,6 +293,7 @@ namespace iter_scf {
       app_log(2, "    mixing            = {}", mixing);
       app_log(2, "    max subspace size = {}", max_subsp_size);
       app_log(2, "    warmup iteration  = {}", warmup_iter);
+      app_log(2, "    residual type     = {}", residual_type);
       app_log(2, "    checkpoint output = {}\n", mbpt_output);
     }
 
@@ -295,6 +305,7 @@ namespace iter_scf {
     bool initialized = false;
     bool initialized_dyson = false;
     bool initialized_qp = false;
+    std::string residual_type = "commutator";
     
   private:
     VSpace<FockSigma> x_vsp;                 // vector space of Fock-self-energy vectors
@@ -311,6 +322,15 @@ namespace iter_scf {
     diis_alg<Heff> h_alg;                    // DIIS kernel for Heff
 
     std::string mbpt_output;
+
+    static std::string normalize_residual_type(std::string residual_type) {
+      std::transform(residual_type.begin(), residual_type.end(), residual_type.begin(),
+                     [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+      utils::check(residual_type == "commutator" or residual_type == "vector_diff",
+                   "diis_t::normalize_residual_type: unknown residual_type = {}. Valid options are \"commutator\" and \"vector_diff\"",
+                   residual_type);
+      return residual_type;
+    }
 
     /**
      * @brief Read the chemical potential from the latest SCF iteration in the checkpoint file.
