@@ -28,6 +28,7 @@ from .post_proc import (
   dump_hartree
 )
 from . import plot_utils
+from .plot_utils import band_plot, spectral_plot
 
 _TRIQS_AVAILABLE = False
 _TRIQS_IMPORT_ERROR = None
@@ -57,6 +58,7 @@ __all__ = [
   "ac", "band_interpolation", "spectral_interpolation",
   "local_dos", "unfold_bz", "dump_vxc", "dump_hartree",
   "plot_utils",
+  "band_plot", "spectral_plot",
 ]
 
 if _TRIQS_AVAILABLE:
