@@ -196,7 +196,8 @@ inline constexpr auto c2py::tp_name<imag_axes_ft::IAFT> = "iaft_module.IAFT";
 static auto init_1 = c2py::dispatcher_c_kw_t{
     c2py::c_constructor<imag_axes_ft::IAFT, double, double,
                         imag_axes_ft::basis_e, std::string, bool>(
-        "beta", "wmax", "basis", "prec"_a = "high", "print_meta_log"_a = false),
+        "beta", "wmax", "basis", "prec"_a = "medium",
+        "print_meta_log"_a = false),
     c2py::c_constructor<imag_axes_ft::IAFT, double, double,
                         imag_axes_ft::basis_e, double, bool>(
         "beta", "wmax", "basis", "eps", "print_meta_log"_a = false)};

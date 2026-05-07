@@ -25,7 +25,10 @@ from .post_proc import (
   local_dos,
   unfold_bz,
   dump_vxc,
-  dump_hartree
+  dump_hartree,
+  pade,
+  aaa_adapol, 
+  minipole
 )
 from . import plot_utils
 from .plot_utils import band_plot, spectral_plot
@@ -35,6 +38,7 @@ _TRIQS_IMPORT_ERROR = None
 
 try:
   from .analytic_cont import (
+    pade_triqs,
     maxent_sigma,
     maxent_sigma_k,
   )
@@ -43,7 +47,7 @@ except ImportError as _e:
   _TRIQS_IMPORT_ERROR = _e
 
 # Names from analytic_cont that require TRIQS
-_TRIQS_AC_NAMES = frozenset(["maxent_sigma", "maxent_sigma_k"])
+_TRIQS_AC_NAMES = frozenset(["maxent_sigma", "maxent_sigma_k", "pade_triqs"])
 
 def __getattr__(name):
   if name in _TRIQS_AC_NAMES:
@@ -57,9 +61,9 @@ def __getattr__(name):
 __all__ = [
   "ac", "band_interpolation", "spectral_interpolation",
   "local_dos", "unfold_bz", "dump_vxc", "dump_hartree",
-  "plot_utils",
+  "pade", "aaa_adapol", "minipole",
   "band_plot", "spectral_plot",
 ]
 
 if _TRIQS_AVAILABLE:
-  __all__.extend(["maxent_sigma", "maxent_sigma_k"])
+  __all__.extend(["maxent_sigma", "maxent_sigma_k", "pade_triqs"])

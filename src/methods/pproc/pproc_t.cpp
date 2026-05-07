@@ -226,8 +226,7 @@ namespace methods {
       read_scf_dataset(dataset, dA_tau_ski);
       FT.tau_to_w(dA_tau_ski.local(), dA_iw_ski.local(), ac_params.stats);
       FT.check_leakage(dA_tau_ski, ac_params.stats, dataset);
-    }
-    else {
+    } else {
       std::string dataset_G = "G_tskij";
       std::string dataset_S = "S_skij";
       size_t ntau  = (ac_params.stats == imag_axes_ft::fermion)? FT.nt_f() : FT.nt_b();

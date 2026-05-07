@@ -40,6 +40,29 @@
 
 namespace methods {
   /**
+   * Standalone Pade analytical continuation without MPI context dependency.
+   * First dimension is assumed to be the Matsubara frequency axis.
+   */
+  template<nda::MemoryArrayOfRank<1> mesh_iw_t, nda::MemoryArray Array_iw_t>
+  nda::array<ComplexType, nda::get_rank<Array_iw_t>> pade(Array_iw_t &&A_iw, mesh_iw_t &&iw_mesh,
+                                                          double w_min, double w_max, long Nw, double eta,
+                                                          bool is_iw_pos_only=false, int Nfit=-1) {
+    constexpr int rank = nda::get_rank<Array_iw_t>;
+    static_assert(rank >= 1, "pproc_drivers.hpp::pade: input array rank must be >= 1");
+
+    auto A_w_shape = A_iw.shape();
+    A_w_shape[0] = Nw;
+
+    auto w_grid = analyt_cont::AC_t::w_grid(w_min, w_max, Nw, eta);
+
+    nda::array<ComplexType, rank> A_w(A_w_shape);
+    analyt_cont::AC_t AC("pade");
+    AC.iw_to_w(A_iw, iw_mesh, A_w, w_grid, is_iw_pos_only, Nfit);
+
+    return A_w;
+  }
+
+  /**
    * Post-processing routines with arguments in property tree.
    * @param [INPUT] pp_type - type of post-processing, allowed options: ac, unfold
    * @param [INPUT] mf - mean-field instance

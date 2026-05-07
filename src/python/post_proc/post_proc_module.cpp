@@ -63,6 +63,16 @@ namespace coqui_py::post_proc {
     methods::post_processing("dump_hartree", mf.get_mf(), parser.get_root());
   }
 
+  auto pade(nda::array<ComplexType, 2> A_iw, nda::array<ComplexType, 1> iw_mesh,
+            double w_min, double w_max, long Nw, int Nfit, double eta, bool is_iw_pos_only)
+  -> std::tuple<nda::array<ComplexType, 2>, nda::array<ComplexType, 1>> {
+    auto w_grid = analyt_cont::AC_t::w_grid(w_min, w_max, Nw, eta);
+    return std::make_tuple(
+      methods::pade(std::move(A_iw), std::move(iw_mesh), w_min, w_max, Nw, eta, is_iw_pos_only, Nfit), 
+      w_grid
+    );
+  }
+
 } // coqui_py
 
 #include "post_proc_module.wrap.cxx"

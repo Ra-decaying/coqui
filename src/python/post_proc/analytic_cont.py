@@ -28,6 +28,42 @@ Analytical continuation utilities based on TRIQS application
 """
 
 
+def pade_triqs(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=100, eta=0.0, ph_sym=False):
+    # Convert g_iw to a TRIQS Green's function
+    if stats in ['fermion', 'f']:
+        statistic = "Fermion"
+    elif stats in ['boson', 'b']:
+        statistic = "Boson"
+    else:
+        raise ValueError("Invalid statistic. Use 'fermion' or 'boson'.")
+    nw_max = iaft.wn_mesh(stats=stats)[-1]
+    iw_mesh = MeshImFreq(beta=iaft.beta, statistic=statistic, n_iw=nw_max)
+
+    g_iw = np.asarray(g_iw)
+    target_shape = g_iw.shape[1:]
+    if g_iw.ndim  == 1:
+        g_iw = g_iw[:, None, None]
+    elif g_iw.ndim == 2:
+        g_iw = np.array([ np.diag(x) for x in g_iw])
+    elif g_iw.ndim > 3:
+        raise ValueError("Input g_iw can only have 1, 2, or 3 dimensions.")
+
+    gf_imfreq = Gf(mesh=iw_mesh, target_shape=g_iw.shape[1:])
+    mesh_iw_idx = np.array([iwn.index for iwn in iw_mesh])
+    gf_imfreq.data[:] = iaft.w_interpolate(g_iw, mesh_iw_idx, stats=stats, ir_notation=False, ph_sym=ph_sym)
+
+    # Create a real-frequency Gf using set_from_pade() function 
+    if eta is None:
+        eta = np.pi / iaft.beta
+    w_mesh = MeshReFreq(window=(wmin, wmax), n_w=Nw)
+    gf_refreq = Gf(mesh=w_mesh, target_shape=g_iw.shape[1:])
+    gf_refreq.set_from_pade(gf_imfreq, n_points=Nfit, freq_offset=eta)
+
+    g_w = gf_refreq.data[:].reshape((Nw,) + target_shape)
+
+    return g_w, w_mesh.values()
+
+
 def sum_of_gaussians(x_array, centers={0.0}, exponents={0.1}):
     """
     Returns a 1D array representing the sum of Gaussian functions over a range.

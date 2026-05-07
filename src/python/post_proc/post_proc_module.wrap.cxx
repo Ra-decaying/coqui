@@ -61,15 +61,33 @@ static auto const fun_4 = c2py::dispatcher_f_kw_t{c2py::cfun(
     },
     "mf", "params")};
 
-// spectral_interpolation
+// pade
 static auto const fun_5 = c2py::dispatcher_f_kw_t{c2py::cfun(
+    [](nda::basic_array<
+           std::complex<double>, 2, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           A_iw,
+       nda::basic_array<
+           std::complex<double>, 1, nda::C_layout, 'A',
+           nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
+           iw_mesh,
+       double w_min, double w_max, long Nw, int Nfit, double eta,
+       bool is_iw_pos_only) {
+      return coqui_py::post_proc::pade(A_iw, iw_mesh, w_min, w_max, Nw, Nfit,
+                                       eta, is_iw_pos_only);
+    },
+    "A_iw", "iw_mesh", "w_min", "w_max", "Nw", "Nfit", "eta",
+    "is_iw_pos_only")};
+
+// spectral_interpolation
+static auto const fun_6 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &params) {
       return coqui_py::post_proc::spectral_interpolation(mf, params);
     },
     "mf", "params")};
 
 // unfold_bz
-static auto const fun_6 = c2py::dispatcher_f_kw_t{c2py::cfun(
+static auto const fun_7 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &params) {
       return coqui_py::post_proc::unfold_bz(mf, params);
     },
@@ -82,6 +100,7 @@ static const auto doc_d_3 = fun_3.doc(R"DOC()DOC");
 static const auto doc_d_4 = fun_4.doc(R"DOC()DOC");
 static const auto doc_d_5 = fun_5.doc(R"DOC()DOC");
 static const auto doc_d_6 = fun_6.doc(R"DOC()DOC");
+static const auto doc_d_7 = fun_7.doc(R"DOC()DOC");
 //--------------------- module function table  -----------------------------
 
 static PyMethodDef module_methods[] = {
@@ -95,10 +114,12 @@ static PyMethodDef module_methods[] = {
      doc_d_3.c_str()},
     {"local_dos", (PyCFunction)c2py::pyfkw<fun_4>, METH_VARARGS | METH_KEYWORDS,
      doc_d_4.c_str()},
-    {"spectral_interpolation", (PyCFunction)c2py::pyfkw<fun_5>,
-     METH_VARARGS | METH_KEYWORDS, doc_d_5.c_str()},
-    {"unfold_bz", (PyCFunction)c2py::pyfkw<fun_6>, METH_VARARGS | METH_KEYWORDS,
-     doc_d_6.c_str()},
+    {"pade", (PyCFunction)c2py::pyfkw<fun_5>, METH_VARARGS | METH_KEYWORDS,
+     doc_d_5.c_str()},
+    {"spectral_interpolation", (PyCFunction)c2py::pyfkw<fun_6>,
+     METH_VARARGS | METH_KEYWORDS, doc_d_6.c_str()},
+    {"unfold_bz", (PyCFunction)c2py::pyfkw<fun_7>, METH_VARARGS | METH_KEYWORDS,
+     doc_d_7.c_str()},
     {nullptr, nullptr, 0, nullptr} // Sentinel
 };
 
