@@ -182,7 +182,7 @@ def to_block_gf(giw_ir, iaft, gf_struct, mesh_iw):
             giw_ir[:, s, offset[s]:offset[s]+blk_dim, offset[s]:offset[s]+blk_dim],
             mesh_iw_idx,
             stats="f",
-            ir_notation=False
+            phys_notation=True
         )
         offset[s] += blk_dim
         assert offset[s] <= nbnd, f"Spin {s} block exceeds band range"
@@ -206,7 +206,7 @@ def to_block2_gf(Diw_ir, iaft, gf_struct, mesh_iw):
     nbnd = Diw_ir.shape[-1]
 
     mesh_iw_idx = np.array([iwn.index for iwn in mesh_iw])
-    Diw_data = iaft.w_interpolate_phsym(Diw_ir, mesh_iw_idx, stats="b", ir_notation=False)
+    Diw_data = iaft.w_interpolate_phsym(Diw_ir, mesh_iw_idx, stats="b", phys_notation=True)
 
     gf_array = []
     o1 = [0, 0]
@@ -356,14 +356,14 @@ def gf_dlr_from_ir(giw_ir, iaft, mesh_dlr_iw):
     else:
         mesh_dlr_iw_idx = np.array([iwn.index for iwn in mesh_dlr_iw])
 
-    gf_dlr_iw.data[:] = iaft.w_interpolate(giw_ir, mesh_dlr_iw_idx, stats=stats, ir_notation=False)
+    gf_dlr_iw.data[:] = iaft.w_interpolate(giw_ir, mesh_dlr_iw_idx, stats=stats, phys_notation=True)
 
     return make_gf_dlr(gf_dlr_iw)
 
 
 def gf_dlr_to_ir(gf_dlr, iaft):
     stats = 'b' if gf_dlr.mesh.statistic == 'Boson' else 'f'
-    ir_idx = iaft.wn_mesh(stats=stats, ir_notation=False)
+    ir_idx = iaft.wn_mesh(stats=stats, phys_notation=True)
     nw = len(ir_idx)
     nw_half = nw//2 if nw%2==0 else nw//2+1
     iw_mesh_uniform = MeshImFreq(
@@ -404,7 +404,7 @@ def gf_dlr_to_ir_phsym(gf_dlr, iaft):
     assert gf_dlr.mesh.statistic == "Boson", (
         "gf_dlr_to_ir_phsym: Gf statistics must be Boson"
     )
-    ir_idx_b = iaft.wn_mesh(stats='b', ir_notation=False, positive_only=True)
+    ir_idx_b = iaft.wn_mesh(stats='b', phys_notation=True, positive_only=True)
     nw_b_pos = len(ir_idx_b)
     iw_mesh_uniform_b = MeshImFreq(
         beta=gf_dlr.mesh.beta,
@@ -719,7 +719,7 @@ def _full_mesh_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, iaft=None):
         return {"Sigma_iw_data": sigma_iw_data, "Pi_iw_data": pi_iw_data}
 
     # converter Sigma and Pi to IR Matsubara mesh
-    ir_idx_f = iaft.wn_mesh(stats='f', ir_notation=False)
+    ir_idx_f = iaft.wn_mesh(stats='f', phys_notation=True)
     nw_f = len(ir_idx_f)
     nw_f_half = nw_f // 2
     for i, sigma_dyn in enumerate(sigma_iw_data):
@@ -733,7 +733,7 @@ def _full_mesh_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, iaft=None):
         sigma_iw_data[i] = sigma_dyn_ir
 
     # interpolate solver_res.Pi_iw to ir grid
-    ir_idx_b = iaft.wn_mesh(stats='b', ir_notation=False, positive_only=True)
+    ir_idx_b = iaft.wn_mesh(stats='b', phys_notation=True, positive_only=True)
     nw_b_pos = len(ir_idx_b)
     pi_iw_ir = np.zeros((nw_b_pos,) + pi_iw_data[0].shape[1:], dtype=complex)
     for idx in range(nw_b_pos):

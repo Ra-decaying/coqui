@@ -50,7 +50,7 @@ def pade_triqs(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=100, eta=0.0, ph_sym=F
 
     gf_imfreq = Gf(mesh=iw_mesh, target_shape=g_iw.shape[1:])
     mesh_iw_idx = np.array([iwn.index for iwn in iw_mesh])
-    gf_imfreq.data[:] = iaft.w_interpolate(g_iw, mesh_iw_idx, stats=stats, ir_notation=False, ph_sym=ph_sym)
+    gf_imfreq.data[:] = iaft.w_interpolate(g_iw, mesh_iw_idx, stats=stats, phys_notation=True, ph_sym=ph_sym)
 
     # Create a real-frequency Gf using set_from_pade() function 
     if eta is None:
@@ -118,7 +118,7 @@ def _maxent_run(Sigma_iw, ft, n_iw,
     iw_mesh_uni = MeshImFreq(beta=ft.beta, S='Fermion', n_iw=n_iw)
     Sigma_iw_uni = Gf(mesh=iw_mesh_uni, target_shape=[1, 1])
     iw_idx = np.array([iw.index for iw in iw_mesh_uni])
-    Sigma_iw_uni[0, 0].data[:] = ft.w_interpolate(Sigma_iw, iw_idx, 'f', ir_notation=False)
+    Sigma_iw_uni[0, 0].data[:] = ft.w_interpolate(Sigma_iw, iw_idx, 'f', phys_notation=True)
 
     print("Setup maxent solver...")
     sys.stdout.flush()
@@ -184,7 +184,7 @@ def _maxent_sigma(Sigma_iw, ft, n_iw, analyzer,
     iw_mesh_uni = MeshImFreq(beta=ft.beta, S='Fermion', n_iw=n_iw)
     Sigma_iw_uni = Gf(mesh=iw_mesh_uni, target_shape=[1, 1])
     iw_idx = np.array([iw.index for iw in iw_mesh_uni])
-    Sigma_iw_uni[0, 0].data[:] = ft.w_interpolate(Sigma_iw, iw_idx, 'f', ir_notation=False)
+    Sigma_iw_uni[0, 0].data[:] = ft.w_interpolate(Sigma_iw, iw_idx, 'f', phys_notation=True)
 
     continuators = DirectSigmaContinuator(Sigma_iw_uni)
 

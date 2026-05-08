@@ -243,8 +243,8 @@ def extract_h0_and_delta(g_weiss_wsab, iaft, high_freq_multiplier=10):
     nspin = g_weiss_wsab.shape[1]
     
     # 1) Interpolate G0 to very high fermionic frequencies to improve the accuracy of high-frequency fitting
-    iwn_interp = iaft.wn_mesh('f', ir_notation=False)[-3:] * high_freq_multiplier
-    g_weiss_interp = iaft.w_interpolate(g_weiss_wsab, iwn_interp, 'f', ir_notation=False)
+    iwn_interp = iaft.wn_mesh('f', phys_notation=True)[-3:] * high_freq_multiplier
+    g_weiss_interp = iaft.w_interpolate(g_weiss_wsab, iwn_interp, 'f', phys_notation=True)
     iwn_interp = (2*iwn_interp.astype(float) + 1) * np.pi / iaft.beta
     weiss_tmp = np.zeros(g_weiss_interp.shape, dtype=complex)
     for n, g in enumerate(g_weiss_interp):
