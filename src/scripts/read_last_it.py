@@ -25,7 +25,6 @@ import h5._h5py as h5
 import argparse
 
 # Usage: 
-# export PYTHONPATH=/mnt/home/cyeh/Projects/nda/nda.build/build_tensor/deps/h5/python:$PYTHONPATH
 # python3 read_last_it.py --inp mbpt.gf2.iterative.mbpt.h5  --out mbpt.gf2.last.mbpt.h5 --keep_first_it True
 # Attention: may not work correctly if h5 file is corrupted
 

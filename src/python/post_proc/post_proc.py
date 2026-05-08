@@ -25,85 +25,406 @@ from coqui import IAFT
 from coqui._lib import post_proc_module as pproc_mod
 
 
-def ac(mf, params):
-    pproc_mod.ac(mf, json.dumps(params))
-
-
 def band_interpolation(mf, params):
+    """
+    Interpolate quasiparticle energies along a k-path using Wannier functions.
+
+    This function has two modes depending on whether a CoQuí MBPT checkpoint
+    file already exists:
+
+    - **Checkpoint mode** — if ``outdir/prefix.mbpt.h5`` already exists, quasiparticle
+      energies are read from the specified iteration and interpolated.
+    - **Mf-only mode** — if no checkpoint exists, the function first creates one,
+      writes the mean-field (DFT) solution into ``iter0``, and then performs the
+      interpolation on that iteration. 
+
+    Parameters
+    ----------
+    mf : Mf
+        Mean-field object for the target system, obtained from ``make_mf``.
+    params : dict
+        Interpolation options. Supported keys:
+
+        - ``prefix`` *(str, required)* — prefix of the checkpoint file
+          (``outdir/prefix.mbpt.h5``).
+        - ``outdir`` *(str, optional, default ``"./"``)* — directory for the
+          checkpoint file.
+        - ``wannier_file`` *(str, required)* — HDF5 file containing Wannier
+          projection matrices and k-points, produced by ``mlwf_h5_from_wannier90_output``.
+        - ``kpath`` *(str, required)* — high-symmetry k-path as a multi-line string
+          with one ``label kx ky kz`` entry per line (in fractional coordinates).
+          Consecutive entries define segments; the path connects them in order.
+        - ``bands_num_npoints`` *(int, optional, default ``100``)* — number of
+          k-points per segment along the path.
+        - ``iteration`` *(int, optional, default ``-1``)* — MBPT iteration to read
+          from. ``-1`` selects the latest (in Mf-only mode this is always ``iter0``).
+        - ``grp_name`` *(str, optional, default ``"scf"``)* — top-level HDF5 group
+          in the checkpoint (``"scf"`` for standard MBPT, ``"embed"`` for embedding).
+        - ``translate_home_cell`` *(bool, optional, default ``False``)* — if ``True``,
+          translates Wannier centres to the home unit cell.
+
+        The following keys are only used in **Mf-only mode** (no existing checkpoint):
+
+        - ``beta`` *(float, optional, default ``1000.0``, units: 1/Hartree)* —
+          inverse temperature, used to determine the Fermi level. 
+
+    Returns
+    -------
+    None
+        Results are written to ``outdir/prefix.mbpt.h5`` under
+        ``{grp_name}/iter{N}/qp_approx/wannier_inter/``.
+
+    Examples
+    --------
+    ::
+
+        from coqui.post_proc import band_interpolation
+
+        band_interpolation(mf, {
+            "outdir": "./", "prefix": "svo.evgw",
+            "wannier_file": "svo.mlwf.h5",
+            "bands_num_npoints": 100,
+            "kpath": (
+                "G 0.00 0.00 0.00 "
+                "X 0.00 0.50 0.00 "
+                "M 0.50 0.50 0.00 "
+                "G 0.00 0.00 0.00"
+            ),
+        })
+    """
     pproc_mod.band_interpolation(mf, json.dumps(params))
 
 
 def spectral_interpolation(mf, params):
+    """
+    Interpolate the spectral function A(k,ω) along a k-path using Wannier functions.
+
+    Reads the Matsubara Green's function from an MBPT checkpoint, projects onto a
+    Wannier basis, interpolates onto a dense k-path, and applies analytic continuation
+    to produce A(k,ω) for spectral function plots.
+
+    Parameters
+    ----------
+    mf : Mf
+        Mean-field object for the target system, obtained from ``make_mf``.
+    params : dict
+        Interpolation and analytic continuation options. Supported keys:
+
+        - ``prefix`` *(str, required)* — prefix of the MBPT checkpoint file
+          (``outdir/prefix.mbpt.h5``).
+        - ``outdir`` *(str, required)* — directory containing the MBPT checkpoint.
+        - ``wannier_file`` *(str, required)* — HDF5 file containing Wannier
+          projection matrices and k-points.
+        - ``kpath`` *(str, required)* — high-symmetry k-path in the same format as 
+          ``band_interpolation``. 
+        - ``bands_num_npoints`` *(int, optional, default ``100``)* — k-points per
+          segment along the path.
+        - ``iteration`` *(int, optional, default ``-1``)* — MBPT iteration to use.
+          ``-1`` selects the latest.
+        - ``grp_name`` *(str, optional, default ``"scf"``)* — top-level HDF5 group
+          in the checkpoint.
+        - ``translate_home_cell`` *(bool, optional, default ``False``)* — translate
+          Wannier centres to the home unit cell.
+        - ``ac_alg`` *(str, optional, default ``"pade"``)* — analytic continuation
+          algorithm. Only ``"pade"`` is currently implemented. 
+        - ``w_min`` *(float, optional, default ``-0.367``, units: Hartree (~-10 eV))* — 
+          lower bound of the real frequency output grid (~-10 eV).
+        - ``w_max`` *(float, optional, default ``0.367``, units: Hartree (~+10 eV))* — 
+          upper bound of the real frequency output grid (~+10 eV).
+        - ``Nw`` *(int, optional)* — number of real frequency points. Defaults to a
+          resolution of ~0.05 eV across the ``[w_min, w_max]`` window.
+        - ``eta`` *(float, optional, default ``π/β``, units: Hartree)* — broadening
+          for the analytic continuation.
+        - ``Nfit`` *(int, optional)* — number of Matsubara points for the Padé fit.
+          Defaults to half the number of available fermionic frequencies.
+
+    Returns
+    -------
+    None
+        Results are written to ``outdir/prefix.mbpt.h5`` under
+        ``{grp_name}/iter{N}/ac/``.
+
+    Examples
+    --------
+    ::
+
+        from coqui.post_proc import spectral_interpolation
+
+        spectral_interpolation(mf, {
+            "outdir": "./", "prefix": "svo.evgw",
+            "wannier_file": "svo.mlwf.h5",
+            "bands_num_npoints": 100,
+            "kpath": (
+                "G 0.00 0.00 0.00 "
+                "X 0.00 0.50 0.00 "
+                "M 0.50 0.50 0.00 "
+                "G 0.00 0.00 0.00"
+            ),
+            "w_min": -0.5, "w_max": 0.5,
+        })
+    """
     pproc_mod.spectral_interpolation(mf, json.dumps(params))
 
 
 def local_dos(mf, params):
+    """
+    Compute the orbital-resolved local density of states.
+
+    Reads the Matsubara Green's function from an MBPT checkpoint, optionally 
+    projects onto a Wannier basis, and applies analytic continuation to produce
+    the orbital/site-resolved DOS on the real frequency axis.
+
+    Parameters
+    ----------
+    mf : Mf
+        Mean-field object for the target system, obtained from ``make_mf``.
+    params : dict
+        Supported keys:
+
+        - ``prefix`` *(str, required)* — prefix of the MBPT checkpoint file
+          (``outdir/prefix.mbpt.h5``).
+        - ``outdir`` *(str, optional, default ``"./"``)* — directory containing 
+          the MBPT checkpoint.
+        - ``wannier_file`` *(str, optional, default ``""``)* — HDF5 file with 
+          Wannier projection matrices. If empty, the DOS is computed in the Bloch basis.
+        - ``iteration`` *(int, optional, default ``-1``)* — MBPT iteration to use.
+          ``-1`` selects the latest.
+        - ``grp_name`` *(str, optional, default ``"scf"``)* — top-level HDF5 group
+          in the checkpoint.
+        - ``translate_home_cell`` *(bool, optional, default ``False``)* — translate
+          Wannier centres to the home unit cell (only relevant when ``wannier_file``
+          is provided).
+        - ``ac_alg`` *(str, optional, default ``"pade"``)* — analytic continuation
+          algorithm.
+        - ``w_min`` *(float, optional, default ``-0.367``, units: Hartree)* — lower
+          bound of the real frequency output grid (~-10 eV).
+        - ``w_max`` *(float, optional, default ``0.367``, units: Hartree)* — upper
+          bound of the real frequency output grid (~+10 eV).
+        - ``Nw`` *(int, optional)* — number of real frequency points. Defaults to a
+          resolution of ~0.05 eV across the ``[w_min, w_max]`` window.
+        - ``eta`` *(float, optional, default ``π/β``, units: Hartree)* — broadening
+          for the analytic continuation.
+        - ``Nfit`` *(int, optional)* — number of Matsubara points for the Padé fit.
+          Defaults to half the number of available fermionic frequencies.
+
+    Returns
+    -------
+    None
+        Results are written to ``outdir/prefix.mbpt.h5`` under
+        ``{grp_name}/iter{N}/ac/``.
+    """
     pproc_mod.local_dos(mf, json.dumps(params))
 
 
 def unfold_bz(mf, params):
+    """
+    Unfold IBZ-sampled MBPT quantities to the full Brillouin zone.
+
+    Expands quasiparticle energies, Green's functions, and self-energies from the
+    irreducible wedge to all k-points in the full BZ using the lattice symmetry
+    operations stored in the mean-field object.
+
+    Parameters
+    ----------
+    mf : Mf
+        Mean-field object for the target system, obtained from ``make_mf``.
+    params : dict
+        Supported keys:
+
+        - ``prefix`` *(str, required)* — prefix of the MBPT checkpoint file
+          (``outdir/prefix.mbpt.h5``).
+        - ``outdir`` *(str, optional, default ``"./"``)*  — directory containing the
+          MBPT checkpoint file.
+
+    Returns
+    -------
+    None
+        Full-BZ quantities are written back to ``outdir/prefix.mbpt.h5`` under 
+        the same HDF5 group with the `_unfold` suffix.
+    """
     pproc_mod.unfold_bz(mf, json.dumps(params))
 
 
 def dump_vxc(mf, params):
+    """
+    Extract and save exchange-correlation potential matrix elements from the DFT solution.
+
+    Computes ⟨ψ_{sk}|V_xc|ψ_{sk'}⟩ in the Kohn-Sham orbital basis and writes the
+    result to an HDF5 file. Useful for constructing the quasiparticle correction
+    Σ - V_xc in post-processing workflows.
+
+    Parameters
+    ----------
+    mf : Mf
+        Mean-field object for the target system, obtained from ``make_mf``.
+    params : dict
+        Supported keys:
+
+        - ``prefix`` *(str, required)* — prefix for the output HDF5 file
+          (writes to ``outdir/prefix.mbpt.h5``).
+        - ``outdir`` *(str, optional, default ``"./"``)*  — output directory.
+
+    Returns
+    -------
+    None
+        The matrix ``Vxc_skij`` (shape: ``[nspin, nkpts_ibz, nbnd, nbnd]``) is
+        written to ``outdir/prefix.mbpt.h5`` under ``system/``.
+    """
     pproc_mod.dump_vxc(mf, json.dumps(params))
 
 
 def dump_hartree(mf, params):
+    """
+    Compute and save Hartree potential matrix elements.
+
+    This function has two modes depending on whether a CoQuí MBPT checkpoint
+    file already exists:
+
+    - **Checkpoint mode** — if ``outdir/prefix.mbpt.h5`` already exists, the density
+      matrix is read from the iteration specified by ``scf_iter`` and the Hartree
+      potential is computed from it.
+    - **Mf-only mode** — if no checkpoint exists, the function creates one, writes the
+      mean-field (DFT) solution into ``iter0``, and computes the Hartree potential from
+      the DFT density matrix. 
+
+    Parameters
+    ----------
+    mf : Mf
+        Mean-field object for the target system, obtained from ``make_mf``.
+    params : dict
+        Supported keys:
+
+        - ``prefix`` *(str, required)* — prefix of the checkpoint file
+          (``outdir/prefix.mbpt.h5``).
+        - ``outdir`` *(str, optional, default ``"./"``)*  — directory for the
+          checkpoint file.
+        - ``scf_iter`` *(int, optional, default ``-1``)* — iteration whose density
+          matrix is used. ``-1`` selects the latest (in Mf-only mode this is always
+          ``iter0``).
+
+        The following keys are only used in **Mf-only mode** (no existing checkpoint):
+
+        - ``beta`` *(float, optional, default ``1000.0``, units: 1/Hartree)* —
+          inverse temperature, used during density matrix consturction. 
+
+    Returns
+    -------
+    None
+        The matrix ``VH_skij`` (shape: ``[nspin, nkpts_ibz, nbnd, nbnd]``) is
+        written to ``outdir/prefix.mbpt.h5`` under ``scf/iter{N}/``.
+    """
     pproc_mod.dump_hartree(mf, json.dumps(params))
 
 
-def pade(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=-1, eta=0.0, ph_sym=False):
-  """
-  Perform Pade analytical continuation using CoQui backend.
-  
-  Parameters:
-    g_iw (np.ndarray): Input array on Matsubara frequency axis.
-                       Can be arbitrary shape; first dimension is treated as Matsubara axis.
-    iaft (IAFT): Fourier transform kernel on imaginary axis 
-    stats (str): 'fermion' or 'boson' 
-    wmin (float): Minimum real frequency for output.
-    wmax (float): Maximum real frequency for output.
-    Nw (int): Number of real frequency points.
-    eta (float): Broadening parameter (imaginary offset). Default: 0.0
-    Nfit (int): Number of Pade fitting points. Default: -1 (use all)
-  
-  Returns:
-    g_w (np.ndarray): Complex array on real frequency axis with shape [Nw] + g_iw.shape[1:].
-    w_mesh (np.ndarray): Real frequency mesh (1D complex array).
-  """
-  
-  g_iw = np.asarray(g_iw, dtype=np.complex128)
-  if isinstance(iaft, IAFT):
-      iw_mesh = 1j*iaft.wn_mesh(stats=stats, positive_only=ph_sym) * np.pi / iaft.beta
-  else:
-      iw_mesh = np.asarray(iaft)
-  
-  target_shape = g_iw.shape[1:]
-  niw = g_iw.shape[0]
-  
-  # Validate iw_mesh length
-  if len(iw_mesh) != niw:
-    raise ValueError(f"iw_mesh length ({len(iw_mesh)}) must match first dimension of g_iw ({niw})")
-  
-  # Reshape to 2D for backend: [niw, dim1]
-  g_iw_2D = g_iw.reshape(niw, -1)
-  
-  # Call C++ backend
-  g_w_2D, w_mesh = pproc_mod.pade(g_iw_2D, iw_mesh, wmin, wmax, Nw, Nfit, eta, ph_sym)
-  
-  # Reshape output back to original shape with first dimension = Nw
-  g_w = g_w_2D.reshape((Nw,) + target_shape)
-  
-  return g_w, w_mesh
+def pade(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=-1, eta=None, ph_sym=False):
+    """
+    Perform Padé analytic continuation from the Matsubara to the real frequency axis.
+
+    Parameters
+    ----------
+    g_iw : np.ndarray
+        Input data on the Matsubara frequency axis. Can have arbitrary shape;
+        the first dimension is treated as the frequency axis.
+    iaft : IAFT
+        Imaginary-axis Fourier transform object. The Matsubara frequency mesh
+        and inverse temperature are derived from it.
+    stats : str
+        Particle statistics: ``"fermion"`` or ``"boson"``.
+    wmin : float
+        Lower bound of the real frequency output grid (units: Hartree).
+    wmax : float
+        Upper bound of the real frequency output grid (units: Hartree).
+    Nw : int
+        Number of real frequency points.
+    Nfit : int, optional
+        Number of Matsubara points used for the Padé fit. ``-1`` uses all
+        available points. Default: ``-1``.
+    eta : float, optional
+        Broadening (imaginary offset above the real axis, units: Hartree).
+        Default: ``π/β``.
+    ph_sym : bool, optional
+        If ``True``, exploit particle-hole symmetry and use only the
+        positive-frequency half of the Matsubara axis. Default: ``False``.
+
+    Returns
+    -------
+    g_w : np.ndarray
+        Analytically continued data on the real frequency axis, shape
+        ``(Nw,) + g_iw.shape[1:]``. Complex array.
+    w_mesh : np.ndarray
+        Real frequency mesh, shape ``(Nw,)``. Complex array with imaginary part
+        equal to ``eta``.
+    """
+    if not isinstance(iaft, IAFT):
+        raise ValueError("iaft must be an instance of IAFT for minipole fitting. ")
+    
+    g_iw = np.asarray(g_iw, dtype=np.complex128)
+    iw_mesh = 1j*iaft.wn_mesh(stats=stats, positive_only=ph_sym) * np.pi / iaft.beta
+    if g_iw.shape[0] != len(iw_mesh):
+        raise ValueError(f"First dimension of g_iw ({g_iw.shape[0]}) must match length of Matsubara mesh ({len(iw_mesh)}) from IAFT.")
+
+    niw = g_iw.shape[0]
+    target_shape = g_iw.shape[1:]
+
+    eta = np.pi / iaft.beta if eta is None else float(eta)    
+
+    g_iw_2D = g_iw.reshape(niw, -1)
+    g_w_2D, w_mesh = pproc_mod.pade(g_iw_2D, iw_mesh, wmin, wmax, Nw, Nfit, eta, ph_sym)
+    g_w = g_w_2D.reshape((Nw,) + target_shape)
+
+    return g_w, w_mesh
 
 
 def aaa_adapol(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=40, eta=None, ph_sym=False):
+    """
+    Perform analytic continuation using the AAA-based adapol algorithm.
+
+    Requires the ``adapol`` package (https://github.com/flatironinstitute/adapol).
+
+    Parameters
+    ----------
+    g_iw : np.ndarray
+        Input data on the Matsubara frequency axis. Supported shapes: 1-D
+        ``(niw,)`` for a single scalar, 2-D ``(niw, n)`` for ``n`` independent
+        scalars fitted in a loop, or 3-D ``(niw, norb, norb)`` for a full
+        matrix fitted jointly.
+    iaft : IAFT
+        Imaginary-axis Fourier transform object. The Matsubara frequency mesh
+        and inverse temperature are derived from it.
+    stats : str
+        Particle statistics: ``"fermion"`` (or ``"f"``) or ``"boson"`` (or ``"b"``).
+    wmin : float
+        Lower bound of the real frequency output grid (units: Hartree).
+    wmax : float
+        Upper bound of the real frequency output grid (units: Hartree).
+    Nw : int
+        Number of real frequency points.
+    Nfit : int, optional
+        Number of poles used in the rational approximation. Default: ``40``.
+    eta : float, optional
+        Broadening (imaginary offset above the real axis, units: Hartree).
+        Default: ``π/β``.
+    ph_sym : bool, optional
+        If ``True``, use only the positive-frequency half of the Matsubara axis.
+        Default: ``False``.
+
+    Returns
+    -------
+    g_w : np.ndarray
+        Analytically continued data on the real frequency axis, shape
+        ``(Nw,) + g_iw.shape[1:]``. Complex array.
+    w_mesh : np.ndarray
+        Real frequency mesh, shape ``(Nw,)``. Complex array with imaginary part
+        equal to ``eta``.
+    """
     try:
         from adapol import anacont as adapol_anacont
     except ImportError:
         raise ImportError("aaa_adapol requires the adapol package (https://github.com/flatironinstitute/adapol). \n"
                           "Ensure that it is installed. ")
+    
+    if not isinstance(iaft, IAFT):
+        raise ValueError("iaft must be an instance of IAFT.")
 
     if stats in ['fermion', 'f']:
         statistic = "Fermion"
@@ -112,36 +433,79 @@ def aaa_adapol(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=40, eta=None, ph_sym=F
     else:
         raise ValueError("Invalid statistic. Use 'fermion' or 'boson'.")
 
-    g_iw = np.asarray(g_iw)
+    g_iw = np.asarray(g_iw, dtype=np.complex128)
     target_shape = g_iw.shape[1:]
-    if g_iw.ndim  == 1:
-        g_iw = g_iw[:, None, None]
-    elif g_iw.ndim == 2:
-        g_iw = np.array([ np.diag(x) for x in g_iw])
-    elif g_iw.ndim > 3:
+    if g_iw.ndim > 3:
         raise ValueError("Input g_iw can only have 1, 2, or 3 dimensions.")
 
-    if isinstance(iaft, IAFT):
-        iw_mesh = 1j*iaft.wn_mesh(stats=stats, positive_only=ph_sym) * np.pi / iaft.beta
-    else:
-        iw_mesh = np.asarray(iaft)
-    
-    gw_func, error, poles, weights = adapol_anacont(
-        g_iw, iw_mesh, 
-        Np = Nfit, statistics=statistic
-    )
-    
-    if eta is None:
-        eta = np.pi / iaft.beta if isinstance(iaft, IAFT) else 0.001
-    else: 
-        eta = float(eta)
-    w_mesh = np.linspace(wmin, wmax, Nw) + 1j * eta
-    g_w = gw_func(w_mesh).reshape((Nw,) + target_shape)
+    iw_mesh = 1j*iaft.wn_mesh(stats=stats, positive_only=ph_sym) * np.pi / iaft.beta
+    if g_iw.shape[0] != len(iw_mesh):
+        raise ValueError(f"First dimension of g_iw ({g_iw.shape[0]}) must match length of Matsubara mesh ({len(iw_mesh)}) from IAFT.")
 
-    return g_w, w_mesh
+    eta = np.pi / iaft.beta if eta is None else float(eta)
+    w_mesh = np.linspace(wmin, wmax, Nw) + 1j * eta
+
+    def _fit_scalar(g_scalar):
+        gw_func, _, _, _ = adapol_anacont(
+            g_scalar[:, None, None], iw_mesh, Np=Nfit, statistics=statistic
+        )
+        return gw_func(w_mesh)[:, 0, 0]
+
+    if g_iw.ndim == 1:
+        g_w = _fit_scalar(g_iw)
+    elif g_iw.ndim == 2:
+        g_w = np.zeros((Nw, g_iw.shape[1]), dtype=complex)
+        for i in range(g_iw.shape[1]):
+            g_w[:, i] = _fit_scalar(g_iw[:, i])
+    else:
+        gw_func, _, _, _ = adapol_anacont(g_iw, iw_mesh, Np=Nfit, statistics=statistic)
+        g_w = gw_func(w_mesh)
+
+    return g_w.reshape((Nw,) + target_shape), w_mesh
 
 
 def minipole(g_iw, iaft, stats, wmin, wmax, Nw, *, tol=1e-4, eta=None, ph_sym=False):
+    """
+    Perform analytic continuation using the Minimal Pole algorithm.
+
+    Requires the ``mini_pole`` package 
+    (https://github.com/Green-Phys/MiniPole/tree/main).
+
+    Parameters
+    ----------
+    g_iw : np.ndarray
+        Input data on the Matsubara frequency axis. Supported shapes: 1-D
+        ``(niw,)`` for a scalar, 2-D ``(niw, norb)`` for orbital-diagonal
+        elements, or 3-D ``(niw, norb, norb)`` for a full matrix.
+    iaft : IAFT
+        Imaginary-axis Fourier transform object. Must be an ``IAFT`` instance
+        (array-like input is not supported for this method).
+    stats : str
+        Particle statistics: ``"fermion"`` (or ``"f"``) or ``"boson"`` (or ``"b"``).
+    wmin : float
+        Lower bound of the real frequency output grid (units: Hartree).
+    wmax : float
+        Upper bound of the real frequency output grid (units: Hartree).
+    Nw : int
+        Number of real frequency points.
+    tol : float, optional
+        Fitting tolerance for the MiniPole algorithm. Default: ``1e-4``.
+    eta : float, optional
+        Broadening (imaginary offset above the real axis, units: Hartree).
+        Defaults to ``π/β``.
+    ph_sym : bool, optional
+        If ``True``, exploit particle-hole symmetry when interpolating onto
+        the uniform Matsubara grid. Default: ``False``.
+
+    Returns
+    -------
+    g_w : np.ndarray
+        Analytically continued data on the real frequency axis, shape
+        ``(Nw,) + g_iw.shape[1:]``. Complex array.
+    w_mesh : np.ndarray
+        Real frequency mesh, shape ``(Nw,)``. Complex array with imaginary part
+        equal to ``eta``.
+    """
     try:
         from mini_pole import MiniPole
     except ImportError:
@@ -161,7 +525,7 @@ def minipole(g_iw, iaft, stats, wmin, wmax, Nw, *, tol=1e-4, eta=None, ph_sym=Fa
         assert g_iw.shape[1] == g_iw.shape[2], "For matrix case, g_iw must have shape [niw, norb, norb]."
     else:
         raise ValueError("Input g_iw can only have 1, 2, or 3 dimensions.")
-    
+
     # minipole requires positive uniformlly spaced frequencies  
     nw_max = iaft.wn_mesh(stats=stats)[-1]
     offset = 1 if stats in ['fermion', 'f'] else 0

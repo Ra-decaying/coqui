@@ -31,6 +31,7 @@
 
 #include "utilities/mpi_context.h"
 #include "mean_field/MF.hpp"
+#include "mean_field/mf_utils.hpp"
 #include "numerics/imag_axes_ft/IAFT.hpp"
 #include "methods/SCF/scf_common.hpp"
 #include "numerics/ac/ac_context.h"
@@ -124,13 +125,11 @@ namespace methods {
                      "band_interpolation: iteration = {} != 0 or -1 cannot be launched if {}.mbpt.h5 does not exists!",
                      iteration, scf_output);
 
-        auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
-        auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
-        auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
-
         // dump mf data to "scf_output".mbpt.h5
         auto psp = hamilt::make_pseudopot(*mf);
-        imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis, iaft_prec, true);
+        // For band interpolation, the only relevant parameter is ``beta`` which will be used to 
+        // determine the Fermi level in ``write_mf_data``. 
+        imag_axes_ft::IAFT ft(pt, true, mf::wmax_from_mf(*mf));
         write_mf_data(*mf, ft, *psp.get(), scf_output);
       }
       pp.wannier_interpolation(*mf, pt, wannier_file, "quasiparticle", "scf", iteration, trans_home_cell);
@@ -149,7 +148,7 @@ namespace methods {
       auto ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
       auto eta     = io::get_value_with_default<double>(pt,"eta", M_PI/ft.beta());
       auto Nfit    = io::get_value_with_default<int>(pt, "Nfit", ft.nw_f()/2);
-      if (Nfit > ft.nw_f()/2)  Nfit = ft.nw_f()/2;
+      if (Nfit <= 0 or Nfit > ft.nw_f()/2) Nfit = ft.nw_f()/2;
       // default w_min and w_max for +/- 10 eV
       auto w_min   = io::get_value_with_default<double>(pt,"w_min",-0.367);
       auto w_max   = io::get_value_with_default<double>(pt,"w_max",0.367);
@@ -175,7 +174,7 @@ namespace methods {
       auto ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
       auto eta     = io::get_value_with_default<double>(pt,"eta", M_PI/ft.beta());
       auto Nfit    = io::get_value_with_default<int>(pt, "Nfit", ft.nw_f()/2);
-      if (Nfit > ft.nw_f()/2)  Nfit = ft.nw_f()/2;
+      if (Nfit <= 0 or Nfit > ft.nw_f()/2) Nfit = ft.nw_f()/2;
       // default w_min and w_max for +/- 10 eV 
       auto w_min   = io::get_value_with_default<double>(pt,"w_min",-0.367);
       auto w_max   = io::get_value_with_default<double>(pt,"w_max",0.367);
@@ -202,12 +201,9 @@ namespace methods {
                      "dump_hartree: scf_iter = {} != 0 or -1 cannot be launched if {}.mbpt.h5 does not exists!",
                      scf_iter, scf_output);
 
-        auto beta = io::get_value_with_default<double>(pt,"beta",1000.0);
-        auto wmax = io::get_value_with_default<double>(pt,"wmax",12.0);
-        auto iaft_prec = io::get_value_with_default<std::string>(pt, "iaft_prec", "high");
-
         // dump mf data to "scf_output".mbpt.h5
-        imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis, iaft_prec, true);
+        // 
+        imag_axes_ft::IAFT ft(pt, true, mf::wmax_from_mf(*mf));
         write_mf_data(*mf, ft, *psp.get(), scf_output);
       }
 

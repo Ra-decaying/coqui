@@ -28,7 +28,7 @@ Analytical continuation utilities based on TRIQS application
 """
 
 
-def pade_triqs(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=100, eta=0.0, ph_sym=False):
+def pade_triqs(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=100, eta=None, ph_sym=False):
     # Convert g_iw to a TRIQS Green's function
     if stats in ['fermion', 'f']:
         statistic = "Fermion"
@@ -53,8 +53,7 @@ def pade_triqs(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=100, eta=0.0, ph_sym=F
     gf_imfreq.data[:] = iaft.w_interpolate(g_iw, mesh_iw_idx, stats=stats, phys_notation=True, ph_sym=ph_sym)
 
     # Create a real-frequency Gf using set_from_pade() function 
-    if eta is None:
-        eta = np.pi / iaft.beta
+    eta = np.pi / iaft.beta if eta is None else float(eta)
     w_mesh = MeshReFreq(window=(wmin, wmax), n_w=Nw)
     gf_refreq = Gf(mesh=w_mesh, target_shape=g_iw.shape[1:])
     gf_refreq.set_from_pade(gf_imfreq, n_points=Nfit, freq_offset=eta)

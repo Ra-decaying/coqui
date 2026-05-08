@@ -42,6 +42,9 @@ namespace analyt_cont {
 
     ~pade_driver(){}
 
+    // FIXME We should not assume that iw_mesh has negative frequencies in the first half and positive 
+    //       frequencies in the second half. This excludes arbitrary input Matsubara data. 
+    //       Extracting positive frequencies should be done before calling pade_driver::init.
     template< nda::ArrayOfRank<1> mesh_iw_t, nda::MemoryArray Array_iw_t>
     void init(mesh_iw_t &&iw_mesh, Array_iw_t &&A_iw, int Nfit=-1, bool is_iw_pos_only=false) {
       using Aiw_value_type = typename std::decay_t<Array_iw_t>::value_type;

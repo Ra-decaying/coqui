@@ -25,9 +25,57 @@ Hartree_eV = physical_constants['Hartree energy in eV'][0]
 import matplotlib.pyplot as plt
 from h5 import HDFArchive
 
+
 def band_plot(ax, coqui_h5, iteration=-1,
               fontsize=16, label="", verbal=True,
               **kwargs):
+    """
+    Plot quasiparticle band structure from a CoQuí checkpoint onto a Matplotlib axes.
+
+    Reads Wannier-interpolated quasiparticle energies from ``scf/iter{N}`` in the
+    HDF5 checkpoint, shifts them by the chemical potential, converts to eV, and
+    plots each band as a line with high-symmetry k-point labels on the x-axis.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Axes object to plot into.
+    coqui_h5 : str
+        Path to the CoQuí HDF5 checkpoint file (``prefix.mbpt.h5``).
+    iteration : int, optional
+        SCF iteration to read. ``-1`` (default) selects the last available iteration;
+        ``0`` corresponds to the DFT mean-field bands.
+    fontsize : int, optional
+        Font size for axis labels and tick labels. Default ``16``.
+    label : str, optional
+        Legend label for the plotted bands. Default ``""``.
+    verbal : bool, optional
+        If ``True`` (default), prints a summary of what was read (k-points, bands, μ).
+    **kwargs
+        Additional keyword arguments forwarded to ``ax.plot`` (e.g. ``color``,
+        ``linestyle``, ``linewidth``).
+
+    Returns
+    -------
+    None
+
+    Examples
+    --------
+    ::
+
+        import matplotlib.pyplot as plt
+        import coqui.post_proc.plot_utils as plot_utils
+
+        fig, ax = plt.subplots()
+        plot_utils.band_plot(ax, "svo.evgw.mbpt.h5", iteration=0,
+                             color="tab:blue", linestyle="--", label="PBE")
+        plot_utils.band_plot(ax, "svo.evgw.mbpt.h5", iteration=1,
+                             color="tab:red", linestyle="-", label="evGW")
+        ax.axhline(0, color="black", linewidth=1)
+        ax.legend()
+        plt.tight_layout()
+        plt.savefig("bands.png")
+    """
     with HDFArchive(coqui_h5, 'r') as ar:
         if iteration == -1:
             iteration = ar["scf/final_iter"]
@@ -73,7 +121,58 @@ def band_plot(ax, coqui_h5, iteration=-1,
 
 
 def spectral_plot(ax, coqui_h5, calc_type, iteration=-1, orb_list=None,
-                  vmax=30, fontsize=16, cmap="viridis", abs_A=False, verbal=True):
+                  fontsize=16, abs_A=True, verbal=True, **kwargs):
+    """
+    Plot the k-resolved spectral function A(k,ω) from analytic continuation results.
+
+    Reads the Wannier-interpolated Green's function on the real-frequency axis from
+    ``scf/iter{N}/ac/G_wskab_inter`` (MBPT) or ``embed/iter{N}/ac/G_wskab_inter``
+    (DMFT) in the CoQuí checkpoint, sums diagonal orbital contributions to form
+    A(k,ω) = −Im Tr G(k,ω), and displays it as a colormap.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Axes object to plot into.
+    coqui_h5 : str
+        Path to the CoQuí HDF5 checkpoint file.
+    calc_type : str
+        Source of the spectral data. ``"mbpt"`` reads from the ``scf`` group;
+        ``"dmft"`` reads from the ``embed`` group.
+    iteration : int, optional
+        Iteration to read. ``-1`` (default) selects the last available.
+    orb_list : list of int, optional
+        Orbital (band) indices included in the trace. ``None`` (default) uses
+        all bands.
+    fontsize : int, optional
+        Font size for axis labels, tick labels, and colorbar. Default ``16``.
+    abs_A : bool, optional
+        If ``True``, plot ``|A(k,ω)|`` instead of ``A(k,ω)``. Useful for
+        diagnosing negative spectral weight from imperfect analytic continuation.
+        Default ``True``.
+    verbal : bool, optional
+        If ``True`` (default), prints a summary (k-points, frequencies, etc.).
+    **kwargs
+        Additional keyword arguments forwarded to ``ax.pcolormesh``. Defaults:
+        ``cmap="viridis"``, ``vmin=0.0``, ``vmax=30``, ``shading="auto"``.
+
+    Returns
+    -------
+    None
+
+    Examples
+    --------
+    ::
+
+        import matplotlib.pyplot as plt
+        import coqui.post_proc.plot_utils as plot_utils
+
+        fig, ax = plt.subplots()
+        plot_utils.spectral_plot(ax, "svo.gw.mbpt.h5", calc_type="mbpt",
+                                 iteration=-1, vmax=25)
+        plt.tight_layout()
+        plt.savefig("spectral.png")
+    """
     if calc_type not in ["mbpt", "dmft"]:
         raise ValueError(f"Unknown calc_type = {calc_type}. \n"
                          "Acceptable options are 'mbpt' for many-body perturbation theory "
@@ -114,11 +213,44 @@ def spectral_plot(ax, coqui_h5, calc_type, iteration=-1, orb_list=None,
     A_wsk = -1.0 * np.sum(G_wska[:, :, :, orb_list].imag, axis=3)
     A_wk = np.sum(A_wsk, axis=1) * spin_factor
 
-    _spectral_plot(ax, A_wk, w_mesh, kpt_label, label_idx, vmax, fontsize, cmap, abs_A)
+    _spectral_plot(ax, A_wk, w_mesh, kpt_label, label_idx, fontsize, abs_A, **kwargs)
 
 
-def spectral_plot_maxent(ax, coqui_h5, iteration=-1, eta_for_A=0.001,
-                         vmax=30, fontsize=16, cmap="viridis", abs_A=False, verbal=True):
+def _spectral_plot_maxent(ax, coqui_h5, iteration=-1, eta_for_A=0.001,
+                         fontsize=16, abs_A=False, verbal=True, **kwargs):
+    """
+    Plot A(k,ω) for DMFT results using a MaxEnt-continued impurity self-energy.
+
+    Reads the MaxEnt-continued impurity self-energy from
+    ``embed/iter{N}/ac/Sigma_imp_wsa`` in the CoQuí checkpoint and uses
+    ``py2aimb`` to construct the k-resolved spectral function along the stored
+    Wannier k-path. The result is displayed as a false-color plot.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        Axes object to plot into.
+    coqui_h5 : str
+        Path to the CoQuí HDF5 checkpoint file.
+    iteration : int, optional
+        DMFT iteration to read. ``-1`` (default) selects the last available.
+    eta_for_A : float, optional
+        Lorentzian broadening in Hartree applied when constructing A(k,ω)
+        from the self-energy. Default ``0.001``.
+    fontsize : int, optional
+        Font size for axis labels, tick labels, and colorbar. Default ``16``.
+    abs_A : bool, optional
+        If ``True``, plot ``|A(k,ω)|`` instead of ``A(k,ω)``. Default ``False``.
+    verbal : bool, optional
+        If ``True`` (default), prints a progress summary.
+    **kwargs
+        Additional keyword arguments forwarded to ``ax.pcolormesh``. Defaults:
+        ``cmap="viridis"``, ``vmin=0.0``, ``vmax=30``, ``shading="auto"``.
+
+    Returns
+    -------
+    None
+    """
     import py2aimb.dmft.pproc.spectral as spec
 
     with HDFArchive(coqui_h5, 'r') as ar:
@@ -152,23 +284,28 @@ def spectral_plot_maxent(ax, coqui_h5, iteration=-1, eta_for_A=0.001,
     A_wsk = np.sum(A_wska, axis=3)
     A_wk = np.sum(A_wsk, axis=1) * spin_factor
 
-    _spectral_plot(ax, A_wk, w_mesh, kpt_label, label_idx, vmax, fontsize, cmap, abs_A)
+    _spectral_plot(ax, A_wk, w_mesh, kpt_label, label_idx, fontsize, abs_A, **kwargs)
 
 
 def _spectral_plot(ax, A_wk, w_mesh, kpt_label, label_idx,
-                   vmax=30, fontsize=16, cmap="viridis", abs_A=False):
+                   fontsize=16, abs_A=True, **kwargs):
+
+    kwargs.setdefault('cmap', 'viridis')
+    kwargs.setdefault('vmax', 30)
+    kwargs.setdefault('vmin', 0.0)
+    kwargs.setdefault('shading', 'auto')
 
     nw, nkpts = A_wk.shape
 
     neg_value = np.min(A_wk)
-    if abs(neg_value) > 1e-3:
+    if abs(neg_value) > 1e-3 and not abs_A:
         print(f"[WARNING] The spectral has negative values with maximum ~ {neg_value:.3f}. \n"
               f"          Please double check your AC setup. Otherwise, you can set abs_A=True \n"
               f"          to plot |A(k,w)| and compare it w/ A(k,w). \n")
 
     cax = ax.pcolormesh(np.arange(nkpts), w_mesh*Hartree_eV,
                         np.abs(A_wk)/Hartree_eV if abs_A else A_wk/Hartree_eV,
-                        shading='auto', cmap=cmap, vmin=0.0, vmax=vmax)
+                        **kwargs)
 
     # Add a colorbar to show the scale, and set the size of the colar bar tick labels
     cbar = plt.colorbar(cax, ax=ax)

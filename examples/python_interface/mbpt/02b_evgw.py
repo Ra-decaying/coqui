@@ -50,12 +50,12 @@ winter_params = {
     "iteration": 1,
     "wannier_file": wan_h5, 
     "bands_num_npoints": 100, 
-    "kpath": """
-      G 0.00 0.00 0.00
-      X 0.00 0.50 0.00
-      M 0.50 0.50 0.00
-      G 0.00 0.00 0.00
-    """
+    "kpath": (
+      "G 0.00 0.00 0.00 "
+      "X 0.00 0.50 0.00 "
+      "M 0.50 0.50 0.00 "
+      "G 0.00 0.00 0.00 "
+    )
 }
 
 band_interpolation(svo_mf, winter_params)
