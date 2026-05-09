@@ -19,7 +19,6 @@ limitations under the License.
 """
 
 from .post_proc import (
-  ac,
   band_interpolation,
   spectral_interpolation,
   local_dos,
@@ -27,10 +26,11 @@ from .post_proc import (
   dump_vxc,
   dump_hartree,
   pade,
-  aaa_adapol, 
-  minipole
+  aaa_adapol_on_mesh,
+  aaa_adapol,
+  aaa_adapol_imag,
+  minipole,
 )
-from . import plot_utils
 from .plot_utils import band_plot, spectral_plot
 
 _TRIQS_AVAILABLE = False
@@ -59,9 +59,9 @@ def __getattr__(name):
   raise AttributeError(f"module 'coqui.post_proc' has no attribute '{name}'")
 
 __all__ = [
-  "ac", "band_interpolation", "spectral_interpolation",
+  "band_interpolation", "spectral_interpolation",
   "local_dos", "unfold_bz", "dump_vxc", "dump_hartree",
-  "pade", "aaa_adapol", "minipole",
+  "pade", "aaa_adapol_on_mesh", "aaa_adapol", "aaa_adapol_imag", "minipole",
   "band_plot", "spectral_plot",
 ]
 

@@ -375,9 +375,94 @@ def pade(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=-1, eta=None, ph_sym=False):
     return g_w, w_mesh
 
 
-def aaa_adapol(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=40, eta=None, ph_sym=False):
+def aaa_adapol_on_mesh(g_iw, iaft, stats, w_mesh_out, *, Nfit=40, solver="lstsq", ph_sym=False):
     """
-    Perform analytic continuation using the AAA-based adapol algorithm.
+    Perform rational approximation to fit a Green's function using the AAA-based adapol 
+    algorithm and evaluate the fitted rational function on an arbitrary output mesh.
+
+    Requires the ``adapol`` package (https://github.com/flatironinstitute/adapol).
+
+    Parameters
+    ----------
+    g_iw : np.ndarray
+        Input data on the Matsubara frequency axis. Supported shapes: 1-D
+        ``(niw,)`` for a single scalar, 2-D ``(niw, n)`` for ``n`` independent
+        scalars fitted in a loop, or 3-D ``(niw, norb, norb)`` for a full
+        matrix fitted jointly.
+    iaft : IAFT
+        Imaginary-axis Fourier transform object. The Matsubara frequency mesh
+        and inverse temperature are derived from it.
+    stats : str
+        Particle statistics: ``"fermion"`` (or ``"f"``) or ``"boson"`` (or ``"b"``).
+    w_mesh_out : array-like of complex
+        Output frequency mesh. May be real, imaginary, or mixed complex values.
+        Shape ``(Nout,)``.
+    Nfit : int, optional
+        Number of poles used in the rational approximation. Default: ``40``.
+    ph_sym : bool, optional
+        If ``True``, use only the positive-frequency half of the Matsubara axis.
+        Default: ``False``.
+
+    Returns
+    -------
+    g_out : np.ndarray
+        Fitted data evaluated on ``w_mesh_out``, shape ``(Nout,) + g_iw.shape[1:]``.
+        Complex array.
+    w_mesh : np.ndarray
+        Output frequency mesh as passed in, shape ``(Nout,)``.
+    """
+    # TODO when g_iw.ndim > 3, we assume (niw, ..., norb, norb) and perform matrix fitting for each "..." index independently.
+    try:
+        from adapol import anacont as adapol_anacont
+    except ImportError:
+        raise ImportError("aaa_adapol requires the adapol package (https://github.com/flatironinstitute/adapol). \n"
+                          "Ensure that it is installed. ")
+
+    if not isinstance(iaft, IAFT):
+        raise ValueError("iaft must be an instance of IAFT.")
+
+    if stats in ['fermion', 'f']:
+        statistic = "Fermion"
+    elif stats in ['boson', 'b']:
+        statistic = "Boson"
+    else:
+        raise ValueError("Invalid statistic. Use 'fermion' or 'boson'.")
+
+    g_iw = np.asarray(g_iw, dtype=np.complex128)
+    target_shape = g_iw.shape[1:]
+    if g_iw.ndim > 3:
+        raise ValueError("Input g_iw can only have 1, 2, or 3 dimensions.")
+
+    iw_mesh = 1j * iaft.wn_mesh(stats=stats, positive_only=ph_sym) * np.pi / iaft.beta
+    if g_iw.shape[0] != len(iw_mesh):
+        raise ValueError(f"First dimension of g_iw ({g_iw.shape[0]}) must match length of Matsubara mesh ({len(iw_mesh)}) from IAFT.")
+
+    w_mesh_out = np.asarray(w_mesh_out, dtype=np.complex128)
+    Nout = len(w_mesh_out)
+
+    def _fit_scalar(g_scalar):
+        gw_func, _, _, _ = adapol_anacont(
+            g_scalar[:, None, None], iw_mesh, Np=Nfit, statistics=statistic
+        )
+        return gw_func(w_mesh_out)[:, 0, 0]
+
+    if g_iw.ndim == 1:
+        g_out = _fit_scalar(g_iw)
+    elif g_iw.ndim == 2:
+        g_out = np.zeros((Nout, g_iw.shape[1]), dtype=complex)
+        for i in range(g_iw.shape[1]):
+            g_out[:, i] = _fit_scalar(g_iw[:, i])
+    else:
+        gw_func, _, _, _ = adapol_anacont(g_iw, iw_mesh, Np=Nfit, statistics=statistic)
+        g_out = gw_func(w_mesh_out)
+
+    return g_out.reshape((Nout,) + target_shape)
+
+
+def aaa_adapol(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=40, solver="lstsq", eta=None, ph_sym=False):
+    """
+    Perform analytic continuation using the AAA-based adapol algorithm to evaluate 
+    correlation functions on real-frequency axis.
 
     Requires the ``adapol`` package (https://github.com/flatironinstitute/adapol).
 
@@ -417,51 +502,54 @@ def aaa_adapol(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=40, eta=None, ph_sym=F
         Real frequency mesh, shape ``(Nw,)``. Complex array with imaginary part
         equal to ``eta``.
     """
-    try:
-        from adapol import anacont as adapol_anacont
-    except ImportError:
-        raise ImportError("aaa_adapol requires the adapol package (https://github.com/flatironinstitute/adapol). \n"
-                          "Ensure that it is installed. ")
-    
     if not isinstance(iaft, IAFT):
         raise ValueError("iaft must be an instance of IAFT.")
-
-    if stats in ['fermion', 'f']:
-        statistic = "Fermion"
-    elif stats in ['boson', 'b']:
-        statistic = "Boson"
-    else:
-        raise ValueError("Invalid statistic. Use 'fermion' or 'boson'.")
-
-    g_iw = np.asarray(g_iw, dtype=np.complex128)
-    target_shape = g_iw.shape[1:]
-    if g_iw.ndim > 3:
-        raise ValueError("Input g_iw can only have 1, 2, or 3 dimensions.")
-
-    iw_mesh = 1j*iaft.wn_mesh(stats=stats, positive_only=ph_sym) * np.pi / iaft.beta
-    if g_iw.shape[0] != len(iw_mesh):
-        raise ValueError(f"First dimension of g_iw ({g_iw.shape[0]}) must match length of Matsubara mesh ({len(iw_mesh)}) from IAFT.")
-
     eta = np.pi / iaft.beta if eta is None else float(eta)
     w_mesh = np.linspace(wmin, wmax, Nw) + 1j * eta
+    return aaa_adapol_on_mesh(g_iw, iaft, stats, w_mesh, Nfit=Nfit, solver=solver, ph_sym=ph_sym), w_mesh
 
-    def _fit_scalar(g_scalar):
-        gw_func, _, _, _ = adapol_anacont(
-            g_scalar[:, None, None], iw_mesh, Np=Nfit, statistics=statistic
-        )
-        return gw_func(w_mesh)[:, 0, 0]
 
-    if g_iw.ndim == 1:
-        g_w = _fit_scalar(g_iw)
-    elif g_iw.ndim == 2:
-        g_w = np.zeros((Nw, g_iw.shape[1]), dtype=complex)
-        for i in range(g_iw.shape[1]):
-            g_w[:, i] = _fit_scalar(g_iw[:, i])
-    else:
-        gw_func, _, _, _ = adapol_anacont(g_iw, iw_mesh, Np=Nfit, statistics=statistic)
-        g_w = gw_func(w_mesh)
+def aaa_adapol_imag(g_iw, iaft, stats, *, Nfit=40, solver="lstsq", ph_sym=False, iw_mesh_out=None):
+    """
+    Perform rational approximation to fit a Green's function using the AAA-based adapol
+    algorithm and evaluate the fitted rational function on the imaginary frequency axis.
 
-    return g_w.reshape((Nw,) + target_shape), w_mesh
+    Requires the ``adapol`` package (https://github.com/flatironinstitute/adapol).
+
+    Parameters
+    ----------
+    g_iw : np.ndarray
+        Input data on the Matsubara frequency axis. Supported shapes: 1-D
+        ``(niw,)`` for a single scalar, 2-D ``(niw, n)`` for ``n`` independent
+        scalars fitted in a loop, or 3-D ``(niw, norb, norb)`` for a full
+        matrix fitted jointly.
+    iaft : IAFT
+        Imaginary-axis Fourier transform object. The Matsubara frequency mesh
+        and inverse temperature are derived from it.
+    stats : str
+        Particle statistics: ``"fermion"`` (or ``"f"``) or ``"boson"`` (or ``"b"``).
+    Nfit : int, optional
+        Number of poles used in the rational approximation. Default: ``40``.
+    ph_sym : bool, optional
+        If ``True``, use only the positive-frequency half of the Matsubara axis
+        for fitting. Default: ``False``.
+    iw_mesh_out : array-like of complex, optional
+        Output imaginary-frequency mesh. If ``None``, uses the same Matsubara
+        mesh as the input (derived from ``iaft`` and ``stats``).
+
+    Returns
+    -------
+    g_iw_out : np.ndarray
+        Fitted data evaluated on ``iw_mesh_out``, shape
+        ``(Nout,) + g_iw.shape[1:]``. Complex array.
+    iw_mesh_out : np.ndarray
+        Output imaginary-frequency mesh, shape ``(Nout,)``.
+    """
+    if not isinstance(iaft, IAFT):
+        raise ValueError("iaft must be an instance of IAFT.")
+    if iw_mesh_out is None:
+        iw_mesh_out = 1j * iaft.wn_mesh(stats=stats, positive_only=ph_sym) * np.pi / iaft.beta
+    return aaa_adapol_on_mesh(g_iw, iaft, stats, iw_mesh_out, Nfit=Nfit, solver=solver, ph_sym=ph_sym)
 
 
 def minipole(g_iw, iaft, stats, wmin, wmax, Nw, *, tol=1e-4, eta=None, ph_sym=False):
