@@ -57,7 +57,6 @@ winter_params = {
       "G 0.00 0.00 0.00 "
     )
 }
-
 band_interpolation(svo_mf, winter_params)
 
 # Wannier interpolation for PBE 

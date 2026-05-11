@@ -116,7 +116,8 @@ namespace methods {
       pproc_t pp(*mpi, prefix, outdir);
       auto wannier_file = io::get_value<std::string>(pt, "wannier_file", err+"wannier_file");
       auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
-      auto iteration = io::get_value_with_default<int>(pt, "iteration", -1);
+      auto grp_name  = io::get_value_with_default<std::string>(pt,"grp_name", "scf");
+      auto iteration = io::get_value_with_default<long>(pt, "iteration", -1);
 
       std::string scf_output = outdir+"/"+prefix;
 
@@ -132,7 +133,38 @@ namespace methods {
         imag_axes_ft::IAFT ft(pt, true, mf::wmax_from_mf(*mf));
         write_mf_data(*mf, ft, *psp.get(), scf_output);
       }
-      pp.wannier_interpolation(*mf, pt, wannier_file, "quasiparticle", "scf", iteration, trans_home_cell);
+
+      // Check if a QP solution exist already. 
+      // If not, compute QP energies on the IBZ k-mesh from dynamic self-energy and write to the checkpoint file.
+      bool heff_exists = false;
+      double beta = 0.0; 
+      if (mpi->comm.root()) {
+        h5::file file(scf_output+".mbpt.h5", 'r');
+        auto grp = h5::group(file).open_group(grp_name);
+        if (iteration == -1) h5::read(grp, "final_iter", iteration);
+        auto iter_grp = grp.open_group("iter"+std::to_string(iteration));
+        // Check if Heff_skij dataset exists
+        if (iter_grp.has_dataset("Heff_skij") or (iter_grp.has_subgroup("qp_approx") and iter_grp.open_group("qp_approx").has_dataset("Heff_skij"))) {
+          heff_exists = true;
+        }
+        h5::read(h5::group(file), "imaginary_fourier_transform/beta", beta);
+      }
+      std::array<double,3> buffer = {(heff_exists)? 1.0 : 0.0, double(iteration), beta};
+      mpi->comm.broadcast_n(buffer.data(), buffer.size(), 0);
+      heff_exists = (buffer[0] == 1.0)? true : false, iteration = static_cast<int>(buffer[1]), beta = buffer[2];
+      if (!heff_exists) {
+        // Compute QP energies from dynamic self-energy on IBZ 
+        qp_params_t qp_params;
+        qp_params.ac_alg  = io::get_value_with_default<std::string>(pt,"ac_alg","pade");
+        qp_params.qp_type = io::get_value_with_default<std::string>(pt, "qp_type", "sc");
+        qp_params.eta     = io::get_value_with_default<double>(pt, "qp_eta", M_PI/beta);
+        qp_params.Nfit    = io::get_value_with_default<int>(pt, "qp_Nfit", 18);
+        qp_params.tol     = io::get_value_with_default<double>(pt, "qp_tol", 1e-8);
+
+        pp.compute_qp_on_ibz_kmesh(*mf, qp_params, grp_name, iteration); 
+      }
+
+      pp.wannier_interpolation(*mf, pt, wannier_file, "quasiparticle", grp_name, iteration, trans_home_cell);
 
     } else if (pp_type == "spectral_interpolation") {
 

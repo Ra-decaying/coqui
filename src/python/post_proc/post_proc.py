@@ -138,11 +138,26 @@ def spectral_interpolation(mf, params):
         - ``Nfit`` *(int, optional)* — number of Matsubara points for the Padé fit.
           Defaults to half the number of available fermionic frequencies.
 
+        Quasiparticle energy options (computed on the IBZ k-mesh, then Wannier-interpolated):
+
+        - ``qp_type`` *(str, optional, default ``"sc"``)* — QP equation solver.
+          ``"sc"`` (bisection), ``"sc_newton"`` (secant), or ``"linearized"``.
+        - ``qp_eta`` *(float, optional, default ``0.0001``, units: Hartree)* — broadening
+          on the real axis used when evaluating the self-energy in the QP equation.
+        - ``qp_Nfit`` *(int, optional, default ``18``)* — number of Matsubara points for
+          the Padé fit of the self-energy used in the QP equation.
+        - ``qp_tol`` *(float, optional, default ``1e-8``)* — convergence tolerance for
+          the QP root-finding algorithm.
+
     Returns
     -------
     None
-        Results are written to ``outdir/prefix.mbpt.h5`` under
-        ``{grp_name}/iter{N}/ac/``.
+        Results are written to ``outdir/prefix.mbpt.h5`` under:
+
+        - ``{grp_name}/iter{N}/ac/`` — spectral function A(k,ω) (unchanged).
+        - ``{grp_name}/iter{N}/qp_approx/E_ska`` — QP energies on the IBZ k-mesh.
+        - ``{grp_name}/iter{N}/qp_approx/wannier_inter/E_ska`` — QP band structure
+          interpolated along the k-path.
 
     Examples
     --------
