@@ -282,7 +282,7 @@ void eval_thermodynamic_properties(dyson_type &dyson, const X_t &sF_skij,
   app_log(1, "  beta:                            {:>20.12f} a.u.", beta);
   app_log(1, "  entropy:                         {:>20.12f} a.u.", entropy);
   app_log(1, "  chemical potential:              {:>20.12f} a.u.", mu);
-  app_log(1, "  number of electrons:             {:>20.12f} a.u.", n_electron);
+  app_log(1, "  number of electrons:             {:>20.12f}", n_electron);
   app_log(1, "\n");
 
 }

@@ -81,7 +81,7 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
   auto& sDm_skij = mb_state.sDm_skij.value();
   auto& sG_tskij = mb_state.sG_tskij.value();
   auto& sSigma_tskij = mb_state.sSigma_tskij.value();
-  double mu = 0.0;
+  double mu = mb_state.mu;
   if (!restart) {
     hamilt::set_fock(*mf, dyson.PSP(), sF_skij, true);
   } else {
@@ -279,7 +279,7 @@ double qp_scf_loop(MBState &mb_state, eri_t &mb_eri, const imag_axes_ft::IAFT& F
   auto& sDm_skij = mb_state.sDm_skij.value();
   auto sH0_skij = make_shared_array<Array_view_4D_t>(*mpi, {mf->nspin(), mf->nkpts_ibz(), mf->nbnd(), mf->nbnd()});
   auto sS_skij = make_shared_array<Array_view_4D_t>(*mpi, {mf->nspin(), mf->nkpts_ibz(), mf->nbnd(), mf->nbnd()});
-  double mu = 0.0;
+  double mu = mb_state.mu;
   // generates a new pseudopot object if not found in mf. Stores shared_ptr in mf and returns it.
   auto psp = hamilt::make_pseudopot(*mf);
   hamilt::set_H0(*mf, psp.get(), sH0_skij);

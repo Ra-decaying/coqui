@@ -122,6 +122,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   auto niter = io::get_value_with_default<int>(pt,"niter",1);
   auto conv_thr = io::get_value_with_default<double>(pt,"conv_thr",1e-8);
   auto const_mu = io::get_value_with_default<bool>(pt,"const_mu",false);
+  auto mu = io::get_value_with_default<double>(pt,"mu",0.0);
   auto mu_tol = io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9);
   auto output = io::get_value_with_default<std::string>(pt,"output","bdft.mbpt");
 
@@ -170,6 +171,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     simple_dyson dyson(mf.get(), &ft, mu_tol);
     gw_t gw(&ft, div_treatment, output);
     MBState mb_state(mpi, ft, output);
+    mb_state.mu = mu;
     rpa_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw));
 
   } else if(solver_type == "hf") {
@@ -181,6 +183,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
       iter_solver = nullptr;
     }
     MBState mb_state(mpi, ft, output);
+    mb_state.mu = mu;
     scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf),
              iter_solver.get(), niter, restart, conv_thr, const_mu,
              greens_func_source, greens_func_iteration);
@@ -209,6 +212,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
       auto trans_home_cell = io::get_value_with_default<bool>(pt,"translate_home_cell",false);
 
       MBState mb_state(ft, output, mf, wannier_file, trans_home_cell);
+      mb_state.mu = mu;
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw, &scr_eri),
                iter_solver.get(), niter, restart, conv_thr, const_mu,
                greens_func_source, greens_func_iteration);
@@ -228,6 +232,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     } else {
 
       MBState mb_state(mpi, ft, output);
+      mb_state.mu = mu;
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gw, &scr_eri),
                iter_solver.get(), niter, restart, conv_thr, const_mu,
                greens_func_source, greens_func_iteration);
@@ -272,6 +277,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     gf2.t_thresh() = t_prescreen_thresh;
 
     MBState mb_state(mpi, ft, output);
+    mb_state.mu = mu;
 
     if (gf2_direct_type == "gf2") {
       scf_loop(mb_state, dyson, eri, ft, mb_solver_t(&hf, &gf2),
@@ -304,6 +310,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
       iter_solver = nullptr;
     }
     MBState mb_state(mpi, ft, output);
+    mb_state.mu = mu;
     qp_context_t qp_context;
     qp_scf_loop<false>(mb_state, eri, ft, qp_context, mb_solver_t(&hf), iter_solver.get(),
                        niter, restart, conv_thr);
@@ -325,6 +332,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     solvers::scr_coulomb_t scr_eri(&ft, "rpa", div_treatment);
     solvers::gw_t gw(&ft, div_treatment, output);
     MBState mb_state(mpi, ft, output);
+    mb_state.mu = mu;
     qp_scf_loop<true>(mb_state, eri, ft, qp_context, mb_solver_t(&hf,&gw,&scr_eri), iter_solver.get(),
                       niter, restart, conv_thr);
 
@@ -347,6 +355,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     solvers::scr_coulomb_t scr_eri(&ft, "rpa", div_treatment);
     solvers::gw_t gw(&ft, div_treatment, output);
     MBState mb_state(mpi, ft, output);
+    mb_state.mu = mu;
     qp_scf_loop<false>(mb_state, eri, ft, qp_context, mb_solver_t(&hf,&gw,&scr_eri), iter_solver.get(),
                        niter, restart, conv_thr);
 
@@ -376,6 +385,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
   auto niter = io::get_value_with_default<int>(pt,"niter",1);
   auto conv_thr = io::get_value_with_default<double>(pt,"conv_thr",1e-8);
   auto const_mu = io::get_value_with_default<bool>(pt,"const_mu",false);
+  auto mu = io::get_value_with_default<double>(pt,"mu",0.0);
   auto mu_tol = io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9);
   auto output = io::get_value_with_default<std::string>(pt,"output","bdft.mbpt");
 
@@ -429,6 +439,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
     solvers::scr_coulomb_t scr_eri(&ft, screen_type, div_treatment);
     solvers::gw_t gw(&ft, div_treatment, output);
     MBState mb_state(ft, output, mf, projector_ksIai, band_window, kpts_crys, trans_home_cell, false);
+    mb_state.mu = mu;
     if (local_polarizabilities) {
       mb_state.set_local_polarizabilities(std::move(local_polarizabilities.value()));
       local_polarizabilities.reset();
