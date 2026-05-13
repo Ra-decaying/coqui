@@ -161,8 +161,8 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
     }
 
     if (mpi->node_comm.root()) {
-      hermitize(sF_skij.local(), "Fock matrix");
-      hermitize(sSigma_tskij.local(), "dynamic self-energy");
+      hermitize_in_tau(sF_skij.local(), "Fock matrix");
+      hermitize_in_tau(sSigma_tskij.local(), "dynamic self-energy");
     }
     mpi->comm.barrier();
     Timer.stop("MBPT_SOLVERS");
@@ -180,8 +180,8 @@ auto scf_loop(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri, const imag_ax
     // whether to update mu depends on const_mu
     update_G(dyson, *mf, FT, sDm_skij, sG_tskij, sF_skij, sSigma_tskij, mu, const_mu);
     if (mpi->node_comm.root()) {
-      hermitize(sDm_skij.local(), "density matrix");
-      hermitize(sG_tskij.local(), "Green's function");
+      hermitize_in_tau(sDm_skij.local(), "density matrix");
+      hermitize_in_tau(sG_tskij.local(), "Green's function");
     }
     mpi->comm.barrier();
     Timer.stop("DYSON");

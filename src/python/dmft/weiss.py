@@ -600,3 +600,37 @@ def hubbard_kanamori_coulomb(V_abcd):
         mpi.report(f"Warning: complex value encountered in spin-flip J.imag = {J_spin.imag}.")
 
     return U.real, Up.real, J_pair.real, J_spin.real
+
+
+def make_hermitian(g_wIij):
+    if isinstance(g_wIij, list):
+        return [_make_hermitian(g) for g in g_wIij]
+    else:
+        return _make_hermitian(g_wIij)
+
+def _make_hermitian(g_wIij):
+    # This function assume g_wIij live on the Matsubara frequencies defined in IAFT. 
+    # This is dangerous without proper checks. 
+    g_wIij_herm = g_wIij.copy()
+    if g_wIij.ndim == 1:
+        g_wIij_herm = g_wIij_herm[:, None, None]
+    elif g_wIij.ndim == 2:
+        g_wIij_herm = g_wIij_herm[:, :, None, None]
+    elif g_wIij.ndim == 3:
+        g_wIij_herm = g_wIij_herm[:, None]
+    else:
+        raise ValueError("make_hermitian: g_wIij must have 1, 2, or 3 dimensions.")
+
+    nw, nbnd = g_wIij_herm.shape[0], g_wIij_herm.shape[2]
+    if g_wIij_herm.shape[3] != nbnd:
+        raise ValueError("make_hermitian: The last two dimensions of g_wIij must be square (nbnd, nbnd).")
+
+    for n_neg in range(nw//2+nw%2):
+        n_pos = nw - 1 - n_neg
+        if n_pos == n_neg:
+            continue
+        for I in range(g_wIij_herm.shape[1]):
+            g_wIij_herm[n_pos,I] = 0.5 * (g_wIij_herm[n_pos,I] + g_wIij_herm[n_neg,I].conj().T)
+            g_wIij_herm[n_neg,I] = g_wIij_herm[n_pos,I].conj().T
+    
+    return g_wIij_herm.reshape(g_wIij.shape)

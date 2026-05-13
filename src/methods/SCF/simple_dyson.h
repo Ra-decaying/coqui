@@ -74,8 +74,8 @@ public:
     hamilt::set_H0(*_MF, _PSP.get(), _sH0_skij);
     hamilt::set_ovlp(*_MF, _sS_skij);
     if (_context->node_comm.root()) {
-      hermitize(_sH0_skij.local());
-      hermitize(_sS_skij.local());
+      hermitize_in_tau(_sH0_skij.local());
+      hermitize_in_tau(_sS_skij.local());
     }
 
     for( auto& v: {"DYSON", "SIGMA_TAU_TO_W", "DYSON_LOOP", "REDISTRIBUTE", "DYSON_GATHER"} ) {

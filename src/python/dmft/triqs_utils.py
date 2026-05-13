@@ -376,15 +376,10 @@ def gf_dlr_to_ir(gf_dlr, iaft):
     )
     def fill_gf_ir(gf_input):
         gf_ir_out = np.zeros((nw,) + gf_input.data[:].shape[1:], dtype=complex)
-        # fermions/bosons have even/odd numbers of IR frequencies
-        for idx in range(nw_half):
-            # nw = 11 -> nw_half = 6: (10,0), (9,1), (8,2), (7,3), (6,4), (5,5)
-            # nw = 10 -> nw_half = 5: (9,0), (8,1), (7,2), (6,3), (5,4)
-            iw_pos = nw-idx-1
-            iw_neg = idx
-            gf_ir_out[iw_pos] = gf_input(iw_mesh_uniform(ir_idx[iw_pos]))
-            if iw_pos != iw_neg:
-                gf_ir_out[iw_neg] = gf_input(iw_mesh_uniform(ir_idx[iw_pos])).conj()
+        # we don't symmetrize gf here. Call `make_hermitian` externally if needed. 
+        for i, idx in enumerate(ir_idx):
+            gf_ir_out[i] = gf_input(iw_mesh_uniform(idx))
+
         return gf_ir_out
 
     if isinstance(gf_dlr, BlockGf):
@@ -681,8 +676,12 @@ def _dlr_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, iaft=None):
                 "W_iw_data": w_iw_data, "Pi_iw_data": pi_iw_data}
 
     # converter Sigma and Pi to IR Matsubara mesh
-    g_iw_data     = coqui_dmft.gf_dlr_to_ir(make_gf_dlr(g_iw), iaft)
-    sigma_iw_data = coqui_dmft.gf_dlr_to_ir(make_gf_dlr(sigma_iw), iaft)
+    g_iw_data     = coqui_dmft.make_hermitian(
+        coqui_dmft.gf_dlr_to_ir(make_gf_dlr(g_iw), iaft)
+    )
+    sigma_iw_data = coqui_dmft.make_hermitian(
+        coqui_dmft.gf_dlr_to_ir(make_gf_dlr(sigma_iw), iaft)
+    )
     pi_iw_data = [coqui_dmft.gf_dlr_to_ir_phsym(make_gf_dlr(pi_iw), iaft)]
     w_iw_data = [coqui_dmft.gf_dlr_to_ir_phsym(make_gf_dlr(w_iw), iaft)]
     return {"G_iw_data": g_iw_data, "Sigma_iw_data": sigma_iw_data,

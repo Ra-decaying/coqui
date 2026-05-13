@@ -194,6 +194,11 @@ namespace methods {
     // upfold and add corrections from active spaces
     if (!corr_only) add_Vhf_correction(mb_state);
     add_Sigma_dyn_correction(mb_state);
+
+    if (_context->node_comm.root()) {
+      hermitize_in_tau(sVhf_skij.local(), "Fock matrix");
+      hermitize_in_tau(sSigma_tskij.local(), "dynamic self-energy");
+    }
     _context->comm.barrier();
     _Timer.stop("EMBED_UPFOLD");
 

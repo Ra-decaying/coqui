@@ -88,13 +88,13 @@ auto distributed_tau_to_w(mpi3::communicator& comm,
 }
 
 template<nda::MemoryArray Array_t>
-void hermitize(Array_t &&A_ij, std::string name="") {
+void hermitize_in_tau(Array_t &&A_ij, std::string name="") {
   constexpr int rank = ::nda::get_rank<Array_t>;
   using value_type = typename std::decay_t<Array_t>::value_type;
   if (name != "")
-    app_log(2, "Explicitly make {} Hermitian.", name);
+    app_log(4, "Explicitly make {} Hermitian.", name);
   utils::check(A_ij.shape(rank-1)==A_ij.shape(rank-2),
-               "hermitize: Incorrect dimensions of {} for the last axes = ({}, {})",
+               "hermitize_in_tau: Incorrect dimensions of {} for the last axes = ({}, {})",
                name, A_ij.shape(rank-2), A_ij.shape(rank-1));
   long nbnd = A_ij.shape(rank-1);
   long dim0 = std::accumulate(A_ij.shape().begin(), A_ij.shape().end()-2, 1, std::multiplies<>{});
