@@ -80,18 +80,31 @@ def convert_gw_edmft_params(params_dict):
             f"The GW checkpoint {coqui_chkpt_h5} is missing. A valid GW checkpoint file is necessary to initialize the GW+EDMFT workflow."
         )
 
+    iter_params = gw_edmft_group.pop('iter_alg', {"alg": "damping", "mixing": 0.3})
+    if iter_params['alg'] != 'damping':
+        raise NotImplementedError(
+            f"Iterative algorithm '{iter_params['alg']}' is not supported in the GW+EDMFT workflow at the moment. "
+        )
+    gw_mixing = iter_params.pop('gw_mixing', iter_params.get('mixing', 0.3))
+    edmft_mixing = iter_params.pop('edmft_mixing', iter_params.get('mixing', 0.3))
+    edmft_mix_in_first_iter = iter_params.pop('edmft_mix_in_first_iter', True)
+    gw_iter_params = iter_params.copy()
+    gw_iter_params['mixing'] = gw_mixing
+    edmft_iter_params = iter_params.copy()
+    edmft_iter_params['mixing'] = edmft_mixing
+    edmft_iter_params['mix_in_first_iter'] = edmft_mix_in_first_iter
+
     # GW parameters
-    if 'gw' in gw_edmft_group:
-        gw_edmft_params['gw'] = gw_edmft_group.pop('gw')
-        gw_edmft_params['gw']['output'] = outdir+"/"+prefix
-        gw_edmft_params['gw']['restart'] = restart
-        gw_edmft_params['gw']['screen_type'] = screen_type
-        gw_edmft_params['gw']['niter'] = 1
-        gw_edmft_params['gw']['div_treatment'] = div_treatment
-        if 'iter_alg' in gw_edmft_params['gw']:
-            assert gw_edmft_params['gw']['iter_alg']['alg'] == 'damping', (
-                "Only \'damping\' iterative algorithm is supported in the GW part of the GW+EDMFT workflow at the moment."
-            )
+    if gw_iter_per_loop > 0:
+        gw_edmft_params['gw'] = { 
+            'outdir': outdir, 
+            'prefix': prefix,
+            'restart': True, 
+            'screen_type': screen_type,
+            'niter': 1,
+            'div_treatment': div_treatment,
+            'iter_alg': gw_iter_params
+        }
 
     # wloc parameters
     gw_edmft_params['wloc'] = {'outdir': outdir, 'prefix': prefix, 'screen_type': screen_type, 
@@ -99,13 +112,23 @@ def convert_gw_edmft_params(params_dict):
     # gloc parameters
     gw_edmft_params['gloc'] = {'outdir': outdir, 'prefix': prefix}
     # embed parameters
-    gw_edmft_params['dmft_embed'] = {'outdir': outdir, 'prefix': prefix, 'corr_only': gw_edmft_group.get('corr_only', True)}
+    gw_edmft_params['dmft_embed'] = {
+        'outdir': outdir, 'prefix': prefix, 
+        'corr_only': gw_edmft_group.get('corr_only', True), 
+        # disable iterative solver for the embedding step. The iterative solve happens somewhere else. 
+        'iter_alg': {'enable': False} 
+    }
 
     # Convert 'edmft' section to 'impurity' (with nested 'impurity' -> 'solver')
     if 'edmft' not in gw_edmft_group:
         raise KeyError("Missing 'edmft' section in 'gw_edmft' parameters to specify the EDMFT part of the workflow.")
     edmft_section = gw_edmft_group.pop('edmft')
-    gw_edmft_params['impurity'] = {'restart': restart}
+    
+    gw_edmft_params['impurity'] = {
+        'restart': restart, 
+        'iter_alg': edmft_iter_params,
+        'chkpt_h5': edmft_section.pop('chkpt_h5', outdir+"/"+prefix+".mbpt.h5")
+    }
   
     # Convert 'impurity' (new) to 'solver' (old)
     if 'impurity' in edmft_section:
@@ -116,18 +139,10 @@ def convert_gw_edmft_params(params_dict):
         for solver_params in solver_list:
             if solver_params.get('degenerate_blk'):
                 solver_params['degenerate_blk'] = [np.array(x) for x in solver_params['degenerate_blk']]
-
+        
         gw_edmft_params['impurity']['solver'] = solver_list
 
-    # Copy iter_alg if present
-    if 'iter_alg' in edmft_section:
-        assert edmft_section['iter_alg']['alg'] == 'damping', (
-            "Only \'damping\' iterative algorithm is supported in the EDMFT part of the GW+EDMFT workflow at the moment."
-        )
-        gw_edmft_params['impurity']['iter_alg'] = edmft_section.pop('iter_alg')
-
     # Copy any remaining keys
-    gw_edmft_params['impurity']['chkpt_h5'] = edmft_section.get('chkpt_h5', outdir+"/"+prefix+".mbpt.h5")
     for key, value in edmft_section.items():
         gw_edmft_params['impurity'][key] = value
 

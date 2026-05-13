@@ -57,7 +57,6 @@ def run_gw_edmft(mf, thc, proj_info, embedding_1e, inner_loop_alg=1, **gw_edmft_
     embedding_2e = embedding_1e.make_2particle.make_spinless
     if coqui_mpi.root():
         print(embedding_1e.description(True))
-        print(embedding_2e.description(True))
 
     try:
         gw_params        = gw_edmft_params.pop('gw', None)
@@ -65,6 +64,7 @@ def run_gw_edmft(mf, thc, proj_info, embedding_1e, inner_loop_alg=1, **gw_edmft_
         gloc_params      = gw_edmft_params.pop('gloc')
         embed_params     = gw_edmft_params.pop('dmft_embed')
         impurity_params  = gw_edmft_params.pop('impurity')
+        imp_iaft_params  = impurity_params.pop('iaft', {})
         iterative_params = impurity_params.pop('iter_alg', None)
     except KeyError as e:
         raise KeyError(f"run_gw_edmft: Missing required gw_edmft_params key: {e.args[0]}")
@@ -79,16 +79,17 @@ def run_gw_edmft(mf, thc, proj_info, embedding_1e, inner_loop_alg=1, **gw_edmft_
 
     # DMFT state container
     dmft_state = coqui_dmft.DMFTState.make_dmft_state(
-        coqui_chkpt_h5, embedding_1e, embedding_2e,
-        wmax_imp=impurity_params.pop('dlr_wmax', None),
-        eps_imp=impurity_params.pop('dlr_eps', None),
+        coqui_chkpt_h5, embedding_1e, embedding_2e, 
+        wmax_imp=imp_iaft_params.get('wmax', None),
+        eps_imp=imp_iaft_params.get('eps', None),
         spin_average=mf.nspin()==1,
         screen_type=wloc_params['screen_type'],
         verbal=coqui_mpi.root()
     )
     if impurity_params.pop('restart', True):
         dmft_state.load(solver_chkpt_h5)
-
+    
+    coqui_mpi.barrier()
 
     for iteration in range(niter):
 
@@ -459,7 +460,7 @@ def _edmft_loop_fixed_gloc_and_wloc(
             # mixing impurity and dc solutions to facilitate convergence
             dmft_state.damp_impurity_results(
                 solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7), impurity_indices=[imp_index], 
-                mix_in_first_iter=iterative_params.get('mix_in_first_iter', False)
+                mix_in_first_iter=iterative_params.get('mix_in_first_iter', True)
             )
 
             # save solver results for current impurity
@@ -597,7 +598,7 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
     )
 
     iaft = IAFT.from_coqui_chkpt(imp_params['chkpt_h5'], verbose=coqui_mpi.root())
-    wmax_imp, eps_imp = imp_params.pop('dlr_wmax', iaft.wmax), imp_params.pop('dlr_eps', iaft.eps)
+    imp_iaft_params = imp_params.pop('iaft', {})
 
     solver_inputs = coqui_dmft.read_impurity_chkpt(
         imp_params['chkpt_h5'], dmft_iteration, read="inputs", impurity_indices=imp_indices
@@ -640,7 +641,10 @@ def solve_impurities_from_chkpt(coqui_mpi, dmft_iteration=-1, imp_indices=None, 
         h0, delta_iw, h_int, u_weiss_iw = coqui_dmft.to_triqs_containers(
             Input['h0'], Input['delta_iw'], Input['Vloc'], Input['u_weiss_iw'],
             iaft, gf_struct = Input['gf_struct'],
-            triqs_iw_mesh = {"dlr_wmax": wmax_imp, "dlr_eps": eps_imp},
+            triqs_iw_mesh = {
+                "dlr_wmax": imp_iaft_params.get('wmax', iaft.wmax), 
+                "dlr_eps": imp_iaft_params.get('eps', iaft.eps)
+            },
             density_hamiltonian = True, real_hamiltonian = True,
             screen_j_in_u_dd = solver_params.get('screen_j', False)
         )

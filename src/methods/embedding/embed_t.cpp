@@ -200,11 +200,14 @@ namespace methods {
     _Timer.start("EMBED_ITERATIVE");
     // if embed_iter is -1 -> mix with the previous gw results
     // if embed_iter != -1 -> mix with embed_iter-1
-    auto [Vhf_conv, Sigma_conv] = solve_iterative(
-        *_context, *iter_solver, (embed_iter==-1)? gw_iter+1 : embed_iter+1,
-        mb_state.coqui_prefix, sVhf_skij, sSigma_tskij, &ft,
-        (embed_iter==-1)? std::array<std::string, 3>{"scf", "F_skij", "Sigma_tskij"} :
-                          std::array<std::string, 3>{"embed", "F_skij", "Sigma_tskij"});
+    double Vhf_conv, Sigma_conv;
+    if (iter_solver != nullptr) {
+      std::tie(Vhf_conv, Sigma_conv) = solve_iterative(
+          *_context, *iter_solver, (embed_iter==-1)? gw_iter+1 : embed_iter+1,
+          mb_state.coqui_prefix, sVhf_skij, sSigma_tskij, &ft,
+          (embed_iter==-1)? std::array<std::string, 3>{"scf", "F_skij", "Sigma_tskij"} :
+                            std::array<std::string, 3>{"embed", "F_skij", "Sigma_tskij"});
+    }
     _Timer.stop("EMBED_ITERATIVE");
 
     _Timer.start("EMBED_FIND_MU");
@@ -228,7 +231,7 @@ namespace methods {
     app_log(1, "  correlation:                 {} a.u.", e_corr);
     app_log(1, "  total energy:                {} a.u.\n", e_tot_new);
     
-    if (embed_iter == -1 or embed_iter >= 1) {
+    if (iter_solver != nullptr && (embed_iter == -1 || embed_iter >= 1)) {
       app_log(1, "abs max diff of Fock matrix:   {}", Vhf_conv);
       app_log(1, "abs max diff of self-energy:   {}\n", Sigma_conv);
     }
