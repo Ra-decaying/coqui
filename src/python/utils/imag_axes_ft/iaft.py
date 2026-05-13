@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==========================================================================
 """
-
+import os
 import numpy as np
 
 from .iaft_sparse_ir import _IAFTIRAdapter
@@ -757,6 +757,10 @@ class IAFT(object):
             Initialized with the parameters stored in the checkpoint.
         """
         from h5 import HDFArchive
+        
+        if not os.path.exists(chkpt_h5):
+            raise FileNotFoundError(f"Checkpoint file to initialize IAFT not found: {chkpt_h5}")
+        
         with HDFArchive(chkpt_h5, 'r') as ar:
             iaft_grp = ar['imaginary_fourier_transform']
             beta = iaft_grp['beta']

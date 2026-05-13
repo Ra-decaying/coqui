@@ -88,19 +88,21 @@ def solve_dynamic_full_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_p
 
     # prepare Delta_tau
     for block, delta in S.Delta_tau:
-        S.Delta_tau[block] << make_gf_from_fourier(
+        delta_tau = make_gf_from_fourier(
             Delta_iw[block],                                          # Δ(iω)
             S.Delta_tau[block].mesh,                                  # time mesh
             fit_hermitian_tail(Delta_iw[block], make_zero_tail(Delta_iw[block], 1))[0] # tail
         )
+        S.Delta_tau[block] << make_hermitian(delta_tau)
         
     # prepare D0_tau
     for name1, name2 in D0_iw.indices:
-        S.D0_tau[name1, name2] << make_gf_from_fourier(
+        Dt = make_gf_from_fourier(
             D0_iw[name1, name2],                                          # D0(iω)
             S.D0_tau[name1, name2].mesh,                                  # time mesh
             fit_hermitian_tail(D0_iw[name1, name2], make_zero_tail(D0_iw[name1, name2], n_moments=2))[0] # tail
         )
+        S.D0_tau[name1, name2] << make_hermitian(Dt)
         
     # call solver
     solver_interface_params['measure_densities'] = True
@@ -161,7 +163,7 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
     post_proc_params['fit_max_w']        = solver_interface_params.pop('fit_max_w', None)
     post_proc_params['fit_min_n']        = solver_interface_params.pop('fit_min_n', None)
     post_proc_params['fit_max_n']        = solver_interface_params.pop('fit_max_n', None)
-    post_proc_params['analytic_hf']      = solver_interface_params.pop('analytic_hf', False)
+    post_proc_params['analytic_hf']      = solver_interface_params.pop('analytic_hf', True)
     post_proc_params['degenerate_blk']   = solver_interface_params.pop('degenerate_blk', None)
     post_proc_params['truncate_uchi']    = solver_interface_params.pop('truncate_uchi', False)
     S.n_iw, S.beta, S.gf_struct = n_iw, beta, gf_struct     # useful and necessary for post-processing
@@ -169,11 +171,11 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
     S.h_loc0_mat = block_matrix_from_op(h_loc0, gf_struct)
 
     # prepare Delta_tau
-    S.Delta_tau << make_gf_imtime(Delta_iw, n_tau)
+    S.Delta_tau << make_hermitian(make_gf_imtime(Delta_iw, n_tau))
 
     # prepare D0_tau
     for name1, name2 in D0_iw.indices:
-        S.D0_tau[name1, name2] << make_gf_imtime(D0_iw[name1, name2], n_tau)
+        S.D0_tau[name1, name2] << make_hermitian(make_gf_imtime(D0_iw[name1, name2], n_tau))
 
     # call solver
     solver_interface_params['measure_densities'] = True

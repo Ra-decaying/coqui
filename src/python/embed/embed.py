@@ -137,13 +137,8 @@ def downfold_coulomb(h_int, params, *, projector_info=None, local_polarizabiliti
 
 
 
-
-
 def downfold_1e(mf, params):
     embed_cxx.downfold_1e(mf, json.dumps(params))
-
-
-
 
 
 def downfold_2e(h_int, params, *, local_polarizabilities=None):

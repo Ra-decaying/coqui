@@ -17,7 +17,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==========================================================================
 """
-from copy import deepcopy
 from functools import partial
 import numpy as np
 from h5 import HDFArchive
@@ -87,7 +86,7 @@ def run_gw_edmft(mf, thc, proj_info, embedding_1e, inner_loop_alg=1, **gw_edmft_
         screen_type=wloc_params['screen_type'],
         verbal=coqui_mpi.root()
     )
-    if impurity_params.pop('restart', False):
+    if impurity_params.pop('restart', True):
         dmft_state.load(solver_chkpt_h5)
 
 

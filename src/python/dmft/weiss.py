@@ -205,7 +205,7 @@ def estimate_zero_moment(Aw, iw_mesh):
     return t
 
 
-def extract_h0_and_delta(g_weiss_wsab, iaft, high_freq_multiplier=10):
+def extract_h0_and_delta(g_weiss_wsab, iaft, high_freq_multiplier=10, make_hermitian=True):
     """
     Estimate the static one-body term h₀ (as t_sIab) and the hybridization function Δ(iω)
     from a Weiss Green's function G₀(iω) sampled on a fermionic Matsubara mesh.
@@ -262,6 +262,17 @@ def extract_h0_and_delta(g_weiss_wsab, iaft, high_freq_multiplier=10):
         for s in range(nspin):
             g_weiss_inv = np.linalg.inv(g_weiss_wsab[n, s])
             delta_estimate[n, s] = 1j * iwn_mesh_imp[n] * np.eye(nbnd) - t_sIab_estimate[s] - g_weiss_inv
+
+    if make_hermitian:
+        # enforce hermiticity of Δ(iω)
+        nw = delta_estimate.shape[0]
+        for n_neg in range(nw//2+nw%2):
+            n_pos = nw - 1 - n_neg
+            if n_pos == n_neg:
+                continue
+            for s in range(nspin):
+                delta_estimate[n_pos, s] = 0.5 * (delta_estimate[n_pos, s] + delta_estimate[n_neg, s].conj().T)
+                delta_estimate[n_neg, s] = delta_estimate[n_pos, s].conj().T
 
     # 4) checking the leakage of the resulting Δ(iω)
     if mpi.is_master_node():

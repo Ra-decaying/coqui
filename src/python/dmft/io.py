@@ -17,6 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==========================================================================
 """
+import os
 from copy import deepcopy
 import triqs.utility.mpi as mpi
 from h5 import HDFArchive
@@ -65,7 +66,19 @@ def convert_gw_edmft_params(params_dict):
     div_treatment = gw_edmft_group.get('div_treatment', 'gygi')
     outdir = gw_edmft_group.get('outdir', './')
     prefix = gw_edmft_group.get('prefix', 'coqui')
-    restart = gw_edmft_group.get('restart', False)
+    # restart = False implies the workflow will start from a fresh checkpoint where both GW and EDMFT parts start from scratch;
+    # this is not available yet in the current implementation as the GW part is always assumed to restart from a previous checkpoint.
+    restart = gw_edmft_group.get('restart', True)
+    if restart is False:
+        raise NotImplementedError(
+            "Starting the GW+EDMFT workflow from scratch (restart=False) is not implemented yet. " \
+            "Set restart=True (i.e. current default) to start from a previous checkpoint."
+        )
+    coqui_chkpt_h5 = outdir + "/" + prefix + ".mbpt.h5"
+    if not os.path.exists(coqui_chkpt_h5):
+        raise FileNotFoundError(
+            f"The GW checkpoint {coqui_chkpt_h5} is missing. A valid GW checkpoint file is necessary to initialize the GW+EDMFT workflow."
+        )
 
     # GW parameters
     if 'gw' in gw_edmft_group:

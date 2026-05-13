@@ -45,7 +45,10 @@ from h5 import HDFArchive
 import numpy as np
 from itertools import product
 
-from triqs.gf import inverse, iOmega_n, Gf, make_gf_dlr, BlockGf, Block2Gf, MeshImFreq, MeshDLRImFreq
+from triqs.gf import (
+    inverse, iOmega_n, Gf, make_gf_dlr, BlockGf, Block2Gf, 
+    MeshImFreq, MeshDLRImFreq, 
+)
 from triqs.operators import c_dag, c, Operator, util
 from triqs.operators.util.extractors import block_matrix_from_op
 import coqui.dmft as coqui_dmft
