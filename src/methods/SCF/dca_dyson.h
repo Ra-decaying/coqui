@@ -45,7 +45,9 @@ namespace methods {
 namespace mpi3 = boost::mpi3;
 class dca_dyson {
 public:
-  dca_dyson(utils::mpi_context_t<mpi3::communicator> &context, mf::MF *mf, imag_axes_ft::IAFT *ft, mf::MF &dca_mf, double mu_tol = 1e-9);
+  dca_dyson(utils::mpi_context_t<mpi3::communicator> &context, mf::MF *mf,
+            imag_axes_ft::IAFT *ft, mf::MF &dca_mf, double mu_tol = 1e-9,
+            mu_update_alg_t mu_update_alg = mu_update_alg_t::bisection);
 
   template<typename X_t, typename Xt_t>
   void compute_eigenspectra(double mu, const X_t&_sF_skij, const Xt_t &_G_shm, const Xt_t &_Sigma_shm, nda::array<ComplexType, 4> &spectra);
@@ -64,6 +66,7 @@ private:
 
   size_t _nk_tilde;
   double _mu_tol;
+  mu_update_alg_t _mu_update_alg;
 
   sArray_t<Array_view_4D_t> _sH0_skij;
   sArray_t<Array_view_4D_t> _sS_skij;
@@ -75,6 +78,7 @@ private:
 
 public:
   auto mu_tol() const { return _mu_tol; }
+  mu_update_alg_t mu_update_alg() const { return _mu_update_alg; }
   const auto &sS_skij() const {return _sS_skij;}
   const auto &sH0_skij() const {return _sH0_skij;}
 

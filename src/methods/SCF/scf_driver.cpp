@@ -468,56 +468,6 @@ GF2_SCF_LOOP_INST(chol_reader_t, chol_reader_t, chol_reader_t, chol_reader_t)
 
 #undef GF2_SCF_LOOP_INST
 
-// dca-gw/dca-hf
-/*template std::tuple<double, double>
-scf_loop(utils::mpi_context_t<mpi3::communicator> &comm, dca_dyson & scf, mf::MF &mf,
-         mb_eri_t<thc_reader_t, thc_reader_t> &eri, const imag_axes_ft::IAFT& FT,
-         solvers::mb_solver_t<solvers::gw_t> mb_solver, iter_scf::iter_scf_t *iter_solver,
-         std::string output, int niter, bool restart, double conv_tol, bool const_mu,
-         std::string input_grp, int input_iter);
-template std::tuple<double, double>
-scf_loop(utils::mpi_context_t<mpi3::communicator> &comm, dca_dyson & scf, mf::MF &mf,
-         mb_eri_t<thc_reader_t, chol_reader_t> &eri, const imag_axes_ft::IAFT& FT,
-         solvers::mb_solver_t<solvers::gw_t> mb_solver, iter_scf::iter_scf_t *iter_solver,
-         std::string output, int niter, bool restart, double conv_tol, bool const_mu,
-         std::string input_grp, int input_iter);
-template std::tuple<double, double>
-scf_loop(utils::mpi_context_t<mpi3::communicator> &comm, dca_dyson & scf, mf::MF &mf,
-         mb_eri_t<chol_reader_t, thc_reader_t> &eri, const imag_axes_ft::IAFT& FT,
-         solvers::mb_solver_t<solvers::gw_t> mb_solver, iter_scf::iter_scf_t *iter_solver,
-         std::string output, int niter, bool restart, double conv_tol, bool const_mu,
-         std::string input_grp, int input_iter);
-template std::tuple<double, double>
-scf_loop(utils::mpi_context_t<mpi3::communicator> &comm, dca_dyson & scf, mf::MF &mf,
-         mb_eri_t<chol_reader_t, chol_reader_t> &eri, const imag_axes_ft::IAFT& FT,
-         solvers::mb_solver_t<solvers::gw_t> mb_solver, iter_scf::iter_scf_t *iter_solver,
-         std::string output, int niter, bool restart, double conv_tol, bool const_mu,
-         std::string input_grp, int input_iter);
-// dca-gf2
-template std::tuple<double, double>
-scf_loop(utils::mpi_context_t<mpi3::communicator> &comm, dca_dyson & scf, mf::MF &mf,
-         mb_eri_t<thc_reader_t, thc_reader_t> &eri, const imag_axes_ft::IAFT& FT,
-         solvers::mb_solver_t<solvers::gf2_t> mb_solver, iter_scf::iter_scf_t *iter_solver,
-         std::string output, int niter, bool restart, double conv_tol, bool const_mu,
-         std::string input_grp, int input_iter);
-template std::tuple<double, double>
-scf_loop(utils::mpi_context_t<mpi3::communicator> &comm, dca_dyson & scf, mf::MF &mf,
-         mb_eri_t<thc_reader_t, chol_reader_t> &eri, const imag_axes_ft::IAFT& FT,
-         solvers::mb_solver_t<solvers::gf2_t> mb_solver, iter_scf::iter_scf_t *iter_solver,
-         std::string output, int niter, bool restart, double conv_tol, bool const_mu,
-         std::string input_grp, int input_iter);
-template std::tuple<double, double>
-scf_loop(utils::mpi_context_t<mpi3::communicator> &comm, dca_dyson & scf, mf::MF &mf,
-         mb_eri_t<chol_reader_t, thc_reader_t> &eri, const imag_axes_ft::IAFT& FT,
-         solvers::mb_solver_t<solvers::gf2_t> mb_solver, iter_scf::iter_scf_t *iter_solver,
-         std::string output, int niter, bool restart, double conv_tol, bool const_mu,
-         std::string input_grp, int input_iter);
-template std::tuple<double, double>
-scf_loop(utils::mpi_context_t<mpi3::communicator> &comm, dca_dyson & scf, mf::MF &mf,
-         mb_eri_t<chol_reader_t, chol_reader_t> &eri, const imag_axes_ft::IAFT& FT,
-         solvers::mb_solver_t<solvers::gf2_t> mb_solver, iter_scf::iter_scf_t *iter_solver,
-         std::string output, int niter, bool restart, double conv_tol, bool const_mu,
-         std::string input_grp, int input_iter);*/
 
 #define QPSCF_LOOP_INST(HF, HARTREE, EXCHANGE, CORR) \
 template double                                      \

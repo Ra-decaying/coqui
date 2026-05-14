@@ -39,6 +39,15 @@
 
 namespace methods {
   // TODO Put everything in "scf" namespace to isolate using directives
+
+enum class mu_update_alg_t {
+  bisection,
+  midpoint
+};
+
+auto parse_mu_update_alg(std::string alg) -> mu_update_alg_t;
+auto mu_update_alg_name(mu_update_alg_t alg) -> const char *;
+
 template<nda::Array Array_base_t>
 using sArray_t = math::shm::shared_array<Array_base_t>;
 using Array_view_3D_t = nda::array_view<ComplexType, 3>;
@@ -245,8 +254,29 @@ void update_G(dyson_type &dyson, const mf::MF &mf, const imag_axes_ft::IAFT &FT,
  * Solve f(mu) = nelec(mu) - nelec_target = 0 using bisection method
  */
 template<typename dyson_type, typename X_t, typename Xt_t>
-double update_mu(double old_mu, dyson_type& dyson, const mf::MF &mf, const imag_axes_ft::IAFT &FT,
-                 const X_t&F, const Xt_t&G, const Xt_t&Sigma);
+double update_mu_bisection(double old_mu, dyson_type& dyson, const mf::MF &mf,
+                           const imag_axes_ft::IAFT &FT,
+                           const X_t&F, const Xt_t&Sigma);
+
+/**
+ * Update chemical potential (_mu) for current _F and _Sigma as 
+ * the center of the acceptable mu interval by two bisections:
+ *   1) right boundary: nelec(mu_right) - nelec_target < +mu_tol
+ *   2) left boundary:  nelec(mu_left)  - nelec_target > -mu_tol
+ * Return mu = 0.5 * (mu_left + mu_right)
+ */
+template<typename dyson_type, typename X_t, typename Xt_t>
+double update_mu_midpoint(double old_mu, dyson_type& dyson, const mf::MF &mf,
+                          const imag_axes_ft::IAFT &FT,
+                          const X_t&F, const Xt_t&Sigma);
+
+/**
+ * Dispatch the chemical-potential update using the user-selected Dyson setting.
+ */
+template<typename dyson_type, typename X_t, typename Xt_t>
+double update_mu(double old_mu, dyson_type& dyson, const mf::MF &mf,
+                 const imag_axes_ft::IAFT &FT,
+                 const X_t&F, const Xt_t&Sigma);
 
 /**
  * Compute the total number of electrons as a function of mu and spectra

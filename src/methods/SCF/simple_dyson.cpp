@@ -148,7 +148,11 @@ namespace methods {
   }
 
   template<typename X_t, typename Xt_t>
-  void simple_dyson::compute_eigenspectra([[maybe_unused]] double mu, const X_t&_sF_skij, [[maybe_unused]] const Xt_t &_G_shm, const Xt_t &_Sigma_shm, nda::array<ComplexType, 4> &spectra){
+  void simple_dyson::compute_eigenspectra(
+    const X_t&_sF_skij, 
+    const Xt_t &_Sigma_shm, 
+    nda::array<ComplexType, 4> &spectra){
+
     utils::check(spectra.shape() == std::array<long, 4>{_nw, _ns, _nkpts_ibz, _nbnd},
                  "simple_dyson::compute_eigenspectra: Incorrect dimension for spectra.");
     using math::shm::make_shared_array;
@@ -202,7 +206,7 @@ namespace methods {
   template void simple_dyson::solve_dyson(sArray_t<Array_view_4D_t>&, sArray_t<Array_view_5D_t>&,
       const sArray_t<Array_view_4D_t>&, const sArray_t<Array_view_5D_t> &, double);
 
-  template void simple_dyson::compute_eigenspectra(double,const sArray_t<Array_view_4D_t>&,
-      const sArray_t<Array_view_5D_t> &, const sArray_t<Array_view_5D_t> &, nda::array<ComplexType, 4> &);
+  template void simple_dyson::compute_eigenspectra(const sArray_t<Array_view_4D_t>&,
+      const sArray_t<Array_view_5D_t> &, nda::array<ComplexType, 4> &);
 
 } // methods

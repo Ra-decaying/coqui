@@ -217,7 +217,7 @@ namespace methods {
 
     _Timer.start("EMBED_FIND_MU");
     // find chemical potential
-    mu = update_mu(mu, dyson, *_MF, ft, sVhf_skij, sG_tskij, sSigma_tskij);
+    mu = update_mu(mu, dyson, *_MF, ft, sVhf_skij, sSigma_tskij);
     _Timer.stop("EMBED_FIND_MU");
 
     _Timer.start("EMBED_DYSON");
@@ -407,7 +407,7 @@ namespace methods {
     sVcorr_skij.communicator()->barrier();
 
     // find chemical potential
-    mu = update_mu(mu, dyson, *_MF, ft, sVcorr_skij, sG_tskij, sSigma_tskij);
+    mu = update_mu(mu, dyson, *_MF, ft, sVcorr_skij, sSigma_tskij);
     _Timer.stop("EMBED_FIND_MU");
 
     _Timer.start("EMBED_DYSON");

@@ -62,9 +62,10 @@ namespace methods {
 class simple_dyson {
 public:
   simple_dyson(mf::MF* MF, imag_axes_ft::IAFT* FT,
-               double mu_tol = 1e-9):
+               double mu_tol = 1e-9,
+               mu_update_alg_t mu_update_alg = mu_update_alg_t::bisection):
       _MF(MF), _context(MF->mpi()), _FT(FT), _PSP(hamilt::make_pseudopot(*_MF)),
-      _mu_tol(mu_tol), _nts(_FT->nt_f()), _nw(_FT->nw_f()),
+      _mu_tol(mu_tol), _mu_update_alg(mu_update_alg), _nts(_FT->nt_f()), _nw(_FT->nw_f()),
       _ns(_MF->nspin()), _nkpts(_MF->nkpts()), _nkpts_ibz(_MF->nkpts_ibz()), 
       _nbnd(_MF->nbnd()),
       _sH0_skij(math::shm::make_shared_array<Array_view_4D_t>(*_context, {_ns, _nkpts_ibz, _nbnd, _nbnd})),
@@ -86,9 +87,10 @@ public:
 
   simple_dyson(mf::MF* MF, imag_axes_ft::IAFT* FT,
                std::string H0_S_chkpt,
-               double mu_tol = 1e-9):
+               double mu_tol = 1e-9,
+               mu_update_alg_t mu_update_alg = mu_update_alg_t::bisection):
       _MF(MF), _context(_MF->mpi()),
-      _FT(FT), _mu_tol(mu_tol),
+      _FT(FT), _mu_tol(mu_tol), _mu_update_alg(mu_update_alg),
       _nts(_FT->nt_f()), _nw(_FT->nw_f()),
       _ns(_MF->nspin()), _nkpts(_MF->nkpts()), _nkpts_ibz(_MF->nkpts_ibz()),
       _nbnd(_MF->nbnd()),
@@ -126,7 +128,7 @@ public:
    * @param spectra - [OUTPUT] eigenvalues, (nw, ns, nkpts_ibz, nbnd)
    */
   template<typename X_t, typename Xt_t>
-  void compute_eigenspectra(double mu, const X_t&_sF_skij, const Xt_t &_G_shm, const Xt_t &_Sigma_shm, nda::array<ComplexType, 4> &spectra);
+  void compute_eigenspectra(const X_t&_sF_skij, const Xt_t &_Sigma_shm, nda::array<ComplexType, 4> &spectra);
 
   inline void print_timers() {
     app_log(2, "\n  DYSON timers");
@@ -144,6 +146,7 @@ private:
   imag_axes_ft::IAFT* _FT = nullptr;
   std::shared_ptr<hamilt::pseudopot> _PSP;
   double _mu_tol = 1e-9;
+  mu_update_alg_t _mu_update_alg = mu_update_alg_t::bisection;
 
   int _nts;
   int _nw;
@@ -164,6 +167,7 @@ public:
   hamilt::pseudopot* PSP() { return _PSP.get(); }
   const hamilt::pseudopot* PSP() const { return _PSP.get(); }
   double mu_tol() const { return _mu_tol; }
+  mu_update_alg_t mu_update_alg() const { return _mu_update_alg; }
   auto H0() const& { return _sH0_skij.local(); }
   const auto &sS_skij() const {return _sS_skij;}
   const auto &sH0_skij() const {return _sH0_skij;}
