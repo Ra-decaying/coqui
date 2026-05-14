@@ -549,6 +549,9 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
         mu_tol = mu_params.get('tolerance', 0.1)
         if not mu_params.get('verbosity', False):
             dens_solver_params['verbosity'] = 0
+        dens_solver_params['suppress_solver_output'] = mu_params.get('suppress_solver_output', True)
+        if mu_params.get('solver_output_file'):
+            dens_solver_params['solver_output_file'] = mu_params.get('solver_output_file')
         if mu_params.get('n_warmup_cycles'):
             dens_solver_params['n_warmup_cycles'] = mu_params.get('n_warmup_cycles')
         if mu_params.get('length_cycle'):
@@ -566,7 +569,7 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
         )
         mu_imp, imp_density = coqui_dmft.compute_mu_impurity(
             target_density, compute_nelec_fcn,
-            tolerance=mu_tol, mu0=0.0 # always start from mu=0 s.t. mu_imp falls back to 0 at convergence
+            tolerance=mu_tol, mu0=0.0, # always start from mu=0 s.t. mu_imp falls back to 0 at convergence
         )
         # update h0 = h0 - mu_imp
         h0_mat_shifted = np.array([ h0_mat - np.eye(h0_mat.shape[0])*mu_imp for h0_mat in h0_sab ])

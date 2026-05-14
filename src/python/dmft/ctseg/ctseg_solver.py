@@ -1,5 +1,8 @@
 import triqs.utility.mpi as mpi
 import numpy as np
+import os
+import sys
+from contextlib import contextmanager
 from h5 import HDFArchive
 from triqs.gf import MeshImFreq, Gf, BlockGf, Block2Gf, MeshDLRImFreq, MeshImFreq, make_gf_from_fourier, fit_hermitian_tail, make_hermitian
 from triqs.gf import make_gf_dlr, make_gf_imfreq, make_gf_dlr_imfreq, make_gf_imtime, fit_gf_dlr, inverse, iOmega_n
@@ -11,6 +14,48 @@ from triqs.operators.util.extractors import block_matrix_from_op
 
 from triqs_ctseg import Solver
 import coqui.dmft.ctseg.ctseg_utils as ctseg_utils
+
+
+@contextmanager
+def _redirect_solver_output(suppress_output=False, output_file=None):
+    """Temporarily redirect native stdout/stderr during external solver calls."""
+    if not suppress_output:
+        # does nothing, output will be printed as usual
+        yield
+        return
+
+    target_path = output_file if output_file else os.devnull
+    target = open(target_path, "a", buffering=1)
+    saved_stdout_fd = None
+    saved_stderr_fd = None
+    try:
+        # avoids mixing already-buffered Python output with redirected output.
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        except Exception:
+            pass
+
+        # save current stdout/stderr
+        saved_stdout_fd = os.dup(1)
+        saved_stderr_fd = os.dup(2)
+        # Redirect stdout/stderr to the target
+        os.dup2(target.fileno(), 1)
+        os.dup2(target.fileno(), 2)
+        # run the code block with output redirected
+        yield
+    finally:
+        try:
+            # restore original stdout/stderr and close the backup descriptors
+            if saved_stdout_fd is not None:
+                os.dup2(saved_stdout_fd, 1)
+                os.close(saved_stdout_fd)
+            if saved_stderr_fd is not None:
+                os.dup2(saved_stderr_fd, 2)
+                os.close(saved_stderr_fd)
+        finally:
+            # close the target output file
+            target.close()
 
 
 class SmartList(list):
@@ -223,6 +268,8 @@ def solve_density_dynamic_u_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_in
     beta, wmax, eps  = Delta_iw.mesh.beta, Delta_iw.mesh.w_max, Delta_iw.mesh.eps
     n_tau = solver_interface_params.pop('n_tau', 10001)
     n_tau_bosonic = solver_interface_params.pop('n_tau_bosonic', n_tau)
+    suppress_solver_output = solver_interface_params.pop('suppress_solver_output', False)
+    solver_output_file = solver_interface_params.pop('solver_output_file', None)
 
     S = Solver(gf_struct=gf_struct, beta=beta, n_tau=n_tau, n_tau_bosonic=n_tau_bosonic)
 
@@ -250,7 +297,8 @@ def solve_density_dynamic_u_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_in
     solver_interface_params['measure_G_tau']     = False
     solver_interface_params['measure_F_tau']     = False
     solver_interface_params['measure_nn_tau']    = False
-    S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
+    with _redirect_solver_output(suppress_solver_output, solver_output_file):
+        S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
 
     return SolverResults(# required
         orbital_occupations = S.results.densities,

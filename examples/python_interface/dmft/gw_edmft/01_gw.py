@@ -13,17 +13,17 @@ coqui.set_verbosity(coqui_mpi, output_level=2)
 
 beta = 20
 
-with open("gw_edmft_params.toml", "rb") as f:
-    coqui_params = tomllib.load(f)
+mf_params = {"prefix": "svo", "outdir": qe_dir, "nbnd": 40}
+mf = coqui.make_mf(coqui_mpi, params=mf_params, mf_type='qe')
 
-mf = coqui.make_mf(coqui_mpi, coqui_params['mean_field']['qe'], mf_type='qe')
-thc = coqui.make_thc_coulomb(mf=mf, params=coqui_params['interaction']['thc'])
+thc_params = {"thresh": 1e-5, "ecut": 60, "save": "thc.coulomb.h5"}
+thc = coqui.make_thc_coulomb(mf=mf, params=thc_params)
 
 # self-consistent GW as starting point
 gw_params = {
     "restart": False,
-    "outdir": coqui_params["gw_edmft"]["outdir"],
-    "prefix": coqui_params["gw_edmft"]["prefix"],
+    "outdir": "./",
+    "prefix": "svo",
     "beta": beta,
     "iaft": {
         "prec": "high"

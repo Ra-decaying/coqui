@@ -1,33 +1,8 @@
-################################################################################
-# GW+EDMFT example input
-#
-# This file is organized in execution order:
-#   1) mean-field input
-#   2) interaction/THC setup
-#   3) GW+EDMFT parameters, including GW and impurity solver controls
-################################################################################
-
-# -----------------------------------------------------------------------------
-# Mean-field source (Quantum ESPRESSO)
-# -----------------------------------------------------------------------------
-[mean_field.qe]
-prefix = "svo"
-outdir = "/mnt/home/cyeh/Projects/coqui/tests/unit_test_files/qe/svo_kp222_nbnd40/out"
-nbnd = 40
-
-# -----------------------------------------------------------------------------
-# Interaction (THC Coulomb)
-# -----------------------------------------------------------------------------
-[interaction.thc]
-thresh = 1e-5
-ecut = 60
-save = "thc.coulomb.h5"
 
 # -----------------------------------------------------------------------------
 # GW+EDMFT
 # -----------------------------------------------------------------------------
 [gw_edmft]
-restart = true
 outdir = "./"
 prefix = "svo"
 
@@ -35,13 +10,10 @@ niter = 1               # Number of GW+EDMFT cycles
 gw_iter_per_loop = 1    # Number of GW updates per outer cycle
 edmft_iter_per_loop = 1 # Number of EDMFT updates per outer cycle
 
-screen_type = "gw_edmft_density"     # Screening model: gw_edmft or rpa
-div_treatment = "gygi_metal_order_3" # q->0 divergence treatment
+screen_type = "gw_edmft"  # Screening model: gw_edmft or rpa
+div_treatment = "gygi_metal"      #q->0 divergence treatment
 
-corr_only = true # Embed only the dynamic self-energy part
-
-# GW loop mixing
-[gw_edmft.gw.iter_alg]
+[gw_edmft.iter_alg]
 alg = "damping"
 mixing = 0.15
 
@@ -50,20 +22,16 @@ mixing = 0.15
 # -----------------------------------------------------------------------------
 [gw_edmft.edmft]
 chkpt_h5 = "svo.dmft.h5" # Default would be: {outdir}/{prefix}.mbpt.h5
-dlr_wmax = 5              # DLR frequency cutoff for EDMFT subspaces
-dlr_eps = 1e-10           # DLR target precision for EDMFT subspaces
 
-# EDFMT loop mixing
-[gw_edmft.edmft.iter_alg]
-alg = "damping"
-mixing = 0.15
+[gw_edmft.edmft.iaft]
+wmax = 5              # DLR frequency cutoff for EDMFT subspaces
+eps = 1e-10           # DLR target precision for EDMFT subspaces
 
 # -----------------------------------------------------------------------------
 # Impurity solver block
 # Add multiple [[gw_edmft.edmft.impurity]] sections for multiple impurities.
 # -----------------------------------------------------------------------------
 [[gw_edmft.edmft.impurity]]
-screen_j = false                  # Add screening contribution to J
 init_imp_results = "dc"           # Initial impurity self-energy/polarization: dc or zero
 degenerate_blk = [[0, 1, 2, 3, 4, 5]]
 
@@ -75,7 +43,6 @@ n_cycles = 2000000
 
 measure_pert_order = true
 perform_tail_fit = true
-analytic_hf = true
 fit_max_moment = 12
 fit_min_w = 1.8
 fit_max_w = 4.5

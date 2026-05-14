@@ -23,8 +23,11 @@ proj_info = coqui_dmft.get_proj_info(obe.P)
 with open("gw_edmft_params.toml", "rb") as f:
     coqui_params = tomllib.load(f)
 
-mf = coqui.make_mf(coqui_mpi, coqui_params['mean_field']['qe'], mf_type='qe')
-thc = coqui.make_thc_coulomb(mf=mf, params=coqui_params['interaction']['thc'])
+mf_params = {"prefix": "svo", "outdir": qe_dir, "nbnd": 40}
+mf = coqui.make_mf(coqui_mpi, params=mf_params, mf_type='qe')
+
+thc_params = {"thresh": 1e-5, "ecut": 60, "save": "thc.coulomb.h5"}
+thc = coqui.make_thc_coulomb(mf=mf, params=thc_params)
 
 # GW+EDMFT driver
 coqui_dmft.run_gw_edmft(mf, thc, proj_info, E1, **coqui_params)
