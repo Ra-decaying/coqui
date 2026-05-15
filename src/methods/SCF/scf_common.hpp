@@ -44,8 +44,10 @@ namespace detail {
 
 template<typename eval_t>
 auto bracket_mu_root(double old_mu, double delta, eval_t &&eval_f)
-  -> std::tuple<double, double, double, double, double> {
+  -> std::tuple<double, double, double, double> {
+  
   double f_old = eval_f(old_mu);
+
   if (f_old >= 0.0) {
     double mu_hi = old_mu;
     double mu_lo = old_mu - delta;
@@ -54,7 +56,7 @@ auto bracket_mu_root(double old_mu, double delta, eval_t &&eval_f)
       mu_lo -= delta;
       f_lo = eval_f(mu_lo);
     }
-    return {mu_lo, mu_hi, f_lo, f_old, f_old};
+    return {mu_lo, mu_hi, f_lo, f_old};
   }
 
   double mu_lo = old_mu;
@@ -64,20 +66,22 @@ auto bracket_mu_root(double old_mu, double delta, eval_t &&eval_f)
     mu_hi += delta;
     f_hi = eval_f(mu_hi);
   }
-  return {mu_lo, mu_hi, f_old, f_hi, f_old};
+  return {mu_lo, mu_hi, f_old, f_hi};
 }
 
 template<typename eval_t>
 auto update_mu_bisection_impl(double old_mu, double tol, double delta, eval_t &&eval_f)
   -> std::tuple<double, double> {
+  
   double f_old = eval_f(old_mu);
   if (std::abs(f_old) < tol) {
     return {old_mu, f_old};
   }
 
-  auto bracket = bracket_mu_root(old_mu, delta, std::forward<eval_t>(eval_f));
-  double mu_lo = std::get<0>(bracket);
-  double mu_hi = std::get<1>(bracket);
+  auto breaket = bracket_mu_root(old_mu, delta, std::forward<eval_t>(eval_f));
+  auto mu_lo = std::get<0>(breaket);
+  auto mu_hi = std::get<1>(breaket);
+  
   double mu_mid = 0.5 * (mu_lo + mu_hi);
   double f_mid = eval_f(mu_mid);
   while (std::abs(f_mid) >= tol) {
@@ -96,11 +100,8 @@ template<typename eval_t>
 auto update_mu_midpoint_impl(double old_mu, double tol, double delta, eval_t &&eval_f,
                              int max_bisection_iter = 200, double mu_width_tol = 1e-12)
   -> std::tuple<double, double, double, double> {
-  auto bracket = bracket_mu_root(old_mu, delta, std::forward<eval_t>(eval_f));
-  double mu_lo = std::get<0>(bracket);
-  double mu_hi = std::get<1>(bracket);
-  double f_lo = std::get<2>(bracket);
-  double f_hi = std::get<3>(bracket);
+  
+  auto [mu_lo, mu_hi, f_lo, f_hi] = bracket_mu_root(old_mu, delta, std::forward<eval_t>(eval_f));
 
   // Bisection for right boundary f(mu_right) < +tol
   // by iterating (r_lo, r_hi) while enforcing

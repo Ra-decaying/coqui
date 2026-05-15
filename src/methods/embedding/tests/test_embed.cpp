@@ -165,6 +165,7 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
     auto downfold = [&](
         std::shared_ptr<mf::MF> &mf, std::string wannier_file, std::string dc_type,
         std::array<double, 12> &refs, double eps) {
+
       solvers::hf_t hf;
       solvers::gw_t gw(&ft, "gygi_smallest_q", coqui_prefix);
       solvers::scr_coulomb_t scr_eri(&ft, "rpa", "gygi_smallest_q");
@@ -172,7 +173,6 @@ TEST_CASE("downfold_1e_mb_qp", "[methods][embed][df_1e]") {
       thc_reader_t thc(mf, make_thc_reader_ptree(0, "", "incore", "", "bdft",
                                                  1e-8, mf->ecutrho(), 1, 1024, 10, 0.4));
       auto eri = mb_eri_t(thc, thc);
-
       auto psp = hamilt::make_pseudopot(*mf);
       write_mf_data(*mf, ft, *psp, coqui_prefix);
       mpi->comm.barrier();

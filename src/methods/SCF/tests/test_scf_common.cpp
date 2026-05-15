@@ -88,7 +88,7 @@ namespace bdft_tests {
     VALUE_EQUAL(compute_Nelec(mu_midpoint, mf, sE_ski, beta), mf.nelec(), 1e-9);
 
     double mu_default = update_mu(0.0, mf, sE_ski, beta);
-    VALUE_EQUAL(mu_default, mu_midpoint, 1e-12);
+    VALUE_EQUAL(mu_default, mu_bisection, 1e-12);
   }
 
   TEST_CASE("qp_Dm_and_G", "[methods_scf]") {
