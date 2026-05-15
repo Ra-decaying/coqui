@@ -79,8 +79,7 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
   auto& sSigma_tskij = mb_state.sSigma_tskij.value();
 
   double mu = 0.0;
-  long init_it = 0;
-  init_it = chkpt::read_scf(mpi->node_comm, sF_skij, sSigma_tskij, mu, mb_state.coqui_prefix, input_grp, input_iter);
+  long init_it = chkpt::read_scf(mpi->node_comm, sF_skij, sSigma_tskij, mu, mb_state.coqui_prefix, input_grp, input_iter);
   sG_tskij = read_greens_function(*mpi, mf.get(), mb_state.coqui_prefix+ ".mbpt.h5", input_iter, input_grp);
   chkpt::read_dm(mpi->node_comm, mb_state.coqui_prefix, input_iter, sDm_skij);
 
@@ -176,7 +175,7 @@ void evaluate_gradients(MBState &mb_state, dyson_type &dyson, eri_t &mb_eri_t, c
   print_mbpt_gradients(grad_total, mf, "GRAD_TOTAL");
 
   Timer.start("WRITE");
-  write_mbpt_gradients(grad_total, mb_state.coqui_prefix, input_iter);
+  write_mbpt_gradients(mpi->comm, grad_total, mb_state.coqui_prefix, input_iter);
   Timer.stop("WRITE");
 
   Timer.stop("GRAD_TOTAL");

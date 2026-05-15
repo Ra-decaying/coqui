@@ -79,8 +79,9 @@ void print_mbpt_gradients(const nda::array<data_type, 2> &gradient,
                           std::shared_ptr<mf::MF> mf,
                           const std::string& str, bool bohr = true);
 
-template<typename data_type>
-void write_mbpt_gradients(const nda::array<data_type, 2> &gradient,
+template<typename communicator_t, typename data_type>
+void write_mbpt_gradients(communicator_t &comm,
+                          const nda::array<data_type, 2> &gradient,
                           const std::string &output, long iter);
 
 } // namespace methods
