@@ -27,29 +27,6 @@
 #include "simple_dyson.h"
 
 namespace methods {
-auto parse_mu_update_alg(std::string alg) -> mu_update_alg_t {
-  io::tolower(alg);
-  if (alg == "bisection") {
-    return mu_update_alg_t::bisection;
-  }
-  if (alg == "midpoint") {
-    return mu_update_alg_t::midpoint;
-  }
-  utils::check(false,
-               "scf_common::parse_mu_update_alg: unknown mu update algorithm {}. Supported values are bisection and midpoint.",
-               alg);
-  return mu_update_alg_t::bisection;
-}
-
-auto mu_update_alg_name(mu_update_alg_t alg) -> const char * {
-  switch (alg) {
-    case mu_update_alg_t::bisection:
-      return "bisection";
-    case mu_update_alg_t::midpoint:
-      return "midpoint";
-  }
-  return "unknown";
-}
 
 double compute_Nelec(double mu, const nda::array<ComplexType, 4> &spectra,
                      const mf::MF &mf, const imag_axes_ft::IAFT &FT) {
@@ -192,55 +169,19 @@ template<typename dyson_type, typename X_t, typename Xt_t>
 double update_mu_bisection(double old_mu, dyson_type& dyson, const mf::MF &mf,
                            const imag_axes_ft::IAFT &FT,
                            const X_t&F, const Xt_t&Sigma) {
-  double nel, mu1, mu2, mu_mid;
-  double mu = old_mu;
   double nel_target = mf.nelec();
   double delta = 0.2;
   nda::array<ComplexType, 4> FpSigma_spectra(FT.nw_f(), mf.nspin(), mf.nkpts_ibz(), mf.nbnd());
   dyson.compute_eigenspectra(F, Sigma, FpSigma_spectra);
-  nel = compute_Nelec(old_mu, FpSigma_spectra, mf, FT);
-  app_log(2, "Initial chemical potential (mu) = {}, nelec = {}", old_mu, nel);
+  auto eval_f = [&](double mu) {
+    return compute_Nelec(mu, FpSigma_spectra, mf, FT) - nel_target;
+  };
 
-  if (std::abs(nel - nel_target) < dyson.mu_tol()) {
-    app_log(1, "Chemical potential found (mu) = {} a.u.", mu);
-    app_log(1, "Number of electrons per unit cell = {}", nel);
-    return mu;
-  }
+  double nel_old = compute_Nelec(old_mu, FpSigma_spectra, mf, FT);
+  app_log(2, "Initial chemical potential (mu) = {}, nelec = {}", old_mu, nel_old);
 
-  if (nel >= nel_target) {
-    mu2 = old_mu;
-    mu1 = old_mu - delta;
-    double nel1 = compute_Nelec(mu1, FpSigma_spectra, mf, FT);
-    while (nel1 > nel_target) {
-      mu1 -= delta;
-      nel1 = compute_Nelec(mu1, FpSigma_spectra, mf, FT);
-    }
-    app_log(4, "mu = {}, nelec = {}", mu1, nel1);
-  } else {
-    mu1 = old_mu;
-    mu2 = old_mu + delta;
-    double nel2 = compute_Nelec(mu2, FpSigma_spectra, mf, FT);
-    while (nel2 < nel_target) {
-      mu2 += delta;
-      nel2 = compute_Nelec(mu2, FpSigma_spectra, mf, FT);
-    }
-    app_log(4, "mu = {}, nelec = {}", mu2, nel2);
-  }
-  mu_mid = (mu1 + mu2) * 0.5;
-  nel = compute_Nelec(mu_mid, FpSigma_spectra, mf, FT);
-  app_log(4, "mu = {}, nelec = {}", mu_mid, nel);
-
-  while (std::abs(nel - nel_target) >= dyson.mu_tol()) {
-    if (nel >= nel_target) {
-      mu2 = mu_mid;
-    } else {
-      mu1 = mu_mid;
-    }
-    mu_mid = (mu1 + mu2) * 0.5;
-    nel = compute_Nelec(mu_mid, FpSigma_spectra, mf, FT);
-    app_log(4, "mu = {}, nelec = {}", mu_mid, nel);
-  }
-  mu = mu_mid;
+  auto [mu, f_mu] = detail::update_mu_bisection_impl(old_mu, dyson.mu_tol(), delta, eval_f);
+  double nel = f_mu + nel_target;
   app_log(1, "Chemical potential found (mu) = {} a.u.", mu);
   app_log(1, "Number of electrons per unit cell = {}", nel);
   return mu;
@@ -253,8 +194,6 @@ double update_mu_midpoint(double old_mu, dyson_type& dyson, const mf::MF &mf,
   double nel_target = mf.nelec();
   double tol = dyson.mu_tol();
   double delta = 0.2;
-  constexpr int max_bisection_iter = 200;
-  constexpr double mu_width_tol = 1e-12;
 
   nda::array<ComplexType, 4> FpSigma_spectra(
       FT.nw_f(), mf.nspin(), mf.nkpts_ibz(), mf.nbnd());
@@ -268,80 +207,9 @@ double update_mu_midpoint(double old_mu, dyson_type& dyson, const mf::MF &mf,
   app_log(2, "Initial chemical potential (mu) = {}, nelec - target = {}",
           old_mu, f_old);
 
-  // First: build a bracket around f(mu) = 0
-  double mu_lo, mu_hi;
-  double f_lo, f_hi;
-  if (f_old >= 0.0) {
-    mu_hi = old_mu;
-    f_hi = f_old;
-    mu_lo = old_mu - delta;
-    f_lo = eval_f(mu_lo);
-    while (f_lo > 0.0) {
-      mu_lo -= delta;
-      f_lo = eval_f(mu_lo);
-    }
-    app_log(4, "mu_lo = {}, nelec - target = {}", mu_lo, f_lo);
-  } else {
-    mu_lo = old_mu;
-    f_lo = f_old;
-    mu_hi = old_mu + delta;
-    f_hi = eval_f(mu_hi);
-    while (f_hi < 0.0) {
-      mu_hi += delta;
-      f_hi = eval_f(mu_hi);
-    }
-    app_log(4, "mu_hi = {}, nelec - target = {}", mu_hi, f_hi);
-  }
-
-  // Second: bisection for right boundary f(mu_right) < +tol
-  // Invariant: f(r_lo) < +tol and f(r_hi) >= +tol
-  double r_lo = mu_lo;
-  double r_hi = mu_hi;
-  double f_r_hi = f_hi;
-
-  while (f_r_hi < tol) {
-    r_lo = r_hi;
-    r_hi += delta;
-    f_r_hi = eval_f(r_hi);
-  }
-
-  for (int it = 0; it < max_bisection_iter and (r_hi - r_lo) > mu_width_tol; ++it) {
-    double r_mid = 0.5 * (r_lo + r_hi);
-    double f_r_mid = eval_f(r_mid);
-    if (f_r_mid < tol) {
-      r_lo = r_mid;
-    } else {
-      r_hi = r_mid;
-    }
-  }
-  double mu_right = r_lo;
-
-  // Third: bisection for left boundary f(mu_left) > -tol
-  // Invariant: f(l_lo) <= -tol and f(l_hi) > -tol
-  double l_lo = mu_lo;
-  double f_l_lo = f_lo;
-  double l_hi = mu_hi;
-
-  while (f_l_lo > -tol) {
-    l_hi = l_lo;
-    l_lo -= delta;
-    f_l_lo = eval_f(l_lo);
-  }
-
-  for (int it = 0; it < max_bisection_iter and (l_hi - l_lo) > mu_width_tol; ++it) {
-    double l_mid = 0.5 * (l_lo + l_hi);
-    double f_l_mid = eval_f(l_mid);
-    if (f_l_mid > -tol) {
-      l_hi = l_mid;
-    } else {
-      l_lo = l_mid;
-      f_l_lo = f_l_mid;
-    }
-  }
-  double mu_left = l_hi;
-
-  double mu = 0.5 * (mu_left + mu_right);
-  double nel = compute_Nelec(mu, FpSigma_spectra, mf, FT);
+  auto [mu, f_mu, mu_left, mu_right] =
+      detail::update_mu_midpoint_impl(old_mu, tol, delta, eval_f);
+  double nel = f_mu + nel_target;
   app_log(1, "Chemical potential bounds found (mu_left, mu_right) = ({}, {}) a.u.",
           mu_left, mu_right);
   app_log(1, "Chemical potential found (mu) = {} a.u.", mu);
@@ -353,14 +221,14 @@ template<typename dyson_type, typename X_t, typename Xt_t>
 double update_mu(double old_mu, dyson_type& dyson, const mf::MF &mf,
                  const imag_axes_ft::IAFT &FT,
                  const X_t&F, const Xt_t&Sigma) {
-  switch (dyson.mu_update_alg()) {
-    case mu_update_alg_t::bisection:
-      return update_mu_bisection(old_mu, dyson, mf, FT, F, Sigma);
-    case mu_update_alg_t::midpoint:
-      return update_mu_midpoint(old_mu, dyson, mf, FT, F, Sigma);
+  if (dyson.mu_update_alg() == "bisection") {
+    return update_mu_bisection(old_mu, dyson, mf, FT, F, Sigma);
+  } else if (dyson.mu_update_alg() == "midpoint") {
+    return update_mu_midpoint(old_mu, dyson, mf, FT, F, Sigma);
+  } else {
+    utils::check(
+      false, "scf_common.cpp::update_mu: unknown mu update algorithm {}.", dyson.mu_update_alg());
   }
-  utils::check(false,
-               "scf_common::update_mu: unknown mu update algorithm.");
   return old_mu;
 }
 

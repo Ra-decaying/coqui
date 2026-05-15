@@ -297,7 +297,7 @@ double qp_scf_loop(
   // Obtains MO coefficients and energies from the given mean-field object
   Timer.start("CANONICALIZATION");
   update_MOs(sMO_skia, sE_ska, sHeff_skij, sS_skij);
-  mu = update_mu(mu, *mf, sE_ska, FT.beta());
+  mu = update_mu(mu, *mf, sE_ska, FT.beta(), qp_params.mu_tolerance, qp_params.mu_update_alg);
   update_Dm(sDm_skij, sMO_skia, sE_ska, mu, FT.beta());
   Timer.stop("CANONICALIZATION");
 
@@ -367,7 +367,7 @@ double qp_scf_loop(
       // update MO_skia and E_ska
       update_MOs(sMO_skia, sE_ska, sHeff_skij, sS_skij);
     }
-    mu = update_mu(mu, *mf, sE_ska, FT.beta());
+    mu = update_mu(mu, *mf, sE_ska, FT.beta(), qp_params.mu_tolerance, qp_params.mu_update_alg);
     update_Dm(sDm_skij, sMO_skia, sE_ska, mu, FT.beta());
     Timer.stop("CANONICALIZATION");
 

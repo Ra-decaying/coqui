@@ -81,8 +81,14 @@ namespace bdft_tests {
 
     auto [sMO_skij, sE_ski] = get_mf_MOs(*context, mf, psp);
 
-    double mu = update_mu(0.0, mf, sE_ski, beta);
-    VALUE_EQUAL(mu, 0.175, 1e-9);
+    double mu_bisection = update_mu(0.0, mf, sE_ski, beta, 1e-9, "bisection");
+    VALUE_EQUAL(mu_bisection, 0.175, 1e-9);
+
+    double mu_midpoint = update_mu(0.0, mf, sE_ski, beta, 1e-9, "midpoint");
+    VALUE_EQUAL(compute_Nelec(mu_midpoint, mf, sE_ski, beta), mf.nelec(), 1e-9);
+
+    double mu_default = update_mu(0.0, mf, sE_ski, beta);
+    VALUE_EQUAL(mu_default, mu_midpoint, 1e-12);
   }
 
   TEST_CASE("qp_Dm_and_G", "[methods_scf]") {

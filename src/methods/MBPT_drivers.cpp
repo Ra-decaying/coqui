@@ -136,8 +136,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
   auto const_mu = io::get_value_with_default<bool>(pt,"const_mu",false);
   auto mu_tol = io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9);
   auto output = resolve_mbpt_output_stem(pt);
-  auto mu_update_alg = parse_mu_update_alg(
-      io::get_value_with_default<std::string>(pt, "mu_update_alg", "midpoint"));
+  auto mu_update_alg = io::get_value_with_default<std::string>(pt, "mu_update_alg", "midpoint");
 
   auto restart = io::get_value_with_default<bool>(pt,"restart",false);
   auto greens_func_source = io::get_value_with_default<std::string>(pt,"greens_func_source", "scf");
@@ -301,6 +300,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     }
     MBState mb_state(mpi, ft, output);
     qp_params_t qp_params;
+    qp_params.mu_tolerance = mu_tol;
+    qp_params.mu_update_alg = mu_update_alg;
     qp_scf_loop(mb_state, eri, ft, qp_params, mb_solver_t(&hf), iter_solver.get(),
                 niter, restart, conv_thr);
 
@@ -313,7 +314,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     auto Nfit    = io::get_value_with_default<int>(pt,"Nfit",18);
     io::tolower(ac_alg);
     io::tolower(qp_type);
-    qp_params_t qp_params(qp_type, ac_alg, Nfit, eta, conv_thr, "evscf", keep_scr_coulomb_fixed);
+    qp_params_t qp_params(qp_type, ac_alg, Nfit, eta, conv_thr, "evscf", keep_scr_coulomb_fixed,
+                          "fermi", mu_tol, mu_update_alg);
     if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
       iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt, 0.7, true));
     } else {
@@ -335,7 +337,8 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt)
     io::tolower(off_diag_mode);
     utils::check(off_diag_mode=="fermi" or off_diag_mode=="qp_energy",
                  "unknown off_diag_mode: {}. Valid options are \"fermi\" and \"qp_energy\"");
-    qp_params_t qp_params("sc", ac_alg, Nfit, eta, 1e-8, "qpscf", false, off_diag_mode);
+    qp_params_t qp_params("sc", ac_alg, Nfit, eta, 1e-8, "qpscf", false, off_diag_mode,
+                          mu_tol, mu_update_alg);
     if (io::get_value_with_default<bool>(pt,"iter_alg.enable", true)) {
       iter_solver = std::make_unique<iter_scf::iter_scf_t>(iter_scf::make_iter_scf(pt));
     } else {
@@ -375,8 +378,7 @@ void mbpt(std::string solver_type, eri_t &eri, ptree const& pt,
   auto const_mu = io::get_value_with_default<bool>(pt,"const_mu",false);
   auto mu_tol = io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9);
   auto output = resolve_mbpt_output_stem(pt);
-  auto mu_update_alg = parse_mu_update_alg(
-      io::get_value_with_default<std::string>(pt, "mu_update_alg", "midpoint"));
+  auto mu_update_alg = io::get_value_with_default<std::string>(pt, "mu_update_alg", "midpoint");
 
   auto restart = io::get_value_with_default<bool>(pt,"restart",false);
   auto greens_func_source = io::get_value_with_default<std::string>(pt,"greens_func_source", "scf");
@@ -824,9 +826,7 @@ void dmft_embed_with_projector_from_h5(std::shared_ptr<mf::MF> mf, ptree const& 
 
   auto dyson = simple_dyson(mf.get(), &ft, mb_state.coqui_prefix,
                             io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9),
-                            parse_mu_update_alg(
-                              io::get_value_with_default<std::string>(pt, "mu_update_alg", "midpoint")
-                            ));
+                            io::get_value_with_default<std::string>(pt, "mu_update_alg", "midpoint"));
 
   embed_t embed(*mf);
   embed.dmft_embed(mb_state, dyson, iter_solver.get(),
@@ -863,9 +863,7 @@ void dmft_embed(std::shared_ptr<mf::MF> mf, ptree const& pt,
 
   auto dyson = simple_dyson(mf.get(), &ft, mb_state.coqui_prefix,
                             io::get_value_with_default<double>(pt,"mu_tolerance", 1e-9),
-                            parse_mu_update_alg(
-                              io::get_value_with_default<std::string>(pt, "mu_update_alg", "midpoint")
-                            ));
+                            io::get_value_with_default<std::string>(pt, "mu_update_alg", "midpoint"));
 
   embed_t embed(*mf);
   embed.dmft_embed(mb_state, dyson, iter_solver.get(),

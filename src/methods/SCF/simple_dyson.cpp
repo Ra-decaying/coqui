@@ -147,6 +147,8 @@ namespace methods {
     _context->comm.barrier();
   }
 
+
+  // TODO take advantage of Sigma(-iw) = Sigma(iw)^{H}
   template<typename X_t, typename Xt_t>
   void simple_dyson::compute_eigenspectra(
     const X_t&_sF_skij, 

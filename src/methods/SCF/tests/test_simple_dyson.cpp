@@ -57,7 +57,7 @@ namespace bdft_tests {
     double wmax = 12.0;
     auto mf = mf::make_MF(context, mf::pyscf_source, filepath, "pyscf");
     imag_axes_ft::IAFT ft(beta, wmax, imag_axes_ft::ir_basis, "high");
-    simple_dyson dyson(std::addressof(mf), std::addressof(ft), 1e-9, mu_update_alg_t::bisection);
+    simple_dyson dyson(std::addressof(mf), std::addressof(ft), 1e-9, "bisection");
   }
 
   TEST_CASE("dyson", "[methods_scf]") {
@@ -79,7 +79,7 @@ namespace bdft_tests {
         *context, {ft.nt_f(), mf.nspin(), mf.nkpts(), mf.nbnd(), mf.nbnd()}));
     hamilt::set_fock(mf, std::addressof(psp), F, true);
 
-    simple_dyson dyson(std::addressof(mf), std::addressof(ft), 1e-9, mu_update_alg_t::bisection);
+    simple_dyson dyson(std::addressof(mf), std::addressof(ft), 1e-9, "bisection");
     context->comm.barrier();
 
     double mu = update_mu(0.0, dyson, mf, ft, F, Sigma);

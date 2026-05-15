@@ -40,13 +40,125 @@
 namespace methods {
   // TODO Put everything in "scf" namespace to isolate using directives
 
-enum class mu_update_alg_t {
-  bisection,
-  midpoint
-};
+namespace detail {
 
-auto parse_mu_update_alg(std::string alg) -> mu_update_alg_t;
-auto mu_update_alg_name(mu_update_alg_t alg) -> const char *;
+template<typename eval_t>
+auto bracket_mu_root(double old_mu, double delta, eval_t &&eval_f)
+  -> std::tuple<double, double, double, double, double> {
+  double f_old = eval_f(old_mu);
+  if (f_old >= 0.0) {
+    double mu_hi = old_mu;
+    double mu_lo = old_mu - delta;
+    double f_lo = eval_f(mu_lo);
+    while (f_lo > 0.0) {
+      mu_lo -= delta;
+      f_lo = eval_f(mu_lo);
+    }
+    return {mu_lo, mu_hi, f_lo, f_old, f_old};
+  }
+
+  double mu_lo = old_mu;
+  double mu_hi = old_mu + delta;
+  double f_hi = eval_f(mu_hi);
+  while (f_hi < 0.0) {
+    mu_hi += delta;
+    f_hi = eval_f(mu_hi);
+  }
+  return {mu_lo, mu_hi, f_old, f_hi, f_old};
+}
+
+template<typename eval_t>
+auto update_mu_bisection_impl(double old_mu, double tol, double delta, eval_t &&eval_f)
+  -> std::tuple<double, double> {
+  double f_old = eval_f(old_mu);
+  if (std::abs(f_old) < tol) {
+    return {old_mu, f_old};
+  }
+
+  auto bracket = bracket_mu_root(old_mu, delta, std::forward<eval_t>(eval_f));
+  double mu_lo = std::get<0>(bracket);
+  double mu_hi = std::get<1>(bracket);
+  double mu_mid = 0.5 * (mu_lo + mu_hi);
+  double f_mid = eval_f(mu_mid);
+  while (std::abs(f_mid) >= tol) {
+    if (f_mid >= 0.0) {
+      mu_hi = mu_mid;
+    } else {
+      mu_lo = mu_mid;
+    }
+    mu_mid = 0.5 * (mu_lo + mu_hi);
+    f_mid = eval_f(mu_mid);
+  }
+  return {mu_mid, f_mid};
+}
+
+template<typename eval_t>
+auto update_mu_midpoint_impl(double old_mu, double tol, double delta, eval_t &&eval_f,
+                             int max_bisection_iter = 200, double mu_width_tol = 1e-12)
+  -> std::tuple<double, double, double, double> {
+  auto bracket = bracket_mu_root(old_mu, delta, std::forward<eval_t>(eval_f));
+  double mu_lo = std::get<0>(bracket);
+  double mu_hi = std::get<1>(bracket);
+  double f_lo = std::get<2>(bracket);
+  double f_hi = std::get<3>(bracket);
+
+  // Bisection for right boundary f(mu_right) < +tol
+  // by iterating (r_lo, r_hi) while enforcing
+  //     f(r_lo) < +tol and f(r_hi) >= +tol.
+  double r_lo = mu_lo;
+  double r_hi = mu_hi;
+  double f_r_hi = f_hi;
+
+  // extend r_hi until f(r_hi) >= tol to ensure that
+  // we cover the entire acceptable region for right boundary
+  while (f_r_hi < tol) {
+    r_lo = r_hi;
+    r_hi += delta;
+    f_r_hi = eval_f(r_hi);
+  }
+
+  for (int it = 0; it < max_bisection_iter and (r_hi - r_lo) > mu_width_tol; ++it) {
+    double r_mid = 0.5 * (r_lo + r_hi);
+    double f_r_mid = eval_f(r_mid);
+    if (f_r_mid < tol) {
+      r_lo = r_mid;
+    } else {
+      r_hi = r_mid;
+    }
+  }
+  double mu_right = r_lo;
+
+  // Bisection for left boundary f(mu_left) > -tol
+  // by iterating (l_lo, l_hi) while enforcing
+  //     f(l_lo) <= -tol and f(l_hi) > -tol.
+  double l_lo = mu_lo;
+  double l_hi = mu_hi;
+  double f_l_lo = f_lo;
+
+  // extend l_lo until f(l_lo) <= -tol to ensure that
+  // we cover the entire acceptable region for left boundary
+  while (f_l_lo > -tol) {
+    l_hi = l_lo;
+    l_lo -= delta;
+    f_l_lo = eval_f(l_lo);
+  }
+
+  for (int it = 0; it < max_bisection_iter and (l_hi - l_lo) > mu_width_tol; ++it) {
+    double l_mid = 0.5 * (l_lo + l_hi);
+    double f_l_mid = eval_f(l_mid);
+    if (f_l_mid > -tol) {
+      l_hi = l_mid;
+    } else {
+      l_lo = l_mid;
+    }
+  }
+  double mu_left = l_hi;
+
+  double mu = 0.5 * (mu_left + mu_right);
+  return {mu, eval_f(mu), mu_left, mu_right};
+}
+
+} // namespace detail
 
 template<nda::Array Array_base_t>
 using sArray_t = math::shm::shared_array<Array_base_t>;
@@ -133,7 +245,8 @@ template<nda::ArrayOfRank<5> Array_base_t>
 void compute_G_from_mf(h5::group iter_grp, imag_axes_ft::IAFT &ft, sArray_t<Array_base_t> &sG_tskij);
 
 template<typename X_t>
-double update_mu(double old_mu, const mf::MF &mf, const X_t &sE_ski, double beta, double mu_tol=1e-9);
+double update_mu(double old_mu, const mf::MF &mf, const X_t &sE_ski, double beta,
+                 double mu_tol=1e-9, std::string mu_update_alg="bisection");
 
 double compute_Nelec(double mu, const mf::MF &mf, const sArray_t<Array_view_3D_t> &sE_ski, double beta);
 

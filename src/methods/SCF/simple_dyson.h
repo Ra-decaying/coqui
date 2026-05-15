@@ -63,7 +63,7 @@ class simple_dyson {
 public:
   simple_dyson(mf::MF* MF, imag_axes_ft::IAFT* FT,
                double mu_tol = 1e-9,
-               mu_update_alg_t mu_update_alg = mu_update_alg_t::bisection):
+               std::string mu_update_alg = "bisection"):
       _MF(MF), _context(MF->mpi()), _FT(FT), _PSP(hamilt::make_pseudopot(*_MF)),
       _mu_tol(mu_tol), _mu_update_alg(mu_update_alg), _nts(_FT->nt_f()), _nw(_FT->nw_f()),
       _ns(_MF->nspin()), _nkpts(_MF->nkpts()), _nkpts_ibz(_MF->nkpts_ibz()), 
@@ -88,7 +88,7 @@ public:
   simple_dyson(mf::MF* MF, imag_axes_ft::IAFT* FT,
                std::string H0_S_chkpt,
                double mu_tol = 1e-9,
-               mu_update_alg_t mu_update_alg = mu_update_alg_t::bisection):
+               std::string mu_update_alg = "bisection"):
       _MF(MF), _context(_MF->mpi()),
       _FT(FT), _mu_tol(mu_tol), _mu_update_alg(mu_update_alg),
       _nts(_FT->nt_f()), _nw(_FT->nw_f()),
@@ -146,7 +146,7 @@ private:
   imag_axes_ft::IAFT* _FT = nullptr;
   std::shared_ptr<hamilt::pseudopot> _PSP;
   double _mu_tol = 1e-9;
-  mu_update_alg_t _mu_update_alg = mu_update_alg_t::bisection;
+  std::string _mu_update_alg = "bisection";
 
   int _nts;
   int _nw;
@@ -167,7 +167,7 @@ public:
   hamilt::pseudopot* PSP() { return _PSP.get(); }
   const hamilt::pseudopot* PSP() const { return _PSP.get(); }
   double mu_tol() const { return _mu_tol; }
-  mu_update_alg_t mu_update_alg() const { return _mu_update_alg; }
+  std::string mu_update_alg() const { return _mu_update_alg; }
   auto H0() const& { return _sH0_skij.local(); }
   const auto &sS_skij() const {return _sS_skij;}
   const auto &sH0_skij() const {return _sH0_skij;}

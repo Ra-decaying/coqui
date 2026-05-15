@@ -615,57 +615,36 @@ double compute_Nelec(double mu, const mf::MF &mf, const sArray_t<Array_view_3D_t
 }
 
 template<typename X_t>
-double update_mu(double old_mu, const mf::MF &mf, const X_t &sE_ski, double beta, double mu_tol) {
+double update_mu(double old_mu, const mf::MF &mf, const X_t &sE_ski, double beta,
+                 double mu_tol, std::string mu_update_alg) {
   double nel_target = mf.nelec();
-  double nel, mu1, mu2, mu_mid;
-  double mu = old_mu;
   double delta = 0.2;
-  nel = compute_Nelec(old_mu, mf, sE_ski, beta);
-  app_log(2, "Initial chemical potential (mu) = {}, nelec = {}", old_mu, nel);
+  auto eval_f = [&](double mu) {
+    return compute_Nelec(mu, mf, sE_ski, beta) - nel_target;
+  };
+  double nel_old = compute_Nelec(old_mu, mf, sE_ski, beta);
+  app_log(2, "Initial chemical potential (mu) = {}, nelec = {}", old_mu, nel_old);
 
-  if (std::abs(nel - nel_target) < mu_tol) {
+  if (mu_update_alg == "bisection") {
+    auto [mu, f_mu] = detail::update_mu_bisection_impl(old_mu, mu_tol, delta, eval_f);
+    double nel = f_mu + nel_target;
+    app_log(2, "Chemical potential found (mu) = {} a.u.", mu);
+    app_log(2, "Number of electrons per unit cell = {}", nel);
+    return mu;
+  } else if (mu_update_alg == "midpoint") {
+    auto [mu, f_mu, mu_left, mu_right] =
+        detail::update_mu_midpoint_impl(old_mu, mu_tol, delta, eval_f);
+    double nel = f_mu + nel_target;
+    app_log(2, "Chemical potential bounds found (mu_left, mu_right) = ({}, {}) a.u.",
+            mu_left, mu_right);
     app_log(2, "Chemical potential found (mu) = {} a.u.", mu);
     app_log(2, "Number of electrons per unit cell = {}", nel);
     return mu;
   }
-
-  if (nel >= nel_target) {
-    mu2 = old_mu;
-    mu1 = old_mu - delta;
-    double nel1 = compute_Nelec(mu1, mf, sE_ski, beta);
-    while (nel1 > nel_target) {
-      mu1 -= delta;
-      nel1 = compute_Nelec(mu1, mf, sE_ski, beta);
-    }
-    app_log(4, "mu = {}, nelec = {}", mu1, nel1);
-  } else {
-    mu1 = old_mu;
-    mu2 = old_mu + delta;
-    double nel2 = compute_Nelec(mu2, mf, sE_ski, beta);
-    while (nel2 < nel_target) {
-      mu2 += delta;
-      nel2 = compute_Nelec(mu2, mf, sE_ski, beta);
-    }
-    app_log(4, "mu = {}, nelec = {}", mu2, nel2);
-  }
-  mu_mid = (mu1 + mu2) * 0.5;
-  nel = compute_Nelec(mu_mid, mf, sE_ski, beta);
-  app_log(4, "mu = {}, nelec = {}", mu_mid, nel);
-
-  while (std::abs(nel - nel_target) >= mu_tol) {
-    if (nel >= nel_target) {
-      mu2 = mu_mid;
-    } else {
-      mu1 = mu_mid;
-    }
-    mu_mid = (mu1 + mu2) * 0.5;
-    nel = compute_Nelec(mu_mid, mf, sE_ski, beta);
-    app_log(4, "mu = {}, nelec = {}", mu_mid, nel);
-  }
-  mu = mu_mid;
-  app_log(2, "Chemical potential found (mu) = {} a.u.", mu);
-  app_log(2, "Number of electrons per unit cell = {}", nel);
-  return mu;
+  utils::check(false,
+               "qp_scf_common.cpp::update_mu: unknown mu update algorithm {}.",
+               mu_update_alg);
+  return old_mu;
 }
 
 template<typename comm_t, typename X_t>
@@ -751,7 +730,7 @@ void write_mf_data(mf::MF &mf, const imag_axes_ft::IAFT &ft,
 
 /** Instantiation of public template **/
 
-template double update_mu(double, const mf::MF&, const sArray_t<Array_view_3D_t>&, double, double);
+template double update_mu(double, const mf::MF&, const sArray_t<Array_view_3D_t>&, double, double, std::string);
 
 template void add_evscf_vcorr(MBState&, double, solvers::mb_solver_t<>&, thc_reader_t&, const imag_axes_ft::IAFT&, qp_params_t&, bool);
 template void add_evscf_vcorr(MBState&, double, solvers::mb_solver_t<>&, chol_reader_t&, const imag_axes_ft::IAFT&, qp_params_t&, bool);
