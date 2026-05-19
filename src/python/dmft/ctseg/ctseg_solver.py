@@ -182,17 +182,19 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
     h_int: triqs.operator
     """
     gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
-    beta, wmax, eps  = Delta_iw.mesh.beta, Delta_iw.mesh.w_max, Delta_iw.mesh.eps
+    beta, wmax, eps  = Delta_iw.mesh.beta, Delta_iw.mesh.w_max, Delta_iw.mesh.eps 
 
-    n_iw = solver_interface_params.pop('n_iw', 1025)
-    n_tau = solver_interface_params.pop('n_tau', 10001)
+    # extract the largest DLR frequency index to determine the minimum required n_iw
+    mesh_dlr_idx = np.array([iw.index for iw in Delta_iw.mesh])
+    max_dlr_idx = max(abs(mesh_dlr_idx[0]), abs(mesh_dlr_idx[-1]))
+
+    n_iw = solver_interface_params.pop('n_iw', int(1.4*max_dlr_idx))
+    n_tau = solver_interface_params.pop('n_tau', 6*n_iw+1)
     n_tau_bosonic = solver_interface_params.pop('n_tau_bosonic', n_tau)
     solver_interface_params.setdefault('dlr_omega_max', wmax)
     solver_interface_params.setdefault('dlr_epsilon', eps)
 
     # check if n_iw is compatible with dlr mesh
-    mesh_dlr_idx = np.array([iw.index for iw in Delta_iw.mesh])
-    max_dlr_idx = max(abs(mesh_dlr_idx[0]), abs(mesh_dlr_idx[-1]))
     if max_dlr_idx > n_iw:
         mpi.report(f"WARNING: n_iw = {n_iw} is smaller than the maximum DLR frequency index"
                    f" ({max_dlr_idx}). Setting n_iw to {max_dlr_idx+1}.")

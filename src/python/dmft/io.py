@@ -24,15 +24,8 @@ from h5 import HDFArchive
 import numpy as np
 
 
-def convert_gw_edmft_params(params_dict):
-    params = deepcopy(params_dict)
-
-    # Check if 'gw_edmft' key exists in params (new format)
-    if 'gw_edmft' not in params:
-       return params
-
-    # Extract the gw_edmft group
-    gw_edmft_group = params.pop('gw_edmft')
+def convert_gw_edmft_params(gw_edmft_params: dict):
+    gw_edmft_group = deepcopy(gw_edmft_params)
 
     # Copy top-level gw_edmft settings
     gw_edmft_params = {}
@@ -159,10 +152,16 @@ def _normalize_solver_params_list(solver_params_list, comm_size):
     for solver_params in solver_params_list:
         solver_params_norm = deepcopy(solver_params)
 
-        solver_params_norm['n_cycles'] = int(solver_params_norm['n_cycles']/comm_size)
         mu_params = solver_params_norm.get('chemical_potential')
-        if mu_params and 'n_cycles' in mu_params.keys():
-            mu_params['n_cycles'] = int(mu_params['n_cycles']/comm_size)
+        if mu_params: 
+            mu_params.setdefault('n_cycles', int(solver_params_norm['n_cycles']*0.05))
+            mu_params['n_cycles'] = int(mu_params['n_cycles']/comm_size) 
+            mu_params.setdefault('n_warmup_cycles', int(solver_params_norm['n_warmup_cycles']))
+            mu_params.setdefault('length_cycle', int(solver_params_norm['length_cycle']))
+
+        solver_params_norm['n_cycles'] = int(solver_params_norm['n_cycles']/comm_size)
+        solver_params_norm['n_warmup_cycles'] = int(solver_params_norm['n_warmup_cycles'])
+        solver_params_norm['length_cycle'] = int(solver_params_norm['length_cycle'])
 
         normalized_list.append(solver_params_norm)
 

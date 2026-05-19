@@ -30,4 +30,4 @@ thc_params = {"thresh": 1e-5, "ecut": 60, "save": "thc.coulomb.h5"}
 thc = coqui.make_thc_coulomb(mf=mf, params=thc_params)
 
 # GW+EDMFT driver
-coqui_dmft.run_gw_edmft(mf, thc, proj_info, E1, **coqui_params)
+coqui_dmft.run_gw_edmft(thc, E1, proj_info=proj_info, params=coqui_params["gw_edmft"])
