@@ -412,23 +412,28 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
 
             Ub, Ubp, Jb_spin, Jb_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc'])
             U, Up, J_spin, J_pair = coqui_dmft.hubbard_kanamori_coulomb(Input['Vloc']+Input['u_weiss_iw'][0])
-            dm = -dmft_state.iaft.tau_interpolate(
-                coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
-                dmft_state.iaft.beta, 'f')[0]
+            gloc_t_arr = coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"])
+            dm = -dmft_state.iaft.tau_interpolate(gloc_t_arr, dmft_state.iaft.beta, 'f')[0]
+            g_beta_half = -dmft_state.iaft.tau_interpolate(gloc_t_arr, dmft_state.iaft.beta/2, 'f')[0]
             Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
             if coqui_mpi.root():
-                print("Hubbard-Kanamori interaction at bare and zero frequency")
-                print("--------------------------------------------------------")
+                print("Bare/static orbital-averaged interactions for the impurity")
+                print("----------------------------------------------------------")
                 print(f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
                 print(f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
                 print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
                 print(f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
 
+                print("Spectral weight proxy at Fermi level: -G_loc(tau=beta/2)")
+                print("---------------------------------------------------------")
+                print(f"  Spin up:   {np.diag(g_beta_half[0]).real}")
+                print(f"  Spin down: {np.diag(g_beta_half[1]).real}\n")
+
                 print("Local densities ")
                 print("-------------------")
-                print(f"Total: {Input['density']:.4f}")
-                print(f"Spin up: {np.diag(dm[0]).real}")
-                print(f"Spin down: {np.diag(dm[1]).real}\n")
+                print(f"  Total: {Input['density']:.4f}")
+                print(f"  Spin up: {np.diag(dm[0]).real}")
+                print(f"  Spin down: {np.diag(dm[1]).real}\n")
 
             dmft_state.save_impurity_inputs(solver_chkpt_h5, imp_index)
 
@@ -468,6 +473,8 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
             coqui_dmft.fit_impurity_results_boson(
                 Res, dmft_state.iaft, solver_params.get("causal_projection"))
 
+            _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft)
+
             # GW double counting contributions (current implementation uses Gloc/Wloc inputs)
             Res.update(
                 coqui_dmft.solve_gw_dc(
@@ -480,7 +487,7 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
 
             # mixing impurity and dc solutions to facilitate convergence
             dmft_state.damp_impurity_results(
-                solver_chkpt_h5, mixing=iterative_params.get('mixing', 0.7), impurity_indices=[imp_index], 
+                solver_chkpt_h5, mixing=iterative_params.get('mixing', 0.7), impurity_indices=[imp_index],
                 mix_in_first_iter=iterative_params.get('mix_in_first_iter', False)
             )
 
@@ -572,8 +579,8 @@ def _edmft_loop_fixed_gloc_and_wloc(
                 dmft_state.iaft.beta, 'f')[0]
             Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
             if coqui_mpi.root():
-                print("Hubbard-Kanamori interaction at bare and zero frequency")
-                print("--------------------------------------------------------")
+                print("Bare/static orbital-averaged interactions for the impurity")
+                print("----------------------------------------------------------")
                 print(f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
                 print(f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
                 print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
@@ -623,6 +630,8 @@ def _edmft_loop_fixed_gloc_and_wloc(
             coqui_dmft.fit_impurity_results_boson(
                 Res, dmft_state.iaft, solver_params.get("causal_projection"))
 
+            _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft)
+
             # GW double counting contributions
             Res.update(
                 coqui_dmft.solve_gw_dc(
@@ -635,7 +644,7 @@ def _edmft_loop_fixed_gloc_and_wloc(
 
             # mixing impurity and dc solutions to facilitate convergence
             dmft_state.damp_impurity_results(
-                solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7), impurity_indices=[imp_index], 
+                solver_chkpt_h5, mixing = iterative_params.get('mixing', 0.7), impurity_indices=[imp_index],
                 mix_in_first_iter=iterative_params.get('mix_in_first_iter', True)
             )
 
@@ -765,6 +774,39 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
     return solver_results
 
 
+def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft):
+    if not coqui_mpi.root():
+        return
+
+    gf_struct = Res['gf_struct']
+
+    # |Gloc - Gimp| in Matsubara frequency (all frequencies and low-frequency only)
+    gloc_t_mat = coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], gf_struct)
+    gloc_iw    = iaft.tau_to_w(gloc_t_mat, stats='f')
+    gimp_iw    = coqui_dmft.blk_arr_to_arr(Res['G_iw_data'], gf_struct)
+    diff_g     = np.max(np.abs(gloc_iw - gimp_iw))
+
+    # Low-frequency mask: keep |n| <= n_max/2, i.e. the inner half of [-n_max, n_max]
+    wn_abs  = np.abs(iaft.wn_mesh(stats='f'))
+    lf_mask = wn_abs <= wn_abs.max() // 2
+    diff_g_lf = np.max(np.abs((gloc_iw - gimp_iw)[lf_mask]))
+
+    # |Wloc - Wimp| restricted to density-density components
+    wloc_iw = iaft.tau_to_w_phsym(Input['Wloc_t'], stats='b')
+    wloc_dd = coqui_dmft.product_basis_to_density_density(wloc_iw)
+    wimp_raw = Res['W_iw_data'][0]
+    if wimp_raw.ndim == 3:
+        wimp_dd = wimp_raw
+    else:
+        wimp_dd = coqui_dmft.product_basis_to_density_density(wimp_raw)
+    diff_w = np.max(np.abs(wloc_dd - wimp_dd))
+
+    print(f"EDMFT self-consistency check for impurity {imp_index}:")
+    print(f"  |Gloc_iw - Gimp_iw|                   = {diff_g}")
+    print(f"  |Gloc_iw - Gimp_iw| (@ low-fequency)  = {diff_g_lf}")
+    print(f"  |Wloc_iw - Wimp_iw| (density-density) = {diff_w}\n")
+
+
 def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=None, params: dict):
     """
     Re-solve EDMFT impurity problems from a saved checkpoint.
@@ -837,8 +879,8 @@ def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=Non
             iaft.beta, 'f')[0]
         Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
         if coqui_mpi.root():
-            print("Hubbard-Kanamori interaction at bare and zero frequency")
-            print("--------------------------------------------------------")
+            print("Bare/static orbital-averaged interactions for the impurity")
+            print("----------------------------------------------------------")
             print(f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
             print(f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
             print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")

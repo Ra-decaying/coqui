@@ -32,8 +32,8 @@ def post_process(solver, **post_proc_params):
 
 def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
                     truncate_uchi=False):
-    mpi.report("Charge susceptibility is measured for a impurity with dynamic interactions")
-    mpi.report('--> Post-processing the density-density susceptibility to obtain the impurity polarizability.\n')
+    #mpi.report("Charge susceptibility is measured for a impurity with dynamic interactions")
+    #mpi.report('--> Post-processing the density-density susceptibility to obtain the impurity polarizability.\n')
 
     n_color = 0
     for _, blk_dim in solver.gf_struct:
@@ -68,11 +68,11 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
     densities = np.zeros(n_color, dtype=float)
     for c1 in range(n_color):
         densities[c1] = solver.results.densities[block_name[c1]][index_in_block[c1]]
-    mpi.report(f"Average of time-dependent occupations: {densities}")
+    #mpi.report(f"Average of time-dependent occupations: {densities}")
 
-    mpi.report("Subtracting the constant component, and then symmetrizing the density-density susceptibility: \n"
-               "  1. nn(t).imag = 0.0\n"
-               "  2. nn(i, j) = nn(j, i)\n")
+    #mpi.report("Subtracting the constant component, and then symmetrizing the density-density susceptibility: \n"
+    #           "  1. nn(t).imag = 0.0\n"
+    #           "  2. nn(i, j) = nn(j, i)\n")
 
     for c1, c2 in product(range(n_color), repeat=2):
         iw_idx = np.array([ iw.index for iw in nn_iw_dlr[c1,c2].mesh ])
@@ -246,10 +246,10 @@ def post_process_sigma(solver, **post_proc_params):
 
     # Compute Self-energy
     if solver.results.F_tau is None:
-        mpi.report("F(tau) is not measured -> Compute the self-energy via the Dyson equation.\n")
+        mpi.report("Compute the self-energy via the Dyson equation.\n")
         solver.Sigma_iw = inverse(solver.G0_iw) - inverse(solver.G_iw)
     else:
-        mpi.report("F(tau) is measured -> Compute the self-energy via the improved estimator.\n")
+        mpi.report("Compute the self-energy via the improved estimator.\n")
         F_iw = solver.G_iw.copy()
         F_iw << 0.0
         F_known_moments = make_zero_tail(F_iw, n_moments=1)
@@ -267,7 +267,6 @@ def post_process_sigma(solver, **post_proc_params):
         solver.Sigma_iw << modest.symmetrize(solver.Sigma_iw, post_proc_params['degenerate_blk'])
 
     if post_proc_params['perform_tail_fit']:
-        # tail fitting for the self-energy 
         solver.Sigma_iw = tail_fit(
             solver.Sigma_iw,
             fit_min_n=post_proc_params['fit_min_n'],
@@ -303,16 +302,25 @@ def post_process_sigma(solver, **post_proc_params):
         solver.Sigma_iw[blk] = solver.Sigma_iw[blk] - sigma_infty_value
 
     
-def tail_fit(Sigma_iw, 
-             fit_min_n=None, fit_max_n=None, fit_min_w=None, fit_max_w=None, 
+def tail_fit(Sigma_iw,
+             fit_min_n=None, fit_max_n=None, fit_min_w=None, fit_max_w=None,
              fit_max_moment=None, fit_known_moments=None):
 
-    # Define default tail quantities
-    if fit_min_w is not None: fit_min_n = int(0.5*(fit_min_w*Sigma_iw.mesh.beta/np.pi - 1.0))
-    if fit_max_w is not None: fit_max_n = int(0.5*(fit_max_w*Sigma_iw.mesh.beta/np.pi - 1.0))
+    # Resolve defaults
+    beta = Sigma_iw.mesh.beta
+    if fit_min_w is not None: fit_min_n = int(0.5*(fit_min_w*beta/np.pi - 1.0))
+    if fit_max_w is not None: fit_max_n = int(0.5*(fit_max_w*beta/np.pi - 1.0))
     if fit_min_n is None: fit_min_n = int(0.8*len(Sigma_iw.mesh)/2)
     if fit_max_n is None: fit_max_n = int(len(Sigma_iw.mesh)/2)
     if fit_max_moment is None: fit_max_moment = 3
+
+    w_min = (2*fit_min_n + 1) * np.pi / beta
+    w_max = (2*fit_max_n + 1) * np.pi / beta
+    mpi.report("Tail fit for Σ(iω):")
+    mpi.report(f"  fit window : ω = [{w_min:.4f}, {w_max:.4f}] a.u.")
+    mpi.report(f"  max moment : {fit_max_moment}")
+    mpi.report(f"  known moments provided : {'yes' if fit_known_moments is not None else 'no (using zero)'}")
+    mpi.report("")
 
     if fit_known_moments is None:
         fit_known_moments = {}
