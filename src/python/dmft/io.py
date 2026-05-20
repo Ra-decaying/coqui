@@ -22,6 +22,7 @@ from copy import deepcopy
 import triqs.utility.mpi as mpi
 from h5 import HDFArchive
 import numpy as np
+from coqui import app_log
 
 
 def convert_gw_edmft_params(gw_edmft_params: dict):
@@ -180,17 +181,17 @@ def print_title_box(name, box_width=19):
     top_border = f"{top_left}{horizontal * (box_width - 2)}{top_right}"
     bottom_border = f"{bottom_left}{horizontal * (box_width - 2)}{bottom_right}"
 
-    mpi.report("\n"+top_border)
-    mpi.report(title)
-    mpi.report(bottom_border+"\n")
+    app_log(1, "\n"+top_border)
+    app_log(1, title)
+    app_log(1, bottom_border+"\n")
 
 
 def print_degenerate_blks(deg_blks, gf_struct):
-    mpi.report(f"Degenerate blocks for impurity")
-    mpi.report("-------------------------------")
+    app_log(1, f"Degenerate blocks for impurity")
+    app_log(1, "-------------------------------")
     for i, blks in enumerate(deg_blks):
         subset = [gf_struct[b] for b in blks]
-        mpi.report(f"Shell {i}: {subset}\n")
+        app_log(1, f"Shell {i}: {subset}\n")
 
 
 def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impurity_index=-1, iteration=-1):
@@ -350,7 +351,7 @@ def read_impurity_chkpt(h5_filename, iteration=-1, *, read="both", impurity_indi
         - "inputs"  → list of solver_inputs
         - "both"    → (solver_results, solver_inputs)
     """
-    mpi.report(f"Reading impurity checkpoint file: {h5_filename}")
+    app_log(2, f"Reading impurity checkpoint file: {h5_filename}")
     assert read in {"results", "inputs", "both"}, \
         "Argument 'read' must be one of {'results', 'inputs', 'both'}."
     solver_results, solver_inputs = [], []
@@ -376,7 +377,7 @@ def read_impurity_chkpt(h5_filename, iteration=-1, *, read="both", impurity_indi
                 impurity_indices = np.arange(num_impurities)
             else:
                 assert isinstance(impurity_indices, list), "impurity_indices must be a list of integers."
-            mpi.report(f"impurity list = {impurity_indices}\n")
+            app_log(2, f"impurity list = {impurity_indices}\n")
 
             for i in impurity_indices:
                 if read in {"results", "both"}:
@@ -461,7 +462,7 @@ def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1
                 _ = ar[f'dmft/iter{iteration}/impurity_0/results']
             except KeyError:
                 # automatically go to the previous iteration if the current one does not exist
-                mpi.report(
+                app_log(1, 
                     f"[Warning] Path 'dmft/iter{iteration}/impurity_0/results' "
                     f"not found in checkpoint file '{h5_filename}'.\n"
                     f"→ Falling back to the previous iteration: iter{iteration-1}.\n"
@@ -474,7 +475,7 @@ def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1
                     f"Ensure the checkpoint file is complete and not corrupted."
                 )
 
-            mpi.report(
+            app_log(1, 
                 f"Loading impurity results from checkpoint '{h5_filename}' "
                 f"at DMFT iteration {iteration}.\n"
             )

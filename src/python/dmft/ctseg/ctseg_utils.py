@@ -151,7 +151,7 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
         UX = check_spectrum(UX, truncation=truncate_uchi)
         denom = UX - ones
         cond = np.linalg.cond(denom)
-        if cond > 20: 
+        if cond > 100: 
             mpi.report(f"WARNING: Large condition number for [U(w) * Chi(w) - I] = {cond} at n = {iwn.index}.")        
         Pi_iw_pb[iwn] = nn_iw_pb[iwn] @ np.linalg.pinv(denom)
         # explicit set Pi(iw).imag = 0.0

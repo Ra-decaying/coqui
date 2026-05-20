@@ -21,12 +21,12 @@ limitations under the License.
 """
 Utility functions for impurity chemical potential
 """
-import triqs.utility.mpi as mpi
 import numpy as np
 
 from triqs.gf import inverse, iOmega_n
 from triqs.operators.util.extractors import block_matrix_from_op
 import coqui.dmft as coqui_dmft
+from coqui import app_log
 
 
 def compute_nelec(h0, delta_iw, sigma_infty, sigma_iw, mu):
@@ -38,7 +38,7 @@ def compute_nelec(h0, delta_iw, sigma_infty, sigma_iw, mu):
     for blk_name, occ in g_iw.density().items():
         nelec += np.diag(occ).sum()
     if nelec.imag >= 1e-6:
-        mpi.report(f"WARNING: nelec.imag = {nelec.imag} >= 1e-6")
+        app_log(1, f"WARNING: nelec.imag = {nelec.imag} >= 1e-6")
 
     return nelec.real
 
@@ -62,24 +62,24 @@ def compute_mu_impurity(nelec_target, compute_nelec_fcn, tolerance=1e-2, mu0=0):
     nelec = compute_nelec_fcn(mu=mu0)
 
     # Header
-    mpi.report("")
-    mpi.report("Impurity chemical potential search")
-    mpi.report("----------------------------------")
-    mpi.report("")
-    mpi.report(f"  target numer of electrons (nelec) = {nelec_target:.6f}")
-    mpi.report(f"  tolerance                         = {tolerance}")
-    mpi.report("")
-    mpi.report(f"  {'iter':<4}  {'mu_imp':>8}  {'nelec':>11}  {'|nelec-target|':>20}")
-    mpi.report(f"  {'-'*48}")
+    app_log(1, "")
+    app_log(1, "Impurity chemical potential search")
+    app_log(1, " ----------------------------------")
+    app_log(1, "")
+    app_log(1, f"  target numer of electrons (nelec) = {nelec_target:.6f}")
+    app_log(1, f"  tolerance                         = {tolerance}")
+    app_log(1, "")
+    app_log(1, f"  {'iter':<4}  {'mu_imp':>8}  {'nelec':>11}  {'|nelec-target|':>20}")
+    app_log(1, f"  {'-'*48}")
 
     def _log_iter(i, mu_val, nelec_val):
-        mpi.report(f"  {i:<4d}  {mu_val:10.6f}  {nelec_val:12.6f}  {abs(nelec_val-nelec_target):12.6f}")
+        app_log(1, f"  {i:<4d}  {mu_val:10.6f}  {nelec_val:12.6f}  {abs(nelec_val-nelec_target):12.6f}")
 
     it = 0
     _log_iter(it, mu0, nelec)
     if abs(nelec - nelec_target) < tolerance:
-        mpi.report("")
-        mpi.report(f"  converged: mu_imp = {mu0:.6f}, nelec = {nelec:.6f}")
+        app_log(1, "")
+        app_log(1, f"  converged: mu_imp = {mu0:.6f}, nelec = {nelec:.6f}")
         return mu0, nelec
 
     if nelec >= nelec_target:
@@ -117,6 +117,6 @@ def compute_mu_impurity(nelec_target, compute_nelec_fcn, tolerance=1e-2, mu0=0):
         else:
             mu1 = mu_mid
 
-    mpi.report("")
-    mpi.report(f"  converged: mu_imp = {mu:.6f}, nelec = {nelec:.6f}")
+    app_log(1, "")
+    app_log(1, f"  converged: mu_imp = {mu:.6f}, nelec = {nelec:.6f}")
     return mu, nelec

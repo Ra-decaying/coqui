@@ -24,6 +24,7 @@ from scipy.constants import physical_constants
 Hartree_eV = physical_constants['Hartree energy in eV'][0]
 import matplotlib.pyplot as plt
 from h5 import HDFArchive
+from coqui import app_log, app_warning
 
 
 def band_plot(ax, coqui_h5, iteration=-1,
@@ -95,18 +96,17 @@ def band_plot(ax, coqui_h5, iteration=-1,
     E_ska -= mu
     ns, nkpts, nbnd = E_ska.shape
     if verbal:
-        print("  Plotting QP Band Structure")
-        print("  --------------------------")
-        print("  CoQui h5           = {}".format(coqui_h5))
+        app_log(1, "  Plotting QP Band Structure")
+        app_log(1, "  --------------------------")
+        app_log(1, "  CoQui h5           = {}".format(coqui_h5))
         if iteration == 0:
-            print("  Iteration          = {} (i.e. DFT bands)".format(iteration))
+            app_log(1, "  Iteration          = {} (i.e. DFT bands)".format(iteration))
         else:
-            print("  Iteration          = {}".format(iteration))
-        print("  Number of spins    = {}".format(ns))
-        print("  Number of k-points = {}".format(nkpts))
-        print("  Number of bands    = {}".format(nbnd))
-        print(f"  Chemical potential = {mu:.3f} (eV)\n")
-        sys.stdout.flush()
+            app_log(1, "  Iteration          = {}".format(iteration))
+        app_log(1, "  Number of spins    = {}".format(ns))
+        app_log(1, "  Number of k-points = {}".format(nkpts))
+        app_log(1, "  Number of bands    = {}".format(nbnd))
+        app_log(1, f"  Chemical potential = {mu:.3f} (eV)\n")
 
     for i in range(nbnd):
         ax.plot(np.arange(nkpts), E_ska[0, :, i],
@@ -191,20 +191,19 @@ def spectral_plot(ax, coqui_h5, calc_type, iteration=-1, orb_list=None,
 
     nw, ns, nkpts, nbnd = G_wska.shape
     if verbal:
-        print("  Plotting spectral function")
-        print("  --------------------------")
-        print("  CoQuí h5                   = {}".format(coqui_h5))
-        print("  Calculation type           = {}".format(calc_type))
-        print("  Iteration                  = {}".format(iteration))
-        print("  Number of real frequencies = {}".format(nw))
-        print("  Number of spins            = {}".format(ns))
-        print("  Number of k-points         = {}".format(nkpts))
+        app_log(1, "  Plotting spectral function")
+        app_log(1, "  --------------------------")
+        app_log(1, "  CoQuí h5                   = {}".format(coqui_h5))
+        app_log(1, "  Calculation type           = {}".format(calc_type))
+        app_log(1, "  Iteration                  = {}".format(iteration))
+        app_log(1, "  Number of real frequencies = {}".format(nw))
+        app_log(1, "  Number of spins            = {}".format(ns))
+        app_log(1, "  Number of k-points         = {}".format(nkpts))
         if orb_list is None:
-            print("  Number of bands            = {}".format(nbnd))
+            app_log(1, "  Number of bands            = {}".format(nbnd))
         else:
-            print("  Orbital list               = {}".format(orb_list))
-        print("  Abs. A(k,w)                = {}".format(abs_A))
-        sys.stdout.flush()
+            app_log(1, "  Orbital list               = {}".format(orb_list))
+        app_log(1, "  Abs. A(k,w)                = {}".format(abs_A))
 
     spin_factor = 2.0 if ns == 1 else 1.0
     if orb_list is None:
@@ -267,17 +266,16 @@ def _spectral_plot_maxent(ax, coqui_h5, iteration=-1, eta_for_A=0.001,
     nw, ns, nbnd = Simp_wsa.shape
     nkpts = kpts.shape[0]
     if verbal:
-        print("  Plotting spectral function")
-        print("  --------------------------")
-        print("  CoQuí h5                   = {}".format(coqui_h5))
-        print("  Calculation type           = dmft w/ maxent")
-        print("  Iteration                  = {}".format(iteration))
-        print("  Number of real frequencies = {}".format(nw))
-        print("  Number of spins            = {}".format(ns))
-        print("  Number of k-points         = {}".format(nkpts))
-        print("  Number of bands            = {}".format(nbnd))
-        print("  Abs. A(k,w)                = {}".format(abs_A))
-        sys.stdout.flush()
+        app_log(1, "  Plotting spectral function")
+        app_log(1, "  --------------------------")
+        app_log(1, "  CoQuí h5                   = {}".format(coqui_h5))
+        app_log(1, "  Calculation type           = dmft w/ maxent")
+        app_log(1, "  Iteration                  = {}".format(iteration))
+        app_log(1, "  Number of real frequencies = {}".format(nw))
+        app_log(1, "  Number of spins            = {}".format(ns))
+        app_log(1, "  Number of k-points         = {}".format(nkpts))
+        app_log(1, "  Number of bands            = {}".format(nbnd))
+        app_log(1, "  Abs. A(k,w)                = {}".format(abs_A))
 
     spin_factor = 2.0 if ns == 1 else 1.0
     A_wska = spec.spectral_kpath(coqui_h5, iteration, Simp_wsa, w_mesh, eta=eta_for_A, verbal=verbal)
@@ -299,9 +297,9 @@ def _spectral_plot(ax, A_wk, w_mesh, kpt_label, label_idx,
 
     neg_value = np.min(A_wk)
     if abs(neg_value) > 1e-3 and not abs_A:
-        print(f"[WARNING] The spectral has negative values with maximum ~ {neg_value:.3f}. \n"
-              f"          Please double check your AC setup. Otherwise, you can set abs_A=True \n"
-              f"          to plot |A(k,w)| and compare it w/ A(k,w). \n")
+        app_log(f"[WARNING] The spectral has negative values with maximum ~ {neg_value:.3f}. \n"
+                f"          Please double check your AC setup. Otherwise, you can set abs_A=True \n"
+                f"          to plot |A(k,w)| and compare it w/ A(k,w).")
 
     cax = ax.pcolormesh(np.arange(nkpts), w_mesh*Hartree_eV,
                         np.abs(A_wk)/Hartree_eV if abs_A else A_wk/Hartree_eV,

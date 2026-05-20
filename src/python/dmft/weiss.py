@@ -21,12 +21,12 @@ limitations under the License.
 """
 Utility functions for EDMFT.
 """
-import triqs.utility.mpi as mpi
 from h5 import HDFArchive
 import numpy as np
 import itertools
 
 import coqui.dmft as coqui_dmft
+from coqui import app_log
 
 
 def make_h5_sumk_format(mlwf_h5, orb_list=None):
@@ -275,10 +275,8 @@ def extract_h0_and_delta(g_weiss_wsab, iaft, high_freq_multiplier=10, make_hermi
                 delta_estimate[n_neg, s] = delta_estimate[n_pos, s].conj().T
 
     # 4) checking the leakage of the resulting Δ(iω)
-    if mpi.is_master_node():
-        iaft.check_leakage(delta_estimate, 'f', 'delta', w_input=True)
-    mpi.report("")
-    mpi.barrier()
+    iaft.check_leakage(delta_estimate, 'f', 'delta', w_input=True)
+    app_log(1, "")
 
     return t_sIab_estimate, delta_estimate
 
@@ -294,12 +292,12 @@ def init_weiss_fields_w(*, iaft, local_gf, init_imp_results="dc", density_only=F
 
     # bosonic first
     if init_imp_results == "dc":
-        mpi.report("Evaluate the bosonic Weiss field at the RPA level.")
+        app_log(2, "Evaluate the bosonic Weiss field at the RPA level.")
         pi_imp_w = iaft.tau_to_w_phsym(eval_pi_rpa(local_gf["Gloc_t"], density_only=density_only), stats='b')
         if len(pi_imp_w.shape) == 3:
             pi_imp_w = density_density_to_product_basis(pi_imp_w)
     else:
-        mpi.report("Evaluate the bosonic Weiss fields using zero impurity polarizability.")
+        app_log(2, "Evaluate the bosonic Weiss fields using zero impurity polarizability.")
         pi_imp_w = None
 
     u_weiss_w = compute_weiss_boson_w(
@@ -307,14 +305,12 @@ def init_weiss_fields_w(*, iaft, local_gf, init_imp_results="dc", density_only=F
         iaft.tau_to_w_phsym(local_gf["Wloc_t"], stats='b'),
         pi_imp_w
     )
-    if mpi.is_master_node():
-        iaft.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
-    mpi.report("")
-    mpi.barrier()
+    iaft.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
+    app_log(2, "")
 
     # fermionic
     if init_imp_results == "dc":
-        mpi.report("Evaluate the fermionic Weiss field using the local GW self-energy.")
+        app_log(2, "Evaluate the fermionic Weiss field using the local GW self-energy.")
         vhf_imp = eval_hf_dc(
             -iaft.tau_interpolate(local_gf["Gloc_t"], iaft.beta, stats='f')[0],
             local_gf["Vloc"],
@@ -322,17 +318,15 @@ def init_weiss_fields_w(*, iaft, local_gf, init_imp_results="dc", density_only=F
         )
         sigma_imp_w = iaft.tau_to_w(eval_gw_dc_t(local_gf["Gloc_t"], local_gf["Wloc_t"]), stats='f')
     else:
-        mpi.report("Evaluate the fermionic Weiss field using zero impurity self-energy.")
+        app_log(2, "Evaluate the fermionic Weiss field using zero impurity self-energy.")
         vhf_imp, sigma_imp_w = None, None
 
     g_weiss_w = compute_weiss_fermion_w(
         iaft.tau_to_w(local_gf["Gloc_t"], stats='f'),
         vhf_imp, sigma_imp_w
     )
-    if mpi.is_master_node():
-        iaft.check_leakage(g_weiss_w, 'f', 'g_weiss', w_input=True)
-    mpi.report("")
-    mpi.barrier()
+    iaft.check_leakage(g_weiss_w, 'f', 'g_weiss', w_input=True)
+    app_log(2, "")
 
     return g_weiss_w, u_weiss_w
 
@@ -349,7 +343,7 @@ def compute_weiss_fields_w(*, iaft, local_gf, impurity_selfenergies, density_onl
         raise ValueError(f"Missing keys in impurity_selfenergies: {missing}")
 
     # bosonic first 
-    mpi.report("Evaluate the bosonic Weiss field using the provided impurity polarizability.")
+    app_log(2, "Evaluate the bosonic Weiss field using the provided impurity polarizability.")
     pi_imp_w = impurity_selfenergies["Pi_imp_w"]
     # check if pi_imp_w contains only density-density
     if len(pi_imp_w.shape) == 3:
@@ -362,13 +356,11 @@ def compute_weiss_fields_w(*, iaft, local_gf, impurity_selfenergies, density_onl
         iaft.tau_to_w_phsym(local_gf["Wloc_t"], stats='b'),
         pi_imp_w_pb
     )
-    if mpi.is_master_node():
-        iaft.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
-    mpi.report("")
-    mpi.barrier()
+    iaft.check_leakage_phsym(u_weiss_w, 'b', 'u_weiss', w_input=True)
+    app_log(2, "")
 
     # fermionic 
-    mpi.report("Evaluate the fermionic Weiss field using the provided impurity self-energy.")
+    app_log(2, "Evaluate the fermionic Weiss field using the provided impurity self-energy.")
     vhf_imp = impurity_selfenergies["Vhf_imp"]
     sigma_imp_w = impurity_selfenergies["Sigma_imp_w"]
 
@@ -377,10 +369,8 @@ def compute_weiss_fields_w(*, iaft, local_gf, impurity_selfenergies, density_onl
         vhf_imp, sigma_imp_w
     )
 
-    if mpi.is_master_node():
-        iaft.check_leakage(g_weiss_w, 'f', 'g_weiss', w_input=True)
-    mpi.report("")
-    mpi.barrier()
+    iaft.check_leakage(g_weiss_w, 'f', 'g_weiss', w_input=True)
+    app_log(2, "")
 
     return g_weiss_w, u_weiss_w
 
@@ -419,8 +409,8 @@ def compute_weiss_boson_w(V_abcd, W_wabcd, Pi_wabcd):
     for n, W in enumerate(Wfull_pb):
         X = np.eye(nbnd2) + Pi_pb[n] @ W
         cond = np.linalg.cond(X)
-        if cond > 20: 
-            mpi.report(f"WARNING: Large condition number for [I + Pi(w)*W(w)] = {cond} at n = {n}.")    
+        if cond > 100: 
+            app_log(1, f"WARNING: Large condition number for [I + Pi(w)*W(w)] = {cond} at n = {n}.")    
         U_pb[n] = W @ np.linalg.pinv(X)
 
     return U_pb.reshape(W_wabcd.shape) - V_abcd
@@ -591,13 +581,13 @@ def hubbard_kanamori_coulomb(V_abcd):
     J_spin /= (n_orb * (n_orb - 1)) / 2
 
     if U.imag > 1e-8:
-        mpi.report(f"Warning: complex value encountered in intra-orbital U.imag = {U.imag}.")
+        app_log(1, f"Warning: complex value encountered in intra-orbital U.imag = {U.imag}.")
     if Up.imag > 1e-8:
-        mpi.report(f"Warning: complex value encountered in inter-orbital U.imag = {Up.imag}.")
+        app_log(1, f"Warning: complex value encountered in inter-orbital U.imag = {Up.imag}.")
     if J_pair.imag > 1e-8:
-        mpi.report(f"Warning: complex value encountered in pair-hopping J.imag = {J_pair.imag}.")
+        app_log(1, f"Warning: complex value encountered in pair-hopping J.imag = {J_pair.imag}.")
     if J_spin.imag > 1e-8:
-        mpi.report(f"Warning: complex value encountered in spin-flip J.imag = {J_spin.imag}.")
+        app_log(1, f"Warning: complex value encountered in spin-flip J.imag = {J_spin.imag}.")
 
     return U.real, Up.real, J_pair.real, J_spin.real
 

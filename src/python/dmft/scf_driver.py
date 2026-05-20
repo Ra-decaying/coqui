@@ -221,19 +221,17 @@ def run_gw_edmft(h_int, embedding, inner_loop_alg=1, *, proj_info=None, params: 
         params.pop('niter'), params.pop('gw_iter_per_loop'), params.pop('edmft_iter_per_loop')
     )
 
-    if coqui_mpi.root():
-        # http://patorjk.com/software/taag/#p=display&f=Calvin+S&t=COQUI+GW%2BEDMFT&x=none&v=4&h=4&w=80&we=false
-        print("╔═╗╔═╗╔═╗ ╦ ╦╦  ╔═╗┬ ┬╔═╗┌┬┐┌┬┐┌─┐┌┬┐\n"
-              "║  ║ ║║═╬╗║ ║║  ║ ╦│││║╣  │││││├┤  │ \n"
-              "╚═╝╚═╝╚═╝╚╚═╝╩  ╚═╝└┴┘╚═╝─┴┘┴ ┴└   ┴ \n")
-        print(f"  Total GW+EDMFT cycles (niter)       = {niter}")
-        print(f"  GW iterations per GW+EDMFT cycle    = {gw_iter_per_loop}")
-        print(f"  EDMFT iterations per GW+EDMFT cycle = {edmft_iter_per_loop}")
-        print(f"    - Fix Gloc and Wloc during EDMFT iterations = {inner_loop_alg==2}\n")
+    # http://patorjk.com/software/taag/#p=display&f=Calvin+S&t=COQUI+GW%2BEDMFT&x=none&v=4&h=4&w=80&we=false
+    coqui.app_log(1, "╔═╗╔═╗╔═╗ ╦ ╦╦  ╔═╗┬ ┬╔═╗┌┬┐┌┬┐┌─┐┌┬┐\n"
+                     "║  ║ ║║═╬╗║ ║║  ║ ╦│││║╣  │││││├┤  │ \n"
+                     "╚═╝╚═╝╚═╝╚╚═╝╩  ╚═╝└┴┘╚═╝─┴┘┴ ┴└   ┴ \n")
+    coqui.app_log(1, f"  Total GW+EDMFT cycles (niter)       = {niter}")
+    coqui.app_log(1, f"  GW iterations per GW+EDMFT cycle    = {gw_iter_per_loop}")
+    coqui.app_log(1, f"  EDMFT iterations per GW+EDMFT cycle = {edmft_iter_per_loop}")
+    coqui.app_log(1, f"    - Fix Gloc and Wloc during EDMFT iterations = {inner_loop_alg==2}\n")
 
     embedding_2e = embedding.make_2particle.make_spinless
-    if coqui_mpi.root():
-        print(embedding.description(True))
+    coqui.app_log(2, embedding.description(True))
 
     try:
         gw_params        = params.pop('gw', None)
@@ -416,24 +414,23 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
             dm = -dmft_state.iaft.tau_interpolate(gloc_t_arr, dmft_state.iaft.beta, 'f')[0]
             g_beta_half = -dmft_state.iaft.tau_interpolate(gloc_t_arr, dmft_state.iaft.beta/2, 'f')[0]
             Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
-            if coqui_mpi.root():
-                print("Bare/static orbital-averaged interactions for the impurity")
-                print("----------------------------------------------------------")
-                print(f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
-                print(f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
-                print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
-                print(f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
+            coqui.app_log(1, "Bare/static orbital-averaged interactions for the impurity")
+            coqui.app_log(1, "----------------------------------------------------------")
+            coqui.app_log(1, f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
+            coqui.app_log(1, f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
+            coqui.app_log(1, f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
+            coqui.app_log(1, f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
 
-                print("Spectral weight proxy at Fermi level: -G_loc(tau=beta/2)")
-                print("---------------------------------------------------------")
-                print(f"  Spin up:   {np.diag(g_beta_half[0]).real}")
-                print(f"  Spin down: {np.diag(g_beta_half[1]).real}\n")
+            coqui.app_log(1, "Spectral weight proxy at Fermi level: -G_loc(tau=beta/2)")
+            coqui.app_log(1, "---------------------------------------------------------")
+            coqui.app_log(1, f"  Spin up:   {np.diag(g_beta_half[0]).real}")
+            coqui.app_log(1, f"  Spin down: {np.diag(g_beta_half[1]).real}\n")
 
-                print("Local densities ")
-                print("-------------------")
-                print(f"  Total: {Input['density']:.4f}")
-                print(f"  Spin up: {np.diag(dm[0]).real}")
-                print(f"  Spin down: {np.diag(dm[1]).real}\n")
+            coqui.app_log(1, "Local densities ")
+            coqui.app_log(1, "-------------------")
+            coqui.app_log(1, f"  Total: {Input['density']:.4f}")
+            coqui.app_log(1, f"  Spin up: {np.diag(dm[0]).real}")
+            coqui.app_log(1, f"  Spin down: {np.diag(dm[1]).real}\n")
 
             dmft_state.save_impurity_inputs(solver_chkpt_h5, imp_index)
 
@@ -448,8 +445,7 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
 
             # Analyze block symmetry
             if solver_params.get('degenerate_blk') is None and solver_params.get('degenerate_blk_thresh'):
-                if coqui_mpi.root():
-                    print("Analyzing block symmetries via the hybridization function...\n")
+                coqui.app_log(2, "Analyzing block symmetries via the hybridization function...\n")
                 # Cache the result so subsequent EDMFT iterations skip re-analysis
                 solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
                     delta_iw, threshold=solver_params['degenerate_blk_thresh']
@@ -578,19 +574,18 @@ def _edmft_loop_fixed_gloc_and_wloc(
                 coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
                 dmft_state.iaft.beta, 'f')[0]
             Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
-            if coqui_mpi.root():
-                print("Bare/static orbital-averaged interactions for the impurity")
-                print("----------------------------------------------------------")
-                print(f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
-                print(f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
-                print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
-                print(f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
+            coqui.app_log(1, "Bare/static orbital-averaged interactions for the impurity")
+            coqui.app_log(1, "----------------------------------------------------------")
+            coqui.app_log(1, f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
+            coqui.app_log(1, f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
+            coqui.app_log(1, f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
+            coqui.app_log(1, f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
 
-                print("Local densities ")
-                print("-------------------")
-                print(f"Total: {Input['density']:.4f}")
-                print(f"Spin up: {np.diag(dm[0]).real}")
-                print(f"Spin down: {np.diag(dm[1]).real}\n")
+            coqui.app_log(1, "Local densities ")
+            coqui.app_log(1, "-------------------")
+            coqui.app_log(1, f"Total: {Input['density']:.4f}")
+            coqui.app_log(1, f"Spin up: {np.diag(dm[0]).real}")
+            coqui.app_log(1, f"Spin down: {np.diag(dm[1]).real}\n")
 
             dmft_state.save_impurity_inputs(solver_chkpt_h5, imp_index)
 
@@ -605,9 +600,8 @@ def _edmft_loop_fixed_gloc_and_wloc(
 
             # Analyze block symmetry
             if solver_params.get('degenerate_blk') is None and solver_params.get('degenerate_blk_thresh'):
-                if coqui_mpi.root():
-                    print("Analyzing block symmetries via the hybridization function...\n")
-                # Cache the result so subsequent EDMFT iterations skip re-analysis 
+                coqui.app_log(2, "Analyzing block symmetries via the hybridization function...\n")
+                # Cache the result so subsequent EDMFT iterations skip re-analysis
                 solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
                     delta_iw, threshold=solver_params['degenerate_blk_thresh']
                 )
@@ -678,9 +672,8 @@ def _compute_weiss_fields(coqui_mpi, imp_results, imp_inputs, solver_params, iaf
             vhf_imp =  imp_results['Sigma_infty']
 
         if imp_inputs['screen_type'] == 'rpa':
-            if coqui_mpi.root():
-                print("screen_type = \"rpa\" -> "
-                      "Set impurity polarizability to RPA for bosonic Weiss field.\n")
+            coqui.app_log(2, "screen_type = \"rpa\" -> "
+                             "Set impurity polarizability to RPA for bosonic Weiss field.\n")
             # eval Pi_dc using the current Gloc
             pi_imp = iaft.tau_to_w_phsym(
                 coqui_dmft.eval_pi_rpa(gloc_t_mat, density_only=True), stats='b'
@@ -767,9 +760,8 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
     for blk_name, occ in solver_results['orbital_occupations'].items():
         imp_density += occ.sum()
 
-    if coqui_mpi.root():
-        print(f"Total impurity densities = {imp_density}")
-        print(f"Convergence of impurity density: {imp_density - target_density}\n")
+    coqui.app_log(1, f"Total impurity densities = {imp_density}")
+    coqui.app_log(1, f"Convergence of impurity density: {imp_density - target_density}\n")
 
     return solver_results
 
@@ -787,8 +779,8 @@ def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft):
     norm_grid = abs(np.linalg.norm(gloc_t - gimp_t, axis=tuple(range(2, gloc_t.ndim))))
     diff_g    = np.max(norm_grid)
     
-    print(f"EDMFT self-consistency check for impurity {imp_index}:")
-    print(f"  |Gloc_tau - Gimp_tau|                   = {diff_g}")
+    coqui.app_log(1, f"EDMFT self-consistency check for impurity {imp_index}:")
+    coqui.app_log(1, f"  |Gloc_tau - Gimp_tau|                   = {diff_g}")
 
     if Input['screen_type'] != 'rpa' and Res['W_iw_data'] is not None:
         # |Wloc - Wimp| restricted to density-density components
@@ -800,7 +792,7 @@ def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft):
             wimp_dd = coqui_dmft.product_basis_to_density_density(wimp_raw)
         diff_w = np.max(np.abs(wloc_dd - wimp_dd))
 
-        print(f"  |Wloc_tau - Wimp_tau| (density-density) = {diff_w}\n")
+        coqui.app_log(1, f"  |Wloc_tau - Wimp_tau| (density-density) = {diff_w}\n")
 
 
 def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=None, params: dict):
@@ -874,19 +866,18 @@ def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=Non
             coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
             iaft.beta, 'f')[0]
         Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
-        if coqui_mpi.root():
-            print("Bare/static orbital-averaged interactions for the impurity")
-            print("----------------------------------------------------------")
-            print(f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
-            print(f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
-            print(f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
-            print(f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
+        coqui.app_log(1, "Bare/static orbital-averaged interactions for the impurity")
+        coqui.app_log(1, "----------------------------------------------------------")
+        coqui.app_log(1, f"  intra-orbital                  = {Ub*Hartree_eV:.4f}, {U*Hartree_eV:.4f} eV")
+        coqui.app_log(1, f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
+        coqui.app_log(1, f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
+        coqui.app_log(1, f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
 
-            print("Local densities ")
-            print("-------------------")
-            print(f"Total: {Input['density']:.4f}")
-            print(f"Spin up: {np.diag(dm[0]).real}")
-            print(f"Spin down: {np.diag(dm[1]).real}\n")
+        coqui.app_log(1, "Local densities ")
+        coqui.app_log(1, "-------------------")
+        coqui.app_log(1, f"Total: {Input['density']:.4f}")
+        coqui.app_log(1, f"Spin up: {np.diag(dm[0]).real}")
+        coqui.app_log(1, f"Spin down: {np.diag(dm[1]).real}\n")
 
         if coqui_mpi.root():
             iaft.check_leakage(Input['delta_iw'], 'f', 'delta', w_input=True)
@@ -906,8 +897,7 @@ def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=Non
 
         # Analyze block symmetry
         if solver_params.get('degenerate_blk') is None and solver_params.get('degenerate_blk_thresh'):
-            if coqui_mpi.root():
-                print("Analyzing block symmetries via the hybridization function...\n")
+            coqui.app_log(2, "Analyzing block symmetries via the hybridization function...\n")
             solver_params['degenerate_blk'] = modest.analyze_degenerate_blocks(
                 delta_iw, threshold=solver_params['degenerate_blk_thresh']
             )

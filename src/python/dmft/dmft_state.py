@@ -27,6 +27,7 @@ from h5 import HDFArchive
 from coqui.utils.imag_axes_ft import IAFT
 from coqui.dmft.weiss import embed_impurities
 import coqui.dmft.io as dmft_io
+from coqui import app_log
 
 """
 Data structure for DMFT state 
@@ -196,7 +197,7 @@ class DMFTState(object):
 
     def load(self, solver_chkpt):
         if not os.path.isfile(solver_chkpt):
-            mpi.report("No solver checkpoint file found. Will skip loading impurity results.\n")
+            app_log(2, "No solver checkpoint file found. Will skip loading impurity results.\n")
             return
 
         # TODO for "each" impurity, load the previous results if existing, otherwise initialize to empty
@@ -230,13 +231,11 @@ class DMFTState(object):
         self.local_sigma_w, self.local_sigma_infty, self.local_pi_w = embed_impurities(
             self.embedding['1e'], self.embedding['2e'], self.solver_results, self.spin_average
         )
-        if mpi.is_master_node():
-            self.iaft.check_leakage(self.local_sigma_w["imp"], stats='f', name='Sigma_imp', w_input=True)
-            self.iaft.check_leakage(self.local_sigma_w["dc"], stats='f', name='Sigma_dc', w_input=True)
-            self.iaft.check_leakage_phsym(self.local_pi_w["imp"], stats='b', name='Pi_imp', w_input=True)
-            self.iaft.check_leakage_phsym(self.local_pi_w["dc"], stats='b', name='Pi_dc', w_input=True)
-            mpi.report("")
-        mpi.barrier()
+        self.iaft.check_leakage(self.local_sigma_w["imp"], stats='f', name='Sigma_imp', w_input=True)
+        self.iaft.check_leakage(self.local_sigma_w["dc"], stats='f', name='Sigma_dc', w_input=True)
+        self.iaft.check_leakage_phsym(self.local_pi_w["imp"], stats='b', name='Pi_imp', w_input=True)
+        self.iaft.check_leakage_phsym(self.local_pi_w["dc"], stats='b', name='Pi_dc', w_input=True)
+        app_log(1, "")
 
 
     def save_impurity_inputs(self, solver_chkpt, impurity_index):
@@ -283,7 +282,7 @@ class DMFTState(object):
                     stats='b'
                 )
             ))
-            mpi.report(f"Max difference in embedded impurity results: \n"
+            app_log(1, f"Max difference in embedded impurity results: \n"
                        f"|Delta Sigma_t|     = {max_diff_sigma_t}, \n"
                        f"|Delta Sigma_infty| = {max_diff_sigma_infty}, \n"
                        f"|Delta Pi_t|        = {max_diff_pi_t}\n")
@@ -292,13 +291,11 @@ class DMFTState(object):
         self.local_sigma_infty = local_sigma_infty
         self.local_pi_w        = local_pi_w
 
-        if mpi.is_master_node():
-            self.iaft.check_leakage(self.local_sigma_w["imp"], stats='f', name='Sigma_imp', w_input=True)
-            self.iaft.check_leakage(self.local_sigma_w["dc"], stats='f', name='Sigma_dc', w_input=True)
-            self.iaft.check_leakage_phsym(self.local_pi_w["imp"], stats='b', name='Pi_imp', w_input=True)
-            self.iaft.check_leakage_phsym(self.local_pi_w["dc"], stats='b', name='Pi_dc', w_input=True)
-            mpi.report("")
-        mpi.barrier()
+        self.iaft.check_leakage(self.local_sigma_w["imp"], stats='f', name='Sigma_imp', w_input=True)
+        self.iaft.check_leakage(self.local_sigma_w["dc"], stats='f', name='Sigma_dc', w_input=True)
+        self.iaft.check_leakage_phsym(self.local_pi_w["imp"], stats='b', name='Pi_imp', w_input=True)
+        self.iaft.check_leakage_phsym(self.local_pi_w["dc"], stats='b', name='Pi_dc', w_input=True)
+        app_log(1, "")
 
 
     def damp_impurity_results(self, solver_chkpt, mixing=0.7, *, impurity_indices=None, 
@@ -311,12 +308,12 @@ class DMFTState(object):
             impurity_indices = np.arange(len(self.solver_results))
 
         if self.iteration == 0 and not mix_in_first_iter: # no damping in the first iteration
-            mpi.report("Skipping damping the impurity results in the first iteration.\n")
+            app_log(1, "Skipping damping the impurity results in the first iteration.\n")
             return
 
         if self.iteration == 0 and mix_in_first_iter:
             # first iteration: mix impurity results with the dc terms in the first iteration 
-            mpi.report(f"Mixing impurity results with DC terms for impurities {impurity_indices}\n")
+            app_log(1, f"Mixing impurity results with DC terms for impurities {impurity_indices}\n")
             for idx, imp_idx in enumerate(impurity_indices):
                 res = self.solver_results[imp_idx]
                 imp_key = ['Sigma_infty', 'Sigma_iw_data', 'Pi_iw_data']
@@ -329,7 +326,7 @@ class DMFTState(object):
                     _mix_into(res[imp], res[dc], mixing)
             return
         
-        mpi.report(f"Mixing impurity results with the previous iteration for impurities {impurity_indices}\n")
+        app_log(2, f"Mixing impurity results with the previous iteration for impurities {impurity_indices}\n")
         solver_results_prev = dmft_io.read_impurity_chkpt(
             solver_chkpt, self.iteration-1, read="results", impurity_indices=impurity_indices
         )

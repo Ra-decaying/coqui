@@ -20,6 +20,7 @@ limitations under the License.
 
 import sys
 import numpy as np
+from coqui._lib.utils_module import app_log, app_warning
 
 
 def set_epsilon(prec_str: str):
@@ -196,8 +197,7 @@ class _IAFTIRAdapter(object):
         self._tau_mesh_b = 2.0 * (self._tau_mesh_b) / self.beta - 1.0
 
         if verbose:
-            print(self)
-            sys.stdout.flush()
+            app_log(1, str(self))
 
     def save(self, h5_grp):
         """
@@ -633,10 +633,10 @@ class _IAFTIRAdapter(object):
         coeff_last = np.max(np.abs(O_lm2_t))
 
         leakage = coeff_last / coeff_first
-        print("IAFT leakage of {}: {}".format(name, leakage))
+        app_log(1, "IAFT leakage of {}: {}".format(name, leakage))
         if leakage >= 1e-5:
-            print("[WARNING] check_leakage: coeff_last/coeff_first = {} >= 1e-5; "
-                  "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))
+            app_log("[WARNING] check_leakage: coeff_last/coeff_first = {} >= 1e-5; "
+                    "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))
         sys.stdout.flush()
 
     def check_leakage_phsym(self, Ot, stats: str, name: str="", w_input: bool=False):
@@ -692,8 +692,8 @@ class _IAFTIRAdapter(object):
         coeff_last = np.max(np.abs(O_lm2_t))
 
         leakage = coeff_last / coeff_first
-        print("IAFT leakage of {}: {}".format(name, leakage))
+        app_log(1, "IAFT leakage of {}: {}".format(name, leakage))
         if leakage >= 1e-5:
-            print("[WARNING] check_leakage_phsym: coeff_last/coeff_first = {} >= 1e-5; "
-                  "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))
+            app_log("[WARNING] check_leakage_phsym: coeff_last/coeff_first = {} >= 1e-5; "
+                    "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))
         sys.stdout.flush()
