@@ -188,8 +188,12 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
     mesh_dlr_idx = np.array([iw.index for iw in Delta_iw.mesh])
     max_dlr_idx = max(abs(mesh_dlr_idx[0]), abs(mesh_dlr_idx[-1]))
 
+    # This is used only in post-processing, and should be large enough to cover the DLR frequencies. 
+    # It should not affect the solver accuracy though (in principle!?). 
     n_iw = solver_interface_params.pop('n_iw', int(1.4*max_dlr_idx))
-    n_tau = solver_interface_params.pop('n_tau', 6*n_iw+1)
+    # Use very extreme default values for high resolution in the measured G(tau)/F(tau). 
+    # This should be fine since all measurements of G(tau)/F(tau) scales very mildly with n_tau (~O(1)!?).  
+    n_tau = solver_interface_params.pop('n_tau', max(500001, int(2*beta*wmax)+1))
     n_tau_bosonic = solver_interface_params.pop('n_tau_bosonic', n_tau)
     solver_interface_params.setdefault('dlr_omega_max', wmax)
     solver_interface_params.setdefault('dlr_epsilon', eps)

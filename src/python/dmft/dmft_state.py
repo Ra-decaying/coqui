@@ -308,12 +308,12 @@ class DMFTState(object):
             impurity_indices = np.arange(len(self.solver_results))
 
         if self.iteration == 0 and not mix_in_first_iter: # no damping in the first iteration
-            app_log(1, "Skipping damping the impurity results in the first iteration.\n")
+            app_log(2, "Skipping damping the impurity results in the first iteration.\n")
             return
 
         if self.iteration == 0 and mix_in_first_iter:
             # first iteration: mix impurity results with the dc terms in the first iteration 
-            app_log(1, f"Mixing impurity results with DC terms for impurities {impurity_indices}\n")
+            app_log(2, f"Mixing impurity results with DC terms for impurities {impurity_indices}\n")
             for idx, imp_idx in enumerate(impurity_indices):
                 res = self.solver_results[imp_idx]
                 imp_key = ['Sigma_infty', 'Sigma_iw_data', 'Pi_iw_data']

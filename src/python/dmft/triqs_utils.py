@@ -368,7 +368,6 @@ def gf_dlr_to_ir(gf_dlr, iaft):
     stats = 'b' if gf_dlr.mesh.statistic == 'Boson' else 'f'
     ir_idx = iaft.wn_mesh(stats=stats, phys_notation=True)
     nw = len(ir_idx)
-    nw_half = nw//2 if nw%2==0 else nw//2+1
     iw_mesh_uniform = MeshImFreq(
         beta=gf_dlr.mesh.beta,
         statistic=gf_dlr.mesh.statistic,

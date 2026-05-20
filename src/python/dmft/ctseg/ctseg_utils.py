@@ -306,6 +306,8 @@ def tail_fit(Sigma_iw,
              fit_min_n=None, fit_max_n=None, fit_min_w=None, fit_max_w=None,
              fit_max_moment=None, fit_known_moments=None):
 
+    Sigma_iw_fit = Sigma_iw.copy()
+
     # Resolve defaults
     beta = Sigma_iw.mesh.beta
     if fit_min_w is not None: fit_min_n = int(0.5*(fit_min_w*beta/np.pi - 1.0))
@@ -324,12 +326,12 @@ def tail_fit(Sigma_iw,
 
     if fit_known_moments is None:
         fit_known_moments = {}
-        for name, sig in Sigma_iw:
+        for name, sig in Sigma_iw_fit:
             shape = [0] + list(sig.target_shape)
             fit_known_moments[name] = np.zeros(shape, dtype=complex) # no known moments
 
     # Now fit the tails of Sigma_iw and replace the high frequency part with the tail expansion
-    for name, sig in Sigma_iw:
+    for name, sig in Sigma_iw_fit:
 
         tail, err = fit_hermitian_tail_on_window(
             sig,
@@ -343,7 +345,7 @@ def tail_fit(Sigma_iw,
         
         replace_by_tail(sig, tail, n_min=fit_min_n)        
 
-    return Sigma_iw
+    return Sigma_iw_fit
 
 
 def extract_u_tensor_from_h_int(h_int, gf_struct, return_4idx=False):

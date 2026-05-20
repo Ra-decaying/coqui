@@ -792,7 +792,8 @@ def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft):
             wimp_dd = coqui_dmft.product_basis_to_density_density(wimp_raw)
         diff_w = np.max(np.abs(wloc_dd - wimp_dd))
 
-        coqui.app_log(1, f"  |Wloc_tau - Wimp_tau| (density-density) = {diff_w}\n")
+        coqui.app_log(1, f"  |Wloc_tau - Wimp_tau| (density-density) = {diff_w}")
+    coqui.app_log(1, "")
 
 
 def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=None, params: dict):
