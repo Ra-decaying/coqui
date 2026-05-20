@@ -780,31 +780,27 @@ def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft):
 
     gf_struct = Res['gf_struct']
 
-    # |Gloc - Gimp| in Matsubara frequency (all frequencies and low-frequency only)
-    gloc_t_mat = coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], gf_struct)
-    gloc_iw    = iaft.tau_to_w(gloc_t_mat, stats='f')
-    gimp_iw    = coqui_dmft.blk_arr_to_arr(Res['G_iw_data'], gf_struct)
-    diff_g     = np.max(np.abs(gloc_iw - gimp_iw))
-
-    # Low-frequency mask: keep |n| <= n_max/2, i.e. the inner half of [-n_max, n_max]
-    wn_abs  = np.abs(iaft.wn_mesh(stats='f'))
-    lf_mask = wn_abs <= wn_abs.max() // 2
-    diff_g_lf = np.max(np.abs((gloc_iw - gimp_iw)[lf_mask]))
-
-    # |Wloc - Wimp| restricted to density-density components
-    wloc_iw = iaft.tau_to_w_phsym(Input['Wloc_t'], stats='b')
-    wloc_dd = coqui_dmft.product_basis_to_density_density(wloc_iw)
-    wimp_raw = Res['W_iw_data'][0]
-    if wimp_raw.ndim == 3:
-        wimp_dd = wimp_raw
-    else:
-        wimp_dd = coqui_dmft.product_basis_to_density_density(wimp_raw)
-    diff_w = np.max(np.abs(wloc_dd - wimp_dd))
-
+    # |Gloc - Gimp| on the imaginary-time axis
+    gloc_t      = coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], gf_struct)
+    gimp_iw_mat = coqui_dmft.blk_arr_to_arr(Res['G_iw_data'], gf_struct)
+    gimp_t      = iaft.w_to_tau(gimp_iw_mat, stats='f')
+    norm_grid = abs(np.linalg.norm(gloc_t - gimp_t, axis=tuple(range(2, gloc_t.ndim))))
+    diff_g    = np.max(norm_grid)
+    
     print(f"EDMFT self-consistency check for impurity {imp_index}:")
-    print(f"  |Gloc_iw - Gimp_iw|                   = {diff_g}")
-    print(f"  |Gloc_iw - Gimp_iw| (@ low-fequency)  = {diff_g_lf}")
-    print(f"  |Wloc_iw - Wimp_iw| (density-density) = {diff_w}\n")
+    print(f"  |Gloc_tau - Gimp_tau|                   = {diff_g}")
+
+    if Input['screen_type'] != 'rpa' and Res['W_iw_data'] is not None:
+        # |Wloc - Wimp| restricted to density-density components
+        wloc_dd = coqui_dmft.product_basis_to_density_density(Input['Wloc_t'])
+        wimp_raw = iaft.w_to_tau_phsym(Res["W_iw_data"][0], stats='b')
+        if wimp_raw.ndim == 3:
+            wimp_dd = wimp_raw
+        else:
+            wimp_dd = coqui_dmft.product_basis_to_density_density(wimp_raw)
+        diff_w = np.max(np.abs(wloc_dd - wimp_dd))
+
+        print(f"  |Wloc_tau - Wimp_tau| (density-density) = {diff_w}\n")
 
 
 def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=None, params: dict):

@@ -264,22 +264,29 @@ class DMFTState(object):
 
         # check convergence:
         if self.local_sigma_w and self.local_sigma_infty and self.local_pi_w:
-            max_diff_sigma_w = np.max(
-                np.abs(local_sigma_w["imp"] - local_sigma_w["dc"]
-                   - self.local_sigma_w["imp"] + self.local_sigma_w["dc"])
-            )
             max_diff_sigma_infty = np.max(
                 np.abs(local_sigma_infty["imp"] - local_sigma_infty["dc"]
                    - self.local_sigma_infty["imp"] + self.local_sigma_infty["dc"])
             )
-            max_diff_pi_w = np.max(
-                np.abs(local_pi_w["imp"] - local_pi_w["dc"]
-                       - self.local_pi_w["imp"] + self.local_pi_w["dc"])
-            )
+            # check convergence on the imaginary-time axis
+            max_diff_sigma_t = np.max(np.abs(
+                self.iaft.w_to_tau(
+                    local_sigma_w["imp"] - local_sigma_w["dc"] 
+                        - self.local_sigma_w["imp"] + self.local_sigma_w["dc"], 
+                    stats='f'
+                )
+            ))
+            max_diff_pi_t = np.max(np.abs(
+                self.iaft.w_to_tau_phsym(
+                    local_pi_w["imp"] - local_pi_w["dc"]
+                        - self.local_pi_w["imp"] + self.local_pi_w["dc"],
+                    stats='b'
+                )
+            ))
             mpi.report(f"Max difference in embedded impurity results: \n"
-                       f"|Delta Sigma_w|     = {max_diff_sigma_w}, \n"
+                       f"|Delta Sigma_t|     = {max_diff_sigma_t}, \n"
                        f"|Delta Sigma_infty| = {max_diff_sigma_infty}, \n"
-                       f"|Delta Pi_w|        = {max_diff_pi_w}\n")
+                       f"|Delta Pi_t|        = {max_diff_pi_t}\n")
 
         self.local_sigma_w     = local_sigma_w
         self.local_sigma_infty = local_sigma_infty
