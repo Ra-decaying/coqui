@@ -18,9 +18,6 @@ limitations under the License.
 ==========================================================================
 """
 
-import numpy as np
-import os
-import sys
 import h5._h5py as h5
 import argparse
 
@@ -73,12 +70,10 @@ def copy_all_and_last_iters(g_in, g_out, keep_first_iter=False):
             if gg_in.has_dataset('final_iter'):
                 final_iter = h5.h5_read(gg_in, 'final_iter')
                 h5.h5_write(gg_out, 'final_iter', final_iter)
-                # copy the last two iterations
+                # copy the last iteration
                 if gg_in.has_subgroup('iter'+str(final_iter)):
                     copy_from_key(gg_in, gg_out, 'iter'+str(final_iter))
-                if gg_in.has_subgroup('iter'+str(final_iter-1)):
-                    copy_from_key(gg_in, gg_out, 'iter'+str(final_iter-1))
-                if keep_first_iter and final_iter!=1 and final_iter-1!=1:
+                if keep_first_iter and final_iter!=1:
                     if gg_in.has_subgroup('iter1'):
                         copy_from_key(gg_in, gg_out, 'iter1')
             else:
