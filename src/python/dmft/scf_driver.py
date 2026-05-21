@@ -384,7 +384,7 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
 
         for imp_index, (G_t, W_t, V) in enumerate(zip(Gloc_C, Wloc_C, Vloc_C)):
             coqui_dmft.print_title_box(f"IMPURITY {imp_index}")
-            
+
             solver_params = solver_params_list[imp_index]
             Res, Input = dmft_state.solver_results[imp_index], dmft_state.solver_inputs[imp_index]
             Input['Gloc_t'] = G_t
@@ -394,6 +394,10 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
             coqui_dmft.fit_local_results_boson(
                 Input, dmft_state.iaft, solver_params.get("causal_projection")
             )
+
+            # Save previous Weiss fields before updating (for convergence check)
+            prev_g_weiss_iw = Input.get('g_weiss_iw')
+            prev_u_weiss_iw = Input.get('u_weiss_iw')
 
             # Fermionic and bosonic Weiss fields
             Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(
@@ -469,7 +473,8 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
             coqui_dmft.fit_impurity_results_boson(
                 Res, dmft_state.iaft, solver_params.get("causal_projection"))
 
-            _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft)
+            _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft,
+                                     prev_g_weiss_iw, prev_u_weiss_iw)
 
             # GW double counting contributions (current implementation uses Gloc/Wloc inputs)
             Res.update(
@@ -555,6 +560,10 @@ def _edmft_loop_fixed_gloc_and_wloc(
             coqui_dmft.fit_local_results_boson(
                 Input, dmft_state.iaft, solver_params.get("causal_projection"))
 
+            # Save previous Weiss fields before updating (for convergence check)
+            prev_g_weiss_iw = Input.get('g_weiss_iw')
+            prev_u_weiss_iw = Input.get('u_weiss_iw')
+
             # Fermionic and bosonic Weiss fields
             Input['g_weiss_iw'], Input['u_weiss_iw'] = _compute_weiss_fields(
                 coqui_mpi, Res, Input, solver_params, dmft_state.iaft
@@ -624,7 +633,8 @@ def _edmft_loop_fixed_gloc_and_wloc(
             coqui_dmft.fit_impurity_results_boson(
                 Res, dmft_state.iaft, solver_params.get("causal_projection"))
 
-            _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft)
+            _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft,
+                                     prev_g_weiss_iw, prev_u_weiss_iw)
 
             # GW double counting contributions
             Res.update(
@@ -766,7 +776,8 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
     return solver_results
 
 
-def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft):
+def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft,
+                              prev_g_weiss_iw=None, prev_u_weiss_iw=None):
     if not coqui_mpi.root():
         return
 
@@ -776,11 +787,19 @@ def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft):
     gloc_t      = coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], gf_struct)
     gimp_iw_mat = coqui_dmft.blk_arr_to_arr(Res['G_iw_data'], gf_struct)
     gimp_t      = iaft.w_to_tau(gimp_iw_mat, stats='f')
-    norm_grid = abs(np.linalg.norm(gloc_t - gimp_t, axis=tuple(range(2, gloc_t.ndim))))
-    diff_g    = np.max(norm_grid)
-    
+    norm_grid = np.linalg.norm(gloc_t - gimp_t, axis=tuple(range(2, gloc_t.ndim)))
+    diff_g    = np.max(np.abs(norm_grid))
+
     coqui.app_log(1, f"EDMFT self-consistency check for impurity {imp_index}:")
     coqui.app_log(1, f"  |Gloc_tau - Gimp_tau|                   = {diff_g}")
+
+    if prev_g_weiss_iw is not None:
+        g_weiss_t      = iaft.w_to_tau(Input['g_weiss_iw'], stats='f')
+        g_weiss_prev_t = iaft.w_to_tau(prev_g_weiss_iw, stats='f')
+        norm_grid_gw   = np.linalg.norm(g_weiss_t - g_weiss_prev_t,
+                                             axis=tuple(range(2, g_weiss_t.ndim)))
+        diff_g_weiss   = np.max(np.abs(norm_grid_gw))
+        coqui.app_log(1, f"  |g_weiss_tau - g_weiss_prev_tau|        = {diff_g_weiss}")
 
     if Input['screen_type'] != 'rpa' and Res['W_iw_data'] is not None:
         # |Wloc - Wimp| restricted to density-density components
@@ -790,9 +809,23 @@ def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft):
             wimp_dd = wimp_raw
         else:
             wimp_dd = coqui_dmft.product_basis_to_density_density(wimp_raw)
-        diff_w = np.max(np.abs(wloc_dd - wimp_dd))
-
+        norm_grid_w = np.linalg.norm(wloc_dd - wimp_dd, axis=tuple(range(1, wloc_dd.ndim)))
+        diff_w = np.max(np.abs(norm_grid_w))
         coqui.app_log(1, f"  |Wloc_tau - Wimp_tau| (density-density) = {diff_w}")
+
+        if prev_u_weiss_iw is not None:
+            u_weiss_t      = iaft.w_to_tau_phsym(Input['u_weiss_iw'], stats='b')
+            u_weiss_prev_t = iaft.w_to_tau_phsym(prev_u_weiss_iw, stats='b')
+            if u_weiss_t.ndim == 3:
+                u_weiss_dd      = u_weiss_t
+                u_weiss_prev_dd = u_weiss_prev_t
+            else:
+                u_weiss_dd      = coqui_dmft.product_basis_to_density_density(u_weiss_t)
+                u_weiss_prev_dd = coqui_dmft.product_basis_to_density_density(u_weiss_prev_t)
+            norm_grid_uw = np.linalg.norm(u_weiss_dd - u_weiss_prev_dd, axis=tuple(range(1, u_weiss_dd.ndim)))
+            diff_u_weiss = np.max(np.abs(norm_grid_uw))
+            coqui.app_log(1, f"  |u_weiss_tau - u_weiss_prev_tau| (dd)  = {diff_u_weiss}")
+
     coqui.app_log(1, "")
 
 
