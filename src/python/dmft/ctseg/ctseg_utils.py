@@ -202,6 +202,7 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
             solver.W_iw[i,j,k,l] << W_iw_pb[i*n_orb+j, k*n_orb+l]
 
 
+# TODO return raw Sigma to solver.Sigma_iw_raw
 def post_process_sigma(solver, **post_proc_params):
     
     # initialization

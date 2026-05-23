@@ -30,6 +30,7 @@ try:
   from .weiss import *
   from .bath_fit import *
   from .io import *
+  from .plot import *
   _TRIQS_AVAILABLE = True
 except ImportError as _e:
   _TRIQS_IMPORT_ERROR = _e

@@ -33,6 +33,8 @@ def convert_gw_edmft_params(gw_edmft_params: dict):
     niter = gw_edmft_group.get('niter')
     gw_iter_per_loop = gw_edmft_group.get('gw_iter_per_loop', 1)
     edmft_iter_per_loop = gw_edmft_group.get('edmft_iter_per_loop', 1)
+    if gw_edmft_group.get('wannier_file'):
+        gw_edmft_params['wannier_file'] = gw_edmft_group.get('wannier_file')
     if niter is None:
         raise KeyError("Missing 'niter' parameter to specify the total number of GW+EDMFT cycles.")
     if not isinstance(niter, int) or niter <= 0:
@@ -56,7 +58,7 @@ def convert_gw_edmft_params(gw_edmft_params: dict):
     gw_edmft_params['gw_iter_per_loop'] = gw_iter_per_loop
     gw_edmft_params['edmft_iter_per_loop'] = edmft_iter_per_loop
     
-    screen_type = gw_edmft_group.get('screen_type', 'gw_edmft_density')
+    screen_type = gw_edmft_group.get('screen_type', 'gw_edmft')
     div_treatment = gw_edmft_group.get('div_treatment', 'gygi')
     outdir = gw_edmft_group.get('outdir', './')
     prefix = gw_edmft_group.get('prefix', 'coqui')
@@ -268,6 +270,7 @@ def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impuri
         if solver_inputs is not None:
             _write_impurity_inputs(imp_grp, solver_inputs[imp_i])
 
+    # FIXME this is beyond the save_impurities responsibility since this will affect the restart behavior of the DMFT SCF loop. 
     dmft_grp["final_iter"] = iteration
 
 
@@ -296,7 +299,7 @@ def _write_impurity_results(h5_grp, impurity_results):
     # ----- optional keys (raw numpy arrays on IR mesh) -----
     # "_data" appendices imply raw numpy arrays on IR mesh
     optional_keys = [
-        'gf_struct', 'mu_imp',
+        'gf_struct', 'mu_imp', 'convergence', 'density',
         'G_iw_data', 'Sigma_iw_data',
         'Pi_iw_data', 'W_iw_data',
         'Sigma_infty_dc', 'Sigma_iw_dc_data', 'Pi_iw_dc_data'
@@ -499,3 +502,4 @@ def read_all_keys(h5_grp):
     for key in h5_grp.keys():
         output[key] = h5_grp[key]
     return output
+

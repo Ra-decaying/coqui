@@ -199,6 +199,7 @@ class DMFTState(object):
         if not os.path.isfile(solver_chkpt):
             app_log(2, "No solver checkpoint file found. Will skip loading impurity results.\n")
             return
+            
 
         # TODO for "each" impurity, load the previous results if existing, otherwise initialize to empty
         self.iteration = dmft_io.update_impurity_results_from_chkpt(self.solver_results, solver_chkpt) + 1

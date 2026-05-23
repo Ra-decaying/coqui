@@ -205,6 +205,8 @@ def run_gw_edmft(h_int, embedding, inner_loop_alg=1, *, proj_info=None, params: 
         }
         run_gw_edmft(h_int, embedding, params=params)
     """
+    # Convert parameters to the internal format and set defaults
+    params = convert_gw_edmft_params(params)
     coqui_mpi = h_int.mpi()
     mf = h_int.mf()
 
@@ -216,7 +218,6 @@ def run_gw_edmft(h_int, embedding, inner_loop_alg=1, *, proj_info=None, params: 
         proj_info = coqui_dmft.get_proj_info(obe.P)
 
     # Convert to the internal format
-    params = convert_gw_edmft_params(params)
     niter, gw_iter_per_loop, edmft_iter_per_loop = (
         params.pop('niter'), params.pop('gw_iter_per_loop'), params.pop('edmft_iter_per_loop')
     )
@@ -425,10 +426,12 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
             coqui.app_log(1, f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
             coqui.app_log(1, f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
 
-            coqui.app_log(1, "Spectral weight proxy at Fermi level: -G_loc(tau=beta/2)")
-            coqui.app_log(1, "---------------------------------------------------------")
-            coqui.app_log(1, f"  Spin up:   {np.diag(g_beta_half[0]).real}")
-            coqui.app_log(1, f"  Spin down: {np.diag(g_beta_half[1]).real}\n")
+            # For metals, beta * G(beta/2) saturates with increasing beta
+            # For insulators, beta * G(beta/2) decays exponentially to zero with increasing beta
+            coqui.app_log(1, "Spectral weight proxy at Fermi level (eV^-1): A(w) ~ -beta/pi * G_loc(tau=beta/2)")
+            coqui.app_log(1, "--------------------------------------------------------------")
+            coqui.app_log(1, f"  Spin up:   {(dmft_state.iaft.beta/np.pi) * np.diag(g_beta_half[0]).real / Hartree_eV}")
+            coqui.app_log(1, f"  Spin down: {(dmft_state.iaft.beta/np.pi) * np.diag(g_beta_half[1]).real / Hartree_eV}\n")
 
             coqui.app_log(1, "Local densities ")
             coqui.app_log(1, "-------------------")
@@ -473,8 +476,17 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
             coqui_dmft.fit_impurity_results_boson(
                 Res, dmft_state.iaft, solver_params.get("causal_projection"))
 
-            _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft,
-                                     prev_g_weiss_iw, prev_u_weiss_iw)
+            conv_metrics = _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft,
+                                                    prev_g_weiss_iw, prev_u_weiss_iw)
+
+            # Store convergence metrics array: [U_w0, A_w0, diff_g, diff_g_weiss, diff_u_weiss, diff_w]
+            if coqui_mpi.root():
+                A_w0  = float(np.mean((dmft_state.iaft.beta / np.pi) * np.diag(g_beta_half[0]+g_beta_half[1]).real)) * 0.5
+                Res['convergence'] = np.array([
+                    U, A_w0,
+                    conv_metrics['diff_g'], conv_metrics['diff_g_weiss'],
+                    conv_metrics['diff_u_weiss'], conv_metrics['diff_w']
+                ])
 
             # GW double counting contributions (current implementation uses Gloc/Wloc inputs)
             Res.update(
@@ -582,6 +594,9 @@ def _edmft_loop_fixed_gloc_and_wloc(
             dm = -dmft_state.iaft.tau_interpolate(
                 coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
                 dmft_state.iaft.beta, 'f')[0]
+            g_beta_half = -dmft_state.iaft.tau_interpolate(
+                coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], Input["gf_struct"]),
+                dmft_state.iaft.beta/2, 'f')[0]
             Input['density'] = (np.diag(dm[0]).sum() + np.diag(dm[1]).sum()).real
             coqui.app_log(1, "Bare/static orbital-averaged interactions for the impurity")
             coqui.app_log(1, "----------------------------------------------------------")
@@ -589,6 +604,13 @@ def _edmft_loop_fixed_gloc_and_wloc(
             coqui.app_log(1, f"  inter-orbital                  = {Ubp*Hartree_eV:.4f}, {Up*Hartree_eV:.4f} eV")
             coqui.app_log(1, f"  Hund's coupling (spin-flip)    = {Jb_spin*Hartree_eV:.4f}, {J_spin*Hartree_eV:.4f} eV")
             coqui.app_log(1, f"  Hund's coupling (pair-hopping) = {Jb_pair*Hartree_eV:.4f}, {J_pair*Hartree_eV:.4f} eV\n")
+
+            # For metals, beta * G(beta/2) saturates with increasing beta
+            # For insulators, beta * G(beta/2) decays exponentially to zero with increasing beta
+            coqui.app_log(1, "Spectral weight proxy at Fermi level: A(w) ~ -beta/pi * G_loc(tau=beta/2)")
+            coqui.app_log(1, "---------------------------------------------------------")
+            coqui.app_log(1, f"  Spin up:   {(dmft_state.iaft.beta/np.pi) * np.diag(g_beta_half[0]).real}")
+            coqui.app_log(1, f"  Spin down: {(dmft_state.iaft.beta/np.pi) * np.diag(g_beta_half[1]).real}\n")
 
             coqui.app_log(1, "Local densities ")
             coqui.app_log(1, "-------------------")
@@ -633,8 +655,17 @@ def _edmft_loop_fixed_gloc_and_wloc(
             coqui_dmft.fit_impurity_results_boson(
                 Res, dmft_state.iaft, solver_params.get("causal_projection"))
 
-            _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft,
-                                     prev_g_weiss_iw, prev_u_weiss_iw)
+            conv_metrics = _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft,
+                                                      prev_g_weiss_iw, prev_u_weiss_iw)
+
+            # Store convergence metrics array: [U_w0, A_w0, diff_g, diff_g_weiss, diff_u_weiss, diff_w]
+            if coqui_mpi.root():
+                A_w0  = float(np.mean((dmft_state.iaft.beta / np.pi) * np.diag(g_beta_half[0]+g_beta_half[1]).real)) * 0.5
+                Res['convergence'] = np.array([
+                    U, A_w0,
+                    conv_metrics['diff_g'], conv_metrics['diff_g_weiss'],
+                    conv_metrics['diff_u_weiss'], conv_metrics['diff_w']
+                ])
 
             # GW double counting contributions
             Res.update(
@@ -769,6 +800,7 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
     imp_density = 0.0
     for blk_name, occ in solver_results['orbital_occupations'].items():
         imp_density += occ.sum()
+    solver_results['density'] = imp_density
 
     coqui.app_log(1, f"Total impurity densities = {imp_density}")
     coqui.app_log(1, f"Convergence of impurity density: {imp_density - target_density}\n")
@@ -778,8 +810,20 @@ def _solver_inner_loop(coqui_mpi, h0, delta_iw, u_weiss_iw, h_int,
 
 def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft,
                               prev_g_weiss_iw=None, prev_u_weiss_iw=None):
+    """Compute EDMFT self-consistency metrics and return them as a dict.
+
+    Returns
+    -------
+    dict with keys:
+        diff_g       : |Gloc_tau - Gimp_tau| (always computed)
+        diff_g_weiss : |g_weiss_tau - g_weiss_prev_tau| (-1.0 if prev not available)
+        diff_w       : |Wloc_tau - Wimp_tau| dd (-1.0 if W_iw_data is None)
+        diff_u_weiss : |u_weiss_tau - u_weiss_prev_tau| dd (-1.0 if prev not available)
+    """
+    metrics = {'diff_g': -1.0, 'diff_g_weiss': -1.0, 'diff_w': -1.0, 'diff_u_weiss': -1.0}
+
     if not coqui_mpi.root():
-        return
+        return metrics
 
     gf_struct = Res['gf_struct']
 
@@ -787,49 +831,50 @@ def _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, iaft,
     gloc_t      = coqui_dmft.blk_arr_to_arr(Input['Gloc_t'], gf_struct)
     gimp_iw_mat = coqui_dmft.blk_arr_to_arr(Res['G_iw_data'], gf_struct)
     gimp_t      = iaft.w_to_tau(gimp_iw_mat, stats='f')
-    norm_grid = np.linalg.norm(gloc_t - gimp_t, axis=tuple(range(2, gloc_t.ndim)))
-    diff_g    = np.max(np.abs(norm_grid))
+    norm_grid   = np.linalg.norm(gloc_t - gimp_t, axis=tuple(range(2, gloc_t.ndim)))
+    metrics['diff_g'] = float(np.max(np.abs(norm_grid)))
 
     coqui.app_log(1, f"EDMFT self-consistency check for impurity {imp_index}:")
-    coqui.app_log(1, f"  |Gloc_tau - Gimp_tau|                   = {diff_g}")
+    coqui.app_log(1, f"  |Gloc_tau - Gimp_tau|                   = {metrics['diff_g']}")
 
     if prev_g_weiss_iw is not None:
         g_weiss_t      = iaft.w_to_tau(Input['g_weiss_iw'], stats='f')
         g_weiss_prev_t = iaft.w_to_tau(prev_g_weiss_iw, stats='f')
         norm_grid_gw   = np.linalg.norm(g_weiss_t - g_weiss_prev_t,
-                                             axis=tuple(range(2, g_weiss_t.ndim)))
-        diff_g_weiss   = np.max(np.abs(norm_grid_gw))
-        coqui.app_log(1, f"  |g_weiss_tau - g_weiss_prev_tau|        = {diff_g_weiss}")
+                                        axis=tuple(range(2, g_weiss_t.ndim)))
+        metrics['diff_g_weiss'] = float(np.max(np.abs(norm_grid_gw)))
+        coqui.app_log(1, f"  |g_weiss_tau - g_weiss_prev_tau|        = {metrics['diff_g_weiss']}")
 
-    if Input['screen_type'] != 'rpa' and Res['W_iw_data'] is not None:
-        # |Wloc - Wimp| restricted to density-density components
-        wloc_dd = coqui_dmft.product_basis_to_density_density(Input['Wloc_t'])
+    if Res['W_iw_data'] is not None:
+        # |Wloc - Wimp| restricted to density-density components (always computed)
+        wloc_dd  = coqui_dmft.product_basis_to_density_density(Input['Wloc_t'])
         wimp_raw = iaft.w_to_tau_phsym(Res["W_iw_data"][0], stats='b')
-        if wimp_raw.ndim == 3:
-            wimp_dd = wimp_raw
-        else:
-            wimp_dd = coqui_dmft.product_basis_to_density_density(wimp_raw)
+        wimp_dd  = wimp_raw if wimp_raw.ndim == 3 else coqui_dmft.product_basis_to_density_density(wimp_raw)
         norm_grid_w = np.linalg.norm(wloc_dd - wimp_dd, axis=tuple(range(1, wloc_dd.ndim)))
-        diff_w = np.max(np.abs(norm_grid_w))
-        coqui.app_log(1, f"  |Wloc_tau - Wimp_tau| (density-density) = {diff_w}")
+        metrics['diff_w'] = float(np.max(np.abs(norm_grid_w)))
+        # Only print when screen_type != 'rpa' since diff_w is not expected to converge there
+        if Input['screen_type'] != 'rpa':
+            coqui.app_log(1, f"  |Wloc_tau - Wimp_tau| (density-density) = {metrics['diff_w']}")
 
-        if prev_u_weiss_iw is not None:
-            u_weiss_t      = iaft.w_to_tau_phsym(Input['u_weiss_iw'], stats='b')
-            u_weiss_prev_t = iaft.w_to_tau_phsym(prev_u_weiss_iw, stats='b')
-            if u_weiss_t.ndim == 3:
-                u_weiss_dd      = u_weiss_t
-                u_weiss_prev_dd = u_weiss_prev_t
-            else:
-                u_weiss_dd      = coqui_dmft.product_basis_to_density_density(u_weiss_t)
-                u_weiss_prev_dd = coqui_dmft.product_basis_to_density_density(u_weiss_prev_t)
-            norm_grid_uw = np.linalg.norm(u_weiss_dd - u_weiss_prev_dd, axis=tuple(range(1, u_weiss_dd.ndim)))
-            diff_u_weiss = np.max(np.abs(norm_grid_uw))
-            coqui.app_log(1, f"  |u_weiss_tau - u_weiss_prev_tau| (dd)  = {diff_u_weiss}")
+    if prev_u_weiss_iw is not None:
+        u_weiss_t      = iaft.w_to_tau_phsym(Input['u_weiss_iw'], stats='b')
+        u_weiss_prev_t = iaft.w_to_tau_phsym(prev_u_weiss_iw, stats='b')
+        if u_weiss_t.ndim == 3:
+            u_weiss_dd      = u_weiss_t
+            u_weiss_prev_dd = u_weiss_prev_t
+        else:
+            u_weiss_dd      = coqui_dmft.product_basis_to_density_density(u_weiss_t)
+            u_weiss_prev_dd = coqui_dmft.product_basis_to_density_density(u_weiss_prev_t)
+        norm_grid_uw = np.linalg.norm(u_weiss_dd - u_weiss_prev_dd, axis=tuple(range(1, u_weiss_dd.ndim)))
+        metrics['diff_u_weiss'] = float(np.max(np.abs(norm_grid_uw)))
+        coqui.app_log(1, f"  |u_weiss_tau - u_weiss_prev_tau| (dd)   = {metrics['diff_u_weiss']}")
 
     coqui.app_log(1, "")
+    return metrics
 
 
-def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=None, params: dict):
+def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=None, 
+                                params: dict, save_results=False):
     """
     Re-solve EDMFT impurity problems from a saved checkpoint.
 
@@ -872,6 +917,7 @@ def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=Non
     """
 
     params = convert_gw_edmft_params(params)
+    
     imp_params = params.pop('impurity')
     # Scale Monte-Carlo cycle counts by MPI communicator size.
     solver_params_list = _normalize_solver_params_list(
@@ -955,5 +1001,11 @@ def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=Non
             Res, iaft, solver_params.get("causal_projection"))
 
         solver_results.append(Res)
+
+        if save_results:
+            # FIXME This will write final_iter +1 if dmft_iteration=-1
+            coqui_dmft.save_impurity_results(
+                solver_results, imp_params['chkpt_h5'], iteration=dmft_iteration, impurity_index=imp_index
+            ) 
 
     return solver_results

@@ -164,6 +164,7 @@ def solve_dynamic_full_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_p
         Sigma_iw = S.Sigma_iw,
         Pi_iw = S.Pi_iw,
         W_iw = S.W_iw,
+        # TODO return raw Sigma as well
 
         # optional
         G_tau = S.results.G_tau,
@@ -187,6 +188,11 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
     # extract the largest DLR frequency index to determine the minimum required n_iw
     mesh_dlr_idx = np.array([iw.index for iw in Delta_iw.mesh])
     max_dlr_idx = max(abs(mesh_dlr_idx[0]), abs(mesh_dlr_idx[-1]))
+
+    # check bosonic DLR mesh and update max_dlr_idx if necessary
+    dlr_mesh_boson = next(iter(D0_iw))[1].mesh
+    mesh_dlr_idx = np.array([iw.index for iw in dlr_mesh_boson])
+    max_dlr_idx = max(abs(mesh_dlr_idx[0]), abs(mesh_dlr_idx[-1]), max_dlr_idx)
 
     # This is used only in post-processing, and should be large enough to cover the DLR frequencies. 
     # It should not affect the solver accuracy though (in principle!?). 
@@ -272,7 +278,7 @@ def solve_density_dynamic_u_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_in
     """
     gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
     beta, wmax, eps  = Delta_iw.mesh.beta, Delta_iw.mesh.w_max, Delta_iw.mesh.eps
-    n_tau = solver_interface_params.pop('n_tau', 10001)
+    n_tau = solver_interface_params.pop('n_tau', max(500001, int(2*beta*wmax)+1))
     n_tau_bosonic = solver_interface_params.pop('n_tau_bosonic', n_tau)
     suppress_solver_output = solver_interface_params.pop('suppress_solver_output', False)
     solver_output_file = solver_interface_params.pop('solver_output_file', None)
