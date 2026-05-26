@@ -428,19 +428,21 @@ endif()
 ######################################################################
 # catch2
 ######################################################################
-if(DEFINED CATCH2)
-  set(FETCHCONTENT_SOURCE_DIR_CATCH2 ${CATCH2})
-endif()
+if(BUILD_UNIT_TESTS)
+  if(DEFINED CATCH2)
+    set(FETCHCONTENT_SOURCE_DIR_CATCH2 ${CATCH2})
+  endif()
 
-FetchContent_Declare(
-  Catch2
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG        v2.13.10
-)
-  #GIT_TAG        v3.4.0
-FetchContent_MakeAvailable(Catch2)
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/contrib)
-include( Catch )
+  FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG        v2.13.10
+  )
+    #GIT_TAG        v3.4.0
+  FetchContent_MakeAvailable(Catch2)
+  list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/contrib)
+  include( Catch )
+endif(BUILD_UNIT_TESTS)
 
 ######################################################################
 # cpptrace 

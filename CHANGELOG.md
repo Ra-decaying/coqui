@@ -38,6 +38,7 @@
 ### Fixed
 
 - Iterative-solver path when disabled in `dmft_embed`.
+- Compilation error when BUILD_UNIT_TESTS is disabled.
 
 ### API Updates
 
