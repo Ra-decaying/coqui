@@ -231,7 +231,7 @@ def run_gw_edmft(h_int, embedding, inner_loop_alg=1, *, proj_info=None, params: 
     coqui.app_log(1, f"  EDMFT iterations per GW+EDMFT cycle = {edmft_iter_per_loop}")
     coqui.app_log(1, f"    - Fix Gloc and Wloc during EDMFT iterations = {inner_loop_alg==2}\n")
 
-    embedding_2e = embedding.make_2particle.make_spinless
+    embedding_2e = embedding.merge_embed_block_by_imp.slice_sigma
     coqui.app_log(2, embedding.description(True))
 
     try:

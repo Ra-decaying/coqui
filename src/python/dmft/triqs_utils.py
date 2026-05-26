@@ -37,7 +37,7 @@ of EDMFT, including:
 Dependencies
 ------------
 This module relies on the TRIQS ecosystem, in particular:
-- `triqs.gf` for Green’s function containers and operations
+- `triqs.gfs` for Green’s function containers and operations
 - `triqs.operators` for operator algebra
 - `triqs.utility.mpi` for parallelism
 """
@@ -45,7 +45,7 @@ from h5 import HDFArchive
 import numpy as np
 from itertools import product
 
-from triqs.gf import (
+from triqs.gfs import (
     inverse, iOmega_n, Gf, make_gf_dlr, BlockGf, Block2Gf, 
     MeshImFreq, MeshDLRImFreq, 
 )
@@ -285,11 +285,11 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, iaft,
     -------
     h0 : triqs.operators.many_body_operator
         One-particle Hamiltonian in TRIQS operator form.
-    delta_iw : triqs.gf.BlockGf
+    delta_iw : triqs.gfs.BlockGf
         Hybridization function Δ(iωₙ) as a TRIQS block Green’s function.
     h_int : triqs.operators.many_body_operator
         Local interaction Hamiltonian in density-density approximation.
-    u_weiss_iw : triqs.gf.Block2Gf
+    u_weiss_iw : triqs.gfs.Block2Gf
         Dynamical screened interaction U(iωₙ) as a TRIQS two-particle block Green’s function.
 
     Notes

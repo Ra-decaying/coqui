@@ -23,7 +23,7 @@ Utility functions for impurity chemical potential
 """
 import numpy as np
 
-from triqs.gf import inverse, iOmega_n
+from triqs.gfs import inverse, iOmega_n
 from triqs.operators.util.extractors import block_matrix_from_op
 import coqui.dmft as coqui_dmft
 from coqui import app_log

@@ -21,7 +21,7 @@ limitations under the License.
 import sys
 import numpy as np
 from h5 import HDFArchive
-from triqs.gf import *
+from triqs.gfs import *
 
 """ 
 Analytical continuation utilities based on TRIQS application  

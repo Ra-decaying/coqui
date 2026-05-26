@@ -2,14 +2,10 @@ import triqs.utility.mpi as mpi
 import numpy as np
 from itertools import product
 
-from triqs.gf import (iOmega_n, MeshImFreq, MeshDLRImFreq, Gf, BlockGf,
-                      make_gf_dlr, make_gf_imfreq, make_gf_imtime,
-                      make_gf_from_fourier, Idx, make_hermitian, is_gf_hermitian)
-from triqs.gf.gf_fnt import fit_hermitian_tail_on_window, replace_by_tail
-from triqs.gf.tools import inverse, make_zero_tail
-from triqs.gf.descriptors import Fourier
-from triqs.operators.util.extractors import block_matrix_from_op
-from triqs.operators.util.U_matrix import reduce_4index_to_2index
+from triqs.gfs import (iOmega_n, MeshImFreq, MeshDLRImFreq, Gf, BlockGf,
+                      make_gf_dlr, make_gf_imfreq, make_hermitian) 
+from triqs.gfs.gf_fnt import fit_hermitian_tail_on_window, replace_by_tail
+from triqs.gfs.tools import inverse, make_zero_tail
 
 import triqs_modest as modest
 from triqs_ctseg import Solver as CTSEG_Solver
@@ -206,7 +202,7 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
 def post_process_sigma(solver, **post_proc_params):
     
     # initialization
-    mesh = MeshImFreq(beta = solver.beta, S="Fermion", n_iw = solver.n_iw)
+    mesh = MeshImFreq(beta = solver.beta, statistic = "Fermion", n_iw = solver.n_iw)
     solver.Sigma_iw = BlockGf(mesh = mesh, gf_struct = solver.gf_struct)
     solver.Sigma_iw.zero()
     solver.Sigma_moments = None
@@ -404,7 +400,7 @@ def extract_screen_matrix_from_D0_tau(blk2_D0_tau, gf_struct, return_4idx=False)
                 blk2_D0_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
             )
 
-    w0_mesh = MeshImFreq(beta = D0_tau.mesh.beta, S="Boson", n_iw = 1)
+    w0_mesh = MeshImFreq(beta = D0_tau.mesh.beta, statistic = "Boson", n_iw = 1)
     D0_iw = Gf(mesh=w0_mesh, target_shape=D0_tau.target_shape)
     D0_iw.set_from_fourier(D0_tau, make_zero_tail(D0_iw, n_moments=2))
     Dw0_dd = D0_iw.data[0].real

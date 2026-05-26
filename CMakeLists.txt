@@ -468,7 +468,7 @@ if(COQUI_PYTHON_SUPPORT)
   FetchContent_Declare(
     c2py
     GIT_REPOSITORY https://github.com/flatironinstitute/c2py
-    GIT_TAG        unstable
+    GIT_TAG        295921e141dffd71acfd8eb619fff24fedb7cd54 #unstable
     EXCLUDE_FROM_ALL
   )
   FetchContent_MakeAvailable(c2py)

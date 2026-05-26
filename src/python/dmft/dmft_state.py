@@ -127,7 +127,7 @@ class DMFTState(object):
         )
 
         self.solver_inputs = [ {
-            'gf_struct': self.embedding['1e'].imp_block_shape[imp],
+            'gf_struct': self.embedding['1e'].imp_block_structure[imp],
             'Gloc_t': None,
             'Wloc_t': None,
             'Vloc': None,
@@ -139,7 +139,7 @@ class DMFTState(object):
         } for imp in range(self.embedding['1e'].n_impurities) ]
 
         self.solver_results = [ {
-            'gf_struct': self.embedding['1e'].imp_block_shape[imp],
+            'gf_struct': self.embedding['1e'].imp_block_structure[imp],
             'symm_blks': None,
             'iw_mesh_f': iw_mesh_f,
             'iw_mesh_b': iw_mesh_b,
@@ -178,7 +178,7 @@ class DMFTState(object):
     def make_dmft_state(cls, coqui_h5, embedding_1e, embedding_2e,
                         wmax_imp=None, eps_imp=None, spin_average=False,
                         screen_type='gw_edmft', verbal=False):
-        from triqs.gf import MeshDLRImFreq
+        from triqs.gfs import MeshDLRImFreq
         iaft = IAFT.from_coqui_chkpt(coqui_h5, verbose=verbal)
         # Compatible TRIQS meshes: one for fermion and one for boson, where all triqs Gfs live.
         if wmax_imp is None:
@@ -219,7 +219,7 @@ class DMFTState(object):
                         res['Sigma_iw_data'][blk_idx].shape[2] == blk_dim), (
                     "Incompatible block dimension for the loaded impurity Sigma"
                 )
-            gf_struct_2e = self.embedding['2e'].imp_block_shape[imp_idx]
+            gf_struct_2e = self.embedding['2e'].imp_block_structure[imp_idx]
             for blk_idx, (blk_name, blk_dim) in enumerate(gf_struct_2e):
                 assert res['Pi_iw_data'][blk_idx].shape[0] == nw_b_half, (
                     "Incompatible bosonic Matsubara mesh for the loaded impurity Pi"
