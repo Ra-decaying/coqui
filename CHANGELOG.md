@@ -3,12 +3,47 @@
 
 ## CoQui v0.3.0 [2026-04-29]
 
+### Added
+
+- DIIS for QP-SCF via new `qp_com_diis_residual` and `vspace_heff` classes, with unit tests covering both Dyson- and QP-SCF paths.
+- New double-bisection chemical-potential search algorithm robust for insulators (finds the middle of the acceptable μ window rather than the first crossing), and a midpoint algorithm for QP-SCF. The algorithm is externally selectable via `mu_update_alg`.
+- Unified analytic-continuation interface (`ac`) with four backends:
+  - CoQui Pade (C++ implementation).
+  - TRIQS Pade.
+  - AAA algorithm via the adapol library.
+  - Minipole via the mini_pole library.
+- Python wrapper around the C++ logger.
+- EDMFT convergence metrics (Weiss field, `|Gloc - Gimp|`, `|Wloc - Wimp|`) are stored in the EDMFT checkpoint, with utility functions to visualize them.
+
 ### Improved
 
+- DIIS is now the default iterative solver for both Dyson-SCF and QP-SCF.
+- Shared chemical-potential search implementation between Dyson-SCF and QP-SCF, with improved log output.
+- `simple_dyson::compute_eigenspectra` refactored to exploit Hermitian symmetry.
+- GW+EDMFT driver refactor: docstrings and sensible defaults across `gw_edmft` routines.
+- Hermitian symmetry enforced on upfolded self-energies, impurity solutions, and `Delta_tau` / `D0_tau` preparations.
+- EDMFT convergence checks moved fully to the imaginary-time axis.
+- Improved GW+EDMFT logging: prints `|Gloc - Gimp|`, `|Wloc - Wimp|`, A(ω=0) proxy via `Gloc(β/2)`, and tail-fit setup.
+- Suppressed ct-seg solver output during `mu_imp` search; improved `mu_imp` log output.
+- `band_plot` and `spectral_plot` are importable directly from the `post_proc` submodule.
+- Extract QP energies from Dyson-SCF checkpoint as a post-processing utility.
+- Docstring pass for the Python IAFT module.
+- `read_last_iter.py` retains only the last iteration.
 - MBPT and Wannier90 routines now support explicit `outdir` parameter for consistent checkpoint and output file path handling.
   - MBPT: Simplified path resolution logic. Uses legacy `output` key if present and non-empty, otherwise constructs path as `outdir + "/" + prefix` with `outdir` default of `"./"`.
   - Wannier90: Added explicit `outdir` parameter to all public entrypoints (`to_wannier90`, `wannier90_library_mode`, `wannier90_library_mode_from_nnkp`, `append_wannier90_win`, `mlwf_h5_from_wannier90_output`). Output files are consistently placed at `outdir + "/" + prefix` with `outdir` default of `"./"`.
   - Updated all corresponding Python wrapper docstrings and examples to document the new `outdir` parameter and expected file locations.
+- TRIQS compatibility: `triqs.gf` → `triqs.gfs`, updated function names from `triqs.modest`. `c2py` pinned to a known-good commit while upstream stabilizes.
+
+### Fixed
+
+- Iterative-solver path when disabled in `dmft_embed`.
+
+### API Updates
+
+- Python IAFT: renamed `ir_notation` to `phys_notation` (now a keyword-only argument).
+- GW+EDMFT: `wmax` and `eps` inputs for the EDMFT subspace are consolidated under the `iaft` dictionary.
+- GW+EDMFT: restart now requires an existing checkpoint.
 
 ### Default Value Updates
 
