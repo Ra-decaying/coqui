@@ -41,7 +41,6 @@ This module relies on the TRIQS ecosystem, in particular:
 - `triqs.operators` for operator algebra
 - `triqs.utility.mpi` for parallelism
 """
-from h5 import HDFArchive
 import numpy as np
 from itertools import product
 
@@ -50,7 +49,7 @@ from triqs.gfs import (
     MeshImFreq, MeshDLRImFreq, 
 )
 from triqs.operators import c_dag, c, Operator, util
-from triqs.operators.util.extractors import block_matrix_from_op
+from triqs.operators.util.extractors import block_matrix_from_op, extract_U_dict2, dict_to_matrix
 import coqui.dmft as coqui_dmft
 
 
@@ -758,6 +757,68 @@ def symmetrize_h0_op(h0_op, deg_blk, gf_struct):
     h0_blk_mat = block_matrix_from_op(h0_op, gf_struct)
     h0_blk_sym = symmetrize_blk_mat(h0_blk_mat, deg_blk)
     return blk_h0_to_h0_operator(h0_blk_sym, gf_struct)
+
+
+def symmetrize_h_int_op(h_int_op, deg_blk, gf_struct):
+    # extract the density-density Coulomb matrix U_dd
+    u_dd = dict_to_matrix(extract_U_dict2(h_int_op), gf_struct=gf_struct)
+    n_orb = u_dd.shape[0]//2
+
+    for i, blks in enumerate(deg_blk):
+
+        u_diag_buffer, u_offdiag_buffer, up_diag_buffer, up_offdiag_buffer = 0.0, 0.0, 0.0, 0.0
+        diag_count, offdiag_count = 0, 0
+        diag_count_prime, offdiag_count_prime = 0, 0
+
+        # different treatment for same-spin and opposite-spin in case they are different
+        for b1, b2 in product(blks, repeat=2):
+            blk_name1, blk_name2 = gf_struct[b1][0], gf_struct[b2][0]
+            spin1, orb_blk1 = blk_name1.split('_')
+            spin2, orb_blk2 = blk_name2.split('_')
+
+            # same spin
+            if spin1 == spin2:
+                if orb_blk1 == orb_blk2:
+                    u_diag_buffer += u_dd[b1, b2]
+                    diag_count += 1
+                else:
+                    u_offdiag_buffer += u_dd[b1, b2]
+                    offdiag_count += 1
+            else:
+                if orb_blk1 == orb_blk2:
+                    up_diag_buffer += u_dd[b1, b2]
+                    diag_count_prime += 1
+                else:
+                    up_offdiag_buffer += u_dd[b1, b2]
+                    offdiag_count_prime += 1
+
+        u_diag_buffer /= diag_count
+        up_diag_buffer /= diag_count_prime
+        u_offdiag_buffer /= offdiag_count
+        up_offdiag_buffer /= offdiag_count_prime
+
+        for b1, b2 in product(blks, repeat=2):
+            blk_name1, blk_name2 = gf_struct[b1][0], gf_struct[b2][0]
+            spin1, orb_blk1 = blk_name1.split('_')
+            spin2, orb_blk2 = blk_name2.split('_')
+
+            if spin1 == spin2:
+                if orb_blk1 == orb_blk2:
+                    u_dd[b1, b2] = u_diag_buffer
+                else:
+                    u_dd[b1, b2] = u_offdiag_buffer
+            else:
+                if orb_blk1 == orb_blk2:
+                    u_dd[b1, b2] = up_diag_buffer
+                else:
+                    u_dd[b1, b2] = up_offdiag_buffer
+    
+    c_to_solver = get_c_to_solver_mapping(gf_struct)
+    U_same_spin = u_dd[:n_orb, :n_orb]
+    U_opposite_spin = u_dd[:n_orb, n_orb:]
+    h_int = util.h_int_density(['up', 'down'], n_orb, U=U_same_spin, Uprime=U_opposite_spin, 
+                               map_operator_structure=c_to_solver)
+    return h_int
 
 
 def symmetrize_blk2_gf(u_iw_blk_gf2, deg_blk, gf_struct):

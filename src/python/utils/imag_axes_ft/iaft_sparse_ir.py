@@ -635,7 +635,7 @@ class _IAFTIRAdapter(object):
         leakage = coeff_last / coeff_first
         app_log(1, "IAFT leakage of {}: {}".format(name, leakage))
         if leakage >= 1e-5:
-            app_log("[WARNING] check_leakage: coeff_last/coeff_first = {} >= 1e-5; "
+            app_log(1, "[WARNING] check_leakage: coeff_last/coeff_first = {} >= 1e-5; " \
                     "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))
         sys.stdout.flush()
 
@@ -694,6 +694,5 @@ class _IAFTIRAdapter(object):
         leakage = coeff_last / coeff_first
         app_log(1, "IAFT leakage of {}: {}".format(name, leakage))
         if leakage >= 1e-5:
-            app_log("[WARNING] check_leakage_phsym: coeff_last/coeff_first = {} >= 1e-5; "
-                    "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))
-        sys.stdout.flush()
+            app_log(1, "[WARNING] check_leakage_phsym: coeff_last/coeff_first = {} >= 1e-5; " \
+                       "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))

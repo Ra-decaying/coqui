@@ -462,6 +462,7 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
                 coqui_dmft.print_degenerate_blks(degenerate_blk, Res['gf_struct'])
                 delta_iw   = modest.symmetrize(delta_iw, degenerate_blk)
                 h0         = coqui_dmft.symmetrize_h0_op(h0, degenerate_blk, Res['gf_struct'])
+                h_int      = coqui_dmft.symmetrize_h_int_op(h_int, degenerate_blk, Res['gf_struct'])
                 u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, degenerate_blk, Res['gf_struct'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
@@ -641,6 +642,7 @@ def _edmft_loop_fixed_gloc_and_wloc(
                 coqui_dmft.print_degenerate_blks(degenerate_blk, Res['gf_struct'])
                 delta_iw   = modest.symmetrize(delta_iw, degenerate_blk)
                 h0         = coqui_dmft.symmetrize_h0_op(h0, degenerate_blk, Res['gf_struct'])
+                h_int      = coqui_dmft.symmetrize_h_int_op(h_int, degenerate_blk, Res['gf_struct'])
                 u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, degenerate_blk, Res['gf_struct'])
 
             # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
@@ -986,6 +988,7 @@ def solve_impurities_from_chkpt(coqui_mpi, *, dmft_iteration=-1, imp_indices=Non
             coqui_dmft.print_degenerate_blks(degenerate_blk, Input['gf_struct'])
             delta_iw   = modest.symmetrize(delta_iw, degenerate_blk)
             h0         = coqui_dmft.symmetrize_h0_op(h0, degenerate_blk, Input['gf_struct'])
+            h_int      = coqui_dmft.symmetrize_h_int_op(h_int, degenerate_blk, Res['gf_struct'])
             u_weiss_iw = coqui_dmft.symmetrize_blk2_gf(u_weiss_iw, degenerate_blk, Input['gf_struct'])
 
         # Call impurity solver, and store sigma_imp, vhf_imp, and pi_imp in "Res"
