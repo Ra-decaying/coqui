@@ -792,26 +792,21 @@ def symmetrize_h_int_op(h_int_op, deg_blk, gf_struct):
                     up_offdiag_buffer += u_dd[b1, b2]
                     offdiag_count_prime += 1
 
-        u_diag_buffer /= diag_count
-        up_diag_buffer /= diag_count_prime
-        u_offdiag_buffer /= offdiag_count
-        up_offdiag_buffer /= offdiag_count_prime
-
         for b1, b2 in product(blks, repeat=2):
             blk_name1, blk_name2 = gf_struct[b1][0], gf_struct[b2][0]
             spin1, orb_blk1 = blk_name1.split('_')
             spin2, orb_blk2 = blk_name2.split('_')
 
             if spin1 == spin2:
-                if orb_blk1 == orb_blk2:
-                    u_dd[b1, b2] = u_diag_buffer
-                else:
-                    u_dd[b1, b2] = u_offdiag_buffer
+                if orb_blk1 == orb_blk2 and diag_count > 0:
+                    u_dd[b1, b2] = u_diag_buffer / diag_count
+                elif orb_blk1 != orb_blk2 and offdiag_count > 0:
+                    u_dd[b1, b2] = u_offdiag_buffer / offdiag_count
             else:
-                if orb_blk1 == orb_blk2:
-                    u_dd[b1, b2] = up_diag_buffer
-                else:
-                    u_dd[b1, b2] = up_offdiag_buffer
+                if orb_blk1 == orb_blk2 and diag_count_prime > 0:
+                    u_dd[b1, b2] = up_diag_buffer / diag_count_prime
+                elif orb_blk1 != orb_blk2 and offdiag_count_prime > 0:
+                    u_dd[b1, b2] = up_offdiag_buffer / offdiag_count_prime
     
     c_to_solver = get_c_to_solver_mapping(gf_struct)
     U_same_spin = u_dd[:n_orb, :n_orb]
