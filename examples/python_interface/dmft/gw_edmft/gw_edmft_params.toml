@@ -35,8 +35,6 @@ eps = 1e-10           # DLR target precision for EDMFT subspaces
 init_imp_results = "dc"           # Initial impurity self-energy/polarization: dc or zero
 degenerate_blk = [[0, 1, 2, 3, 4, 5]]
 
-n_iw = 3000
-n_tau = 96001
 length_cycle = 60
 n_warmup_cycles = 6000
 n_cycles = 2000000
@@ -49,16 +47,12 @@ fit_max_w = 4.5
 
 # Impurity chemical potential solver
 [gw_edmft.edmft.impurity.chemical_potential]
-verbosity = true
 tolerance = 0.1
-length_cycle = 60
-n_warmup_cycles = 1000
-n_cycles = 100000
 
 # Optional regularization / causality projection controls
-[gw_edmft.edmft.impurity.causal_projection]
-exclude_w0 = false
-w0_treatment_for_pi = "extrapolate_order_2"
+#[gw_edmft.edmft.impurity.causal_projection]
+#exclude_w0 = false
+#w0_treatment_for_pi = "extrapolate_order_2"
 # w0_treatment_for_w = "flatten"
 # w0_treatment_for_weiss = "flatten"
-nbath_per_orbital = -1
+#nbath_per_orbital = -1
