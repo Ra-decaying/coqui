@@ -35,7 +35,7 @@ double compute_Nelec(double mu, const nda::array<ComplexType, 4> &spectra,
   nda::array<ComplexType, 2> Xt(FT.nt_f(), _ns);
   nda::array<ComplexType, 1> nelecs(_ns);
   auto k_weight = mf.k_weight();
-  double scl = (_ns == 1 and mf.npol() == 1 ? 2.0 : 1.0); 
+  double scl = (_ns == 1 and mf.npol() == 1 ? -2.0 : -1.0); 
 
   for (size_t n = 0; n < _nw; ++n) {
     long wn = FT.wn_mesh()(n);
@@ -53,10 +53,8 @@ double compute_Nelec(double mu, const nda::array<ComplexType, 4> &spectra,
   FT.tau_to_beta(Xt, nelecs);
 
   ComplexType nelec = scl*std::accumulate(nelecs.begin(),nelecs.end(),ComplexType(0.0));
-  nelec *= -1.0;
-  if (nelec.imag() / mf.nelec() >= 1e-10) {
-    app_log(1, "[WARNING] nelec.imag()/nelec_target = {}",
-            nelec.imag() / mf.nelec());
+  if (nelec.imag() / mf.nelec() >= 1e3*FT.eps()) {
+    app_log(1, "[WARNING] nelec.imag()/nelec_target = {}", nelec.imag() / mf.nelec());
   }
 
   return nelec.real();
@@ -94,11 +92,11 @@ auto eval_hf_energy(const X_t &sDm_skij, const X_t &sF_skij, const X_t &sH0_skij
   e_1e *= spin_factor;
   e_hf *= spin_factor;
   // TODO CNY: _MF->e_nuc() is missing
-  if (e_1e.imag() / e_1e.real() >= 1e-10) {
+  if (e_1e.imag() / e_1e.real() >= 1e-8) {
     app_log(1, "[WARNING] e_1e.imag()/e_1e.real() = {}, e_1e.imag() = {}, e_1e.real() = {}",
             e_1e.imag()/e_1e.real(), e_1e.imag(), e_1e.real());
   }
-  if (e_hf.imag() / e_hf.real() >= 1e-10) {
+  if (e_hf.imag() / e_hf.real() >= 1e-8) {
     app_log(1, "[WARNING] e_hf.imag()/e_hf.real() = {}, e_hf.imag() = {}, e_hf.real() = {}",
             e_hf.imag()/e_hf.real(), e_hf.imag(), e_hf.real());
   }
@@ -149,7 +147,7 @@ double eval_corr_energy(comm_t& comm, const imag_axes_ft::IAFT &FT,
   // MAM: need to know npol here, scale only when npol==1 and ns==1
   RealType spin_factor = (ns == 2) ? 1.0 : 2.0;
   ComplexType e_corr = (-0.5 * spin_factor) * nda::sum(SigmaG_beta_s);
-  if (e_corr.imag() / e_corr.real() >= 1e-8) {
+  if (e_corr.imag() / e_corr.real() >= 1e2*FT.eps()) {
     app_log(1, "[WARNING] e_corr.imag()/e_corr.real() = {}, e_corr.imag() = {}, e_corr.real() = {}",
             e_corr.imag()/e_corr.real(), e_corr.imag(), e_corr.real());
   }
