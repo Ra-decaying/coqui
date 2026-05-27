@@ -206,7 +206,8 @@ def plot_edmft_convergence(dmft_chkpt, *, impurity_index=0, check_w=True,
     ax.set_ylabel(r"$|W_{\rm loc} - W_{\rm imp}|$", fontsize=fontsize)
     ax.grid(True, alpha=0.3, linestyle='--')
 
-  ax.set_xticks(iters)
+  iter_min, iter_max = iters[0], iters[-1]
+  ax.set_xticks(np.arange(iter_min, iter_max+1, max(1, (iter_max-iter_min)//5)))
   ax.set_xlabel("DMFT iteration", fontsize=fontsize)
 
   for ax in axes:
