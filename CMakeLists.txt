@@ -371,6 +371,10 @@ if(COQUI_PYTHON_SUPPORT)
 else()
   set(PythonSupport ${NDA_PYTHON_SUPPORT} CACHE INTERNAL "")
 endif()
+# h5/unstable defaults Update_Python_Bindings=ON, which invokes clair-c2py to
+# regenerate its checked-in .wrap.cxx files. CoQui only needs to *compile* h5's
+# Python bindings, not regenerate them, so suppress the clair dependency here.
+set(Update_Python_Bindings OFF CACHE INTERNAL "")
 FetchContent_Declare(
         nda
         GIT_REPOSITORY "https://github.com/triqs/nda.git"
@@ -470,7 +474,7 @@ if(COQUI_PYTHON_SUPPORT)
   FetchContent_Declare(
     c2py
     GIT_REPOSITORY https://github.com/flatironinstitute/c2py
-    GIT_TAG        295921e141dffd71acfd8eb619fff24fedb7cd54 #unstable
+    GIT_TAG        unstable
     EXCLUDE_FROM_ALL
   )
   FetchContent_MakeAvailable(c2py)
