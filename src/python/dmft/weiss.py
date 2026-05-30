@@ -73,8 +73,8 @@ def get_proj_info(modest_proj):
 
 
 def set_n_iw(iaft):
-    iw_idx_f = iaft.wn_mesh('f', False)
-    iw_idx_b = iaft.wn_mesh('b', False)
+    iw_idx_f = iaft.wn_mesh('fermion', phys_notation=True)
+    iw_idx_b = iaft.wn_mesh('boson', phys_notation=True)
     max_idx = max(abs(iw_idx_f[0]), abs(iw_idx_f[-1]), abs(iw_idx_b[0]), abs(iw_idx_b[-1]))
     return int(max_idx + 1)
 

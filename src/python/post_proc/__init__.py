@@ -39,6 +39,7 @@ _TRIQS_IMPORT_ERROR = None
 try:
   from .analytic_cont import (
     pade_triqs,
+    maxent_triqs,
     maxent_sigma,
     maxent_sigma_k,
   )
@@ -47,7 +48,7 @@ except ImportError as _e:
   _TRIQS_IMPORT_ERROR = _e
 
 # Names from analytic_cont that require TRIQS
-_TRIQS_AC_NAMES = frozenset(["maxent_sigma", "maxent_sigma_k", "pade_triqs"])
+_TRIQS_AC_NAMES = frozenset(["maxent_sigma", "maxent_sigma_k", "pade_triqs", "maxent_triqs"])
 
 def __getattr__(name):
   if name in _TRIQS_AC_NAMES:
@@ -66,4 +67,4 @@ __all__ = [
 ]
 
 if _TRIQS_AVAILABLE:
-  __all__.extend(["maxent_sigma", "maxent_sigma_k", "pade_triqs"])
+  __all__.extend(["maxent_sigma", "maxent_sigma_k", "pade_triqs", "maxent_triqs"])
