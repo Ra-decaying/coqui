@@ -331,7 +331,8 @@ def dump_hartree(mf, params):
     pproc_mod.dump_hartree(mf, json.dumps(params))
 
 
-def pade(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=-1, eta=None, ph_sym=False):
+def pade(g_iw, iaft, stats, wmin, wmax, Nw, *, 
+         Nfit=-1, eta=None, ph_sym=False, causal_projection=False):
     """
     Perform Padé analytic continuation from the Matsubara to the real frequency axis.
 
@@ -360,6 +361,9 @@ def pade(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=-1, eta=None, ph_sym=False):
     ph_sym : bool, optional
         If ``True``, exploit particle-hole symmetry and use only the
         positive-frequency half of the Matsubara axis. Default: ``False``.
+    causal_projection : bool, optional
+        If ``True``, apply causal projection to the continued function.
+        Default: ``False``.
 
     Returns
     -------
@@ -372,6 +376,9 @@ def pade(g_iw, iaft, stats, wmin, wmax, Nw, *, Nfit=-1, eta=None, ph_sym=False):
     """
     if not isinstance(iaft, IAFT):
         raise ValueError("iaft must be an instance of IAFT for minipole fitting. ")
+    
+    if causal_projection:
+        g_iw = aaa_adapol_imag(g_iw, iaft, stats, Nfit=Nfit, solver="lstsq", ph_sym=ph_sym)
     
     g_iw = np.asarray(g_iw, dtype=np.complex128)
     iw_mesh = 1j*iaft.wn_mesh(stats=stats, positive_only=ph_sym) * np.pi / iaft.beta
@@ -567,7 +574,8 @@ def aaa_adapol_imag(g_iw, iaft, stats, *, Nfit=40, solver="lstsq", ph_sym=False,
     return aaa_adapol_on_mesh(g_iw, iaft, stats, iw_mesh_out, Nfit=Nfit, solver=solver, ph_sym=ph_sym)
 
 
-def minipole(g_iw, iaft, stats, wmin, wmax, Nw, *, tol=1e-4, eta=None, ph_sym=False):
+def minipole(g_iw, iaft, stats, wmin, wmax, Nw, *, 
+             tol=1e-4, eta=None, ph_sym=False, causal_projection=False):
     """
     Perform analytic continuation using the Minimal Pole algorithm.
 
@@ -599,6 +607,9 @@ def minipole(g_iw, iaft, stats, wmin, wmax, Nw, *, tol=1e-4, eta=None, ph_sym=Fa
     ph_sym : bool, optional
         If ``True``, exploit particle-hole symmetry when interpolating onto
         the uniform Matsubara grid. Default: ``False``.
+    causal_projection : bool, optional
+        If ``True``, apply causal projection to the continued function.
+        Default: ``False``.
 
     Returns
     -------
@@ -617,6 +628,9 @@ def minipole(g_iw, iaft, stats, wmin, wmax, Nw, *, tol=1e-4, eta=None, ph_sym=Fa
 
     if not isinstance(iaft, IAFT):
         raise ValueError("iaft must be an instance of IAFT for minipole fitting. ")
+    
+    if causal_projection:
+        g_iw = aaa_adapol_imag(g_iw, iaft, stats, Nfit=40, solver="lstsq", ph_sym=ph_sym)
     
     g_iw = np.asarray(g_iw, dtype=np.complex128)
     ndim = g_iw.ndim

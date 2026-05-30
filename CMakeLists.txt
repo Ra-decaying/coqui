@@ -40,7 +40,7 @@ message(STATUS "CoQuí @ git branch ${GIT_BRANCH_NAME}, commit ${GIT_COMMIT_HASH
 ######################################################################
 
 set(COQUI_VERSION_MAJOR 0)
-set(COQUI_VERSION_MINOR 1)
+set(COQUI_VERSION_MINOR 3)
 set(COQUI_VERSION_PATCH 0)
 set(COQUI_VERSION "${COQUI_VERSION_MAJOR}.${COQUI_VERSION_MINOR}.${COQUI_VERSION_PATCH}")
 

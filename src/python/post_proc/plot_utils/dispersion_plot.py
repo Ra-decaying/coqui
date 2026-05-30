@@ -91,7 +91,7 @@ def band_plot(ax, coqui_h5, iteration=-1,
         label_idx = qp_grp["wannier_inter/kpt_label_idx"]
         kpt_label_str = qp_grp["wannier_inter/kpt_labels"]
 
-    kpt_label = [letter if letter != 'G' else '$\Gamma$' for letter in kpt_label_str]
+    kpt_label = [letter if letter != 'G' else r'$\Gamma$' for letter in kpt_label_str]
 
     E_ska -= mu
     ns, nkpts, nbnd = E_ska.shape
@@ -187,7 +187,7 @@ def spectral_plot(ax, coqui_h5, calc_type, iteration=-1, orb_list=None,
         label_idx = ar[f"{h5_grp}/iter{iteration}/wannier_inter/kpt_label_idx"]
         kpt_label_str = ar[f"{h5_grp}/iter{iteration}/wannier_inter/kpt_labels"]
 
-    kpt_label = [letter if letter != 'G' else '$\Gamma$' for letter in kpt_label_str]
+    kpt_label = [letter if letter != 'G' else r'$\Gamma$' for letter in kpt_label_str]
 
     nw, ns, nkpts, nbnd = G_wska.shape
     if verbal:
@@ -261,7 +261,7 @@ def _spectral_plot_maxent(ax, coqui_h5, iteration=-1, eta_for_A=0.001,
         kpt_label_str = ar[f"embed/iter{iteration}/wannier_inter/kpt_labels"]
         kpts = ar[f"embed/iter{iteration}/wannier_inter/kpts"]
 
-    kpt_label = [letter if letter != 'G' else '$\Gamma$' for letter in kpt_label_str]
+    kpt_label = [letter if letter != 'G' else r'$\Gamma$' for letter in kpt_label_str]
 
     nw, ns, nbnd = Simp_wsa.shape
     nkpts = kpts.shape[0]
@@ -307,11 +307,11 @@ def _spectral_plot(ax, A_wk, w_mesh, kpt_label, label_idx,
 
     # Add a colorbar to show the scale, and set the size of the colar bar tick labels
     cbar = plt.colorbar(cax, ax=ax)
-    cbar.set_label("$A(k,\\omega)$" if not abs_A else "$|A(k,\omega)$|", fontsize=fontsize)
+    cbar.set_label(r"$A(k,\omega)$" if not abs_A else r"$|A(k,\omega)|$", fontsize=fontsize)
     cbar.ax.tick_params(labelsize=fontsize)
 
     ax.tick_params(axis='both', which='major', labelsize=fontsize)
-    ax.set_ylabel('$\\epsilon - \\mu$ (eV)', fontsize=fontsize)
+    ax.set_ylabel(r'$\epsilon - \mu$ (eV)', fontsize=fontsize)
     ax.set_xlim(0, nkpts)
 
     # Set custom ticks
