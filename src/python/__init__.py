@@ -58,4 +58,5 @@ from . import mbpt
 from . import embed
 from . import wannier
 from . import post_proc
-from . import dmft
+# remove dmft submodule here since it has a heavy dependency on TRIQS.
+#from . import dmft
