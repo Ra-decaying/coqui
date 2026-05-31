@@ -14,7 +14,7 @@ def post_process(solver, **post_proc_params):
     
     post_process_sigma(solver, **post_proc_params)
     
-    if solver.D0_tau is not None and solver.results.nn_nu is not None:
+    if solver.D0_tau is not None and solver.results.nn_nu_dlr is not None:
         if post_proc_params['degenerate_blk']:
             deg_blk_2e = []
             for blks in post_proc_params['degenerate_blk']:
@@ -47,13 +47,13 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
     
     # initialization
     tau_mesh = solver.D0_tau[block_name[0], block_name[0]].mesh
-    iw_mesh_dlr = solver.results.nn_nu[block_name[0], block_name[0]].mesh
+    iw_mesh_dlr = solver.results.nn_nu_dlr[block_name[0], block_name[0]].mesh
 
     D0_tau = Gf(mesh=tau_mesh, target_shape=(n_color, n_color))
     nn_iw_dlr = Gf(mesh=iw_mesh_dlr, target_shape=(n_color, n_color))
     for c1, c2 in product(range(n_color), repeat=2):
         nn_iw_dlr.data[:, c1, c2] = (
-            solver.results.nn_nu[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
+            solver.results.nn_nu_dlr[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
         )
         D0_tau.data[:, c1, c2] = (
             solver.D0_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]

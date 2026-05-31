@@ -234,7 +234,7 @@ def solve_dynamic_dlr_mesh(Delta_iw, h_loc0, D0_iw, h_int, **solver_interface_pa
     # call solver
     solver_interface_params['measure_densities'] = True
     solver_interface_params['measure_F_tau']     = True
-    solver_interface_params['measure_nn_nu']     = True
+    solver_interface_params['measure_nn_nu_dlr']     = True
     S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
 
     # post process
