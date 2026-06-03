@@ -66,7 +66,7 @@ def compute_mu_impurity(nelec_target, compute_nelec_fcn, tolerance=1e-2, mu0=0):
     app_log(1, "Impurity chemical potential search")
     app_log(1, " ----------------------------------")
     app_log(1, "")
-    app_log(1, f"  target numer of electrons (nelec) = {nelec_target:.6f}")
+    app_log(1, f"  target number of electrons (nelec) = {nelec_target:.6f}")
     app_log(1, f"  tolerance                         = {tolerance}")
     app_log(1, "")
     app_log(1, f"  {'iter':<4}  {'mu_imp':>8}  {'nelec':>11}  {'|nelec-target|':>20}")
@@ -99,7 +99,6 @@ def compute_mu_impurity(nelec_target, compute_nelec_fcn, tolerance=1e-2, mu0=0):
             nelec2 = compute_nelec_fcn(mu=mu2)
         it += 1
         _log_iter(it, mu2, nelec2)
-        nelec1 = nelec
         nelec1 = nelec
 
     # Binary search

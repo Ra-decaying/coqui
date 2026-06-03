@@ -151,7 +151,9 @@ namespace methods {
       }
       std::array<double,3> buffer = {(heff_exists)? 1.0 : 0.0, double(iteration), beta};
       mpi->comm.broadcast_n(buffer.data(), buffer.size(), 0);
-      heff_exists = (buffer[0] == 1.0)? true : false, iteration = static_cast<int>(buffer[1]), beta = buffer[2];
+      heff_exists = (buffer[0] == 1.0)? true : false;
+      iteration = static_cast<int>(buffer[1]);
+      beta = buffer[2];
       if (!heff_exists) {
         // Compute QP energies from dynamic self-energy on IBZ 
         qp_params_t qp_params;
