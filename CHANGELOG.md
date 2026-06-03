@@ -1,17 +1,18 @@
 
 # Changelog
 
-## CoQui v0.3.0 [2026-04-29]
+## CoQui v0.3.0 [2026-06-03]
 
 ### Added
 
 - DIIS for QP-SCF via new `qp_com_diis_residual` and `vspace_heff` classes, with unit tests covering both Dyson- and QP-SCF paths.
 - New double-bisection chemical-potential search algorithm robust for insulators (finds the middle of the acceptable μ window rather than the first crossing), and a midpoint algorithm for QP-SCF. The algorithm is externally selectable via `mu_update_alg`.
-- Unified analytic-continuation interface (`ac`) with four backends:
+- Unified analytic-continuation interface (`ac`) with five backends:
   - CoQui Pade (C++ implementation).
   - TRIQS Pade.
   - AAA algorithm via the adapol library.
   - Minipole via the mini_pole library.
+  - `maxent_triqs` analytic-continuation via TRIQS MaxEnt.
 - Python wrapper around the C++ logger.
 - EDMFT convergence metrics (Weiss field, `|Gloc - Gimp|`, `|Wloc - Wimp|`) are stored in the EDMFT checkpoint, with utility functions to visualize them.
 
@@ -34,6 +35,9 @@
   - Wannier90: Added explicit `outdir` parameter to all public entrypoints (`to_wannier90`, `wannier90_library_mode`, `wannier90_library_mode_from_nnkp`, `append_wannier90_win`, `mlwf_h5_from_wannier90_output`). Output files are consistently placed at `outdir + "/" + prefix` with `outdir` default of `"./"`.
   - Updated all corresponding Python wrapper docstrings and examples to document the new `outdir` parameter and expected file locations.
 - TRIQS compatibility: `triqs.gf` → `triqs.gfs`, updated function names from `triqs.modest`. `c2py` pinned to a known-good commit while upstream stabilizes.
+- Refactored the TRIQS MaxEnt analytic-continuation interface in `post_proc/analytic_cont.py`.
+- Imaginary-part tolerance warnings for `Nelec` and the correlation energy now scale with the IAFT `eps` rather than using fixed thresholds.
+- Regenerated Python binding (`.wrap`) files that are compatible with c2py (2f7f21dd56ff2161299194313c6f1fb600d52a7c).
 
 ### Fixed
 
@@ -45,6 +49,7 @@
 - Python IAFT: renamed `ir_notation` to `phys_notation` (now a keyword-only argument).
 - GW+EDMFT: `wmax` and `eps` inputs for the EDMFT subspace are consolidated under the `iaft` dictionary.
 - GW+EDMFT: restart now requires an existing checkpoint.
+- ct-seg interface updated for the upstream TRIQS rename of `nn_nu` to `nn_nu_dlr` (`measure_nn_nu` → `measure_nn_nu_dlr`).
 
 ### Default Value Updates
 
