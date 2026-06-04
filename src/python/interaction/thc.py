@@ -50,8 +50,10 @@ def make_thc_coulomb(mf, params):
           Defaults to ``1e-5`` when ``nIpts=0`` or to ``1e-13`` when ``nIpts > 0``. 
           When both ``nIpts`` and ``thresh`` are given explicitly, the algorithm stops 
           as soon as either criterion is satisfied.
-        - ``ecut`` *(float, optional, default ``0.4 * mf.ecutrho()``)* - kinetic-energy 
-          cutoff for evaluating Coulomb matrix elements.
+        - ``ecut`` *(float, optional, default ``1.4 * mf.ecutwfc()``)* - kinetic-energy
+          cutoff for evaluating Coulomb matrix elements. For backends without a
+          wavefunction grid (e.g. PySCF, model), the default falls back to
+          ``0.4 * mf.ecutrho()``.
         - ``storage`` *(str, optional, default ``"incore"``)* — how integrals are
           stored after construction. ``"incore"`` keeps them in memory;
           ``"outcore"`` reads them from the HDF5 file on demand.

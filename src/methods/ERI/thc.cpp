@@ -89,7 +89,8 @@ auto make_wfc_to_rho(utils::mpi_context_t<mpi3::communicator>& mpi,
 /*
  * Creates a thc object with arguments in property tree.
  *  Important options:
- *  - ecut: "0.4 * ecutrho", Plane wave cutoff used for the evaluation of coulomb matrix elements.
+ *  - ecut: "1.4 * ecutwfc" (falls back to "0.4 * ecutrho" when no wfc grid is available),
+ *          Plane wave cutoff used for the evaluation of coulomb matrix elements.
  *  - thresh: "1e-5", Threshold in cholesky decomposition.
  *  Performance related options:
  *  - matrix_block_size: 1024, Block size used in distributed arrays.
@@ -106,7 +107,8 @@ thc::thc(mf::MF *mf_,
   mpi(std::addressof(mpi_)),
   mf(mf_),
   Timer(),
-  ecut( io::get_value_with_default<double>(pt,"ecut",0.4*mf->ecutrho()) ),
+  ecut( io::get_value_with_default<double>(pt,"ecut",
+          mf->has_wfc_grid() ? 1.4*mf->wfc_truncated_grid()->ecut() : 0.4*mf->ecutrho()) ),
   rho_g( detail::make_grid(mpi->comm,ecut,*mf) ),
   swfc_to_rho(detail::make_wfc_to_rho(*mpi,(mf->has_wfc_grid()?*(mf->wfc_truncated_grid()):rho_g),rho_g)),
   vG( io::check_child_exists(pt,"potential") ? io::find_child(pt,"potential") : ptree{}),
