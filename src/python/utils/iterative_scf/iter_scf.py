@@ -66,7 +66,7 @@ class IterSCF(object):
 
         app_log(1, "\nIterSCF::diis")
         app_log(1, "----------------")
-        app_log(1, "  - chekptoint h5        = {}".format(diis_chkpt))
+        app_log(1, "  - checkpoint h5        = {}".format(diis_chkpt))
         app_log(1, "  - vector list          = {}".format(list(current_vec.keys())))
         app_log(1, "  - max subspace size    = {}".format(diis_subspace))
         app_log(1, "  - current iteration    = {}".format(current_iter))

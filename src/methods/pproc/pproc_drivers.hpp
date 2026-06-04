@@ -189,6 +189,7 @@ namespace methods {
       utils::check(w_min < w_max, "w_min should be smaller than w_max in spectral_interpolation.");
       // (w_max - w_min) / Nw = 0.05 => Nw = (w_max - w_min) / (0.05 / 27.2114079527)
       auto Nw      = io::get_value_with_default<int>(pt, "Nw", int((w_max - w_min) * 27.2114079527 / 0.05));
+      utils::check(Nw > 1, "Nw must be > 1 in spectral_interpolation (got {}).", Nw);
       analyt_cont::ac_context_t ac_context(ac_alg, imag_axes_ft::fermion, Nfit, eta, w_min, w_max, Nw);
 
       pp.spectral_interpolation(*mf, pt, wannier_file, ac_context, grp_name, iteration, trans_home_cell);
@@ -214,6 +215,7 @@ namespace methods {
       auto w_max   = io::get_value_with_default<double>(pt,"w_max",0.367);
       // default to 0.05 eV resolution => Nw = (w_max - w_min) / (0.05 / 27.2114079527)
       auto Nw      = io::get_value_with_default<int>(pt, "Nw", int((w_max - w_min) * 27.2114079527 / 0.05));
+      utils::check(Nw > 1, "Nw must be > 1 in spectral_interpolation (got {}).", Nw);
       analyt_cont::ac_context_t ac_context(ac_alg, imag_axes_ft::fermion, Nfit, eta, w_min, w_max, Nw);
 
       pp.local_density_of_state(*mf, wannier_file, ac_context, grp_name, iteration, trans_home_cell);
