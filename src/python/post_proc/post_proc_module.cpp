@@ -28,11 +28,6 @@
 
 namespace coqui_py::post_proc {
 
-  void ac(const Mf &mf, const std::string &params) {
-    auto parser = InputParser(params);
-    methods::post_processing("ac", mf.get_mf(), parser.get_root());
-  }
-
   void band_interpolation(const Mf &mf, const std::string &params) {
     auto parser = InputParser(params);
     methods::post_processing("band_interpolation", mf.get_mf(), parser.get_root());

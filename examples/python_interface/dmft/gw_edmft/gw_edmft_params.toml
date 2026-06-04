@@ -23,9 +23,9 @@ mixing = 0.15
 [gw_edmft.edmft]
 chkpt_h5 = "svo.dmft.h5" # Default would be: {outdir}/{prefix}.mbpt.h5
 
-[gw_edmft.edmft.iaft]
-wmax = 5              # DLR frequency cutoff for EDMFT subspaces
-eps = 1e-10           # DLR target precision for EDMFT subspaces
+#[gw_edmft.edmft.iaft]
+#wmax = 5              # DLR frequency cutoff for EDMFT subspaces
+#eps = 1e-10           # DLR target precision for EDMFT subspaces
 
 # -----------------------------------------------------------------------------
 # Impurity solver block

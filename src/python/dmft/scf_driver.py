@@ -480,13 +480,24 @@ def _edmft_loop(mf, h_int, proj_info, dmft_state, solver_chkpt_h5, coqui_chkpt_h
             conv_metrics = _edmft_convergence_check(coqui_mpi, imp_index, Input, Res, dmft_state.iaft,
                                                     prev_g_weiss_iw, prev_u_weiss_iw)
 
-            # Store convergence metrics array: [U_w0, A_w0, diff_g, diff_g_weiss, diff_u_weiss, diff_w]
+            # Store convergence metrics array: [U_w0, A_w0, diff_g, diff_g_weiss, diff_u_weiss, diff_w, Sigma_w1]
             if coqui_mpi.root():
                 A_w0  = float(np.mean((dmft_state.iaft.beta / np.pi) * np.diag(g_beta_half[0]+g_beta_half[1]).real)) * 0.5
+
+                w1_idx = np.where(dmft_state.iaft.wn_mesh(stats='fermion') == 1)[0][0]
+                sigma_w0 = 0.0
+                norb_tot = 0
+                for sigma_blk in Res['Sigma_iw_data']:
+                    sigma_w0 += np.sum(np.diag(sigma_blk[w1_idx]).imag)
+                    norb_tot += sigma_blk.shape[1]  # number of orbitals in the block
+                sigma_w0 = sigma_w0 / norb_tot  # average over all orbitals
+
+                Sigma_imp_iw0 = Res['Sigma_iw_data']
                 Res['convergence'] = np.array([
                     U, A_w0,
                     conv_metrics['diff_g'], conv_metrics['diff_g_weiss'],
-                    conv_metrics['diff_u_weiss'], conv_metrics['diff_w']
+                    conv_metrics['diff_u_weiss'], conv_metrics['diff_w'], 
+                    sigma_w0
                 ])
 
             # GW double counting contributions (current implementation uses Gloc/Wloc inputs)

@@ -62,11 +62,8 @@ if mpi.root():
     # Plot spectral function A(k, ω)
     coqui.post_proc.spectral_plot(ax, coqui_h5="svo.gw.mbpt.h5", iteration=1, calc_type="mbpt")
     # Plot QP band structure
-    coqui.post_proc.plot_utils.band_plot(ax, coqui_h5="svo.gw.mbpt.h5", iteration=1,
-                                         color="tab:blue", label="qpGW")
+    coqui.post_proc.band_plot(ax, coqui_h5="svo.gw.mbpt.h5", iteration=1, color="tab:blue", label="qpGW")
     ax.axhline(y=0, color = 'black', linestyle = '-', linewidth=2.0, alpha=0.5)
-
-    ax.axhline(y=0.0, color="black", linestyle="-", linewidth=2.0, alpha=0.5)
 
     ax.set_ylim(-4, 4)
     ax.legend(loc=4, fontsize=12)

@@ -1,8 +1,7 @@
 import numpy as np
 import tomllib
 
-import triqs.utility.mpi as mpi
-
+from mpi4py import MPI
 import coqui
 
 qe_dir = coqui.TEST_INPUT_DIR + "qe/svo_kp222_nbnd40/out"

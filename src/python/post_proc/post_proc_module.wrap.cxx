@@ -24,43 +24,36 @@ using c2py::operator""_a;
 
 // ==================== module functions ====================
 
-// ac
-static auto const _c2py_fun_0 = c2py::dispatcher_f_kw_t{c2py::cfun(
-    [](const coqui_py::Mf &mf, const std::string &params) {
-      return coqui_py::post_proc::ac(mf, params);
-    },
-    "mf", "params")};
-
 // band_interpolation
-static auto const _c2py_fun_1 = c2py::dispatcher_f_kw_t{c2py::cfun(
+static auto const _c2py_fun_0 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &params) {
       return coqui_py::post_proc::band_interpolation(mf, params);
     },
     "mf", "params")};
 
 // dump_hartree
-static auto const _c2py_fun_2 = c2py::dispatcher_f_kw_t{c2py::cfun(
+static auto const _c2py_fun_1 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &params) {
       return coqui_py::post_proc::dump_hartree(mf, params);
     },
     "mf", "params")};
 
 // dump_vxc
-static auto const _c2py_fun_3 = c2py::dispatcher_f_kw_t{c2py::cfun(
+static auto const _c2py_fun_2 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &params) {
       return coqui_py::post_proc::dump_vxc(mf, params);
     },
     "mf", "params")};
 
 // local_dos
-static auto const _c2py_fun_4 = c2py::dispatcher_f_kw_t{c2py::cfun(
+static auto const _c2py_fun_3 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &params) {
       return coqui_py::post_proc::local_dos(mf, params);
     },
     "mf", "params")};
 
 // pade
-static auto const _c2py_fun_5 = c2py::dispatcher_f_kw_t{c2py::cfun(
+static auto const _c2py_fun_4 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](nda::basic_array<
            std::complex<double>, 2, nda::C_layout, 'A',
            nda::heap_basic<nda::mem::mallocator<nda::mem::AddressSpace::Host>>>
@@ -78,14 +71,14 @@ static auto const _c2py_fun_5 = c2py::dispatcher_f_kw_t{c2py::cfun(
     "is_iw_pos_only")};
 
 // spectral_interpolation
-static auto const _c2py_fun_6 = c2py::dispatcher_f_kw_t{c2py::cfun(
+static auto const _c2py_fun_5 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &params) {
       return coqui_py::post_proc::spectral_interpolation(mf, params);
     },
     "mf", "params")};
 
 // unfold_bz
-static auto const _c2py_fun_7 = c2py::dispatcher_f_kw_t{c2py::cfun(
+static auto const _c2py_fun_6 = c2py::dispatcher_f_kw_t{c2py::cfun(
     [](const coqui_py::Mf &mf, const std::string &params) {
       return coqui_py::post_proc::unfold_bz(mf, params);
     },
@@ -98,26 +91,23 @@ static const auto _c2py_doc_3 = _c2py_fun_3.doc(R"DOC()DOC");
 static const auto _c2py_doc_4 = _c2py_fun_4.doc(R"DOC()DOC");
 static const auto _c2py_doc_5 = _c2py_fun_5.doc(R"DOC()DOC");
 static const auto _c2py_doc_6 = _c2py_fun_6.doc(R"DOC()DOC");
-static const auto _c2py_doc_7 = _c2py_fun_7.doc(R"DOC()DOC");
 //--------------------- module function table  -----------------------------
 
 static PyMethodDef module_methods[] = {
-    {"ac", (PyCFunction)c2py::pyfkw<_c2py_fun_0>, METH_VARARGS | METH_KEYWORDS,
-     _c2py_doc_0.c_str()},
-    {"band_interpolation", (PyCFunction)c2py::pyfkw<_c2py_fun_1>,
+    {"band_interpolation", (PyCFunction)c2py::pyfkw<_c2py_fun_0>,
+     METH_VARARGS | METH_KEYWORDS, _c2py_doc_0.c_str()},
+    {"dump_hartree", (PyCFunction)c2py::pyfkw<_c2py_fun_1>,
      METH_VARARGS | METH_KEYWORDS, _c2py_doc_1.c_str()},
-    {"dump_hartree", (PyCFunction)c2py::pyfkw<_c2py_fun_2>,
+    {"dump_vxc", (PyCFunction)c2py::pyfkw<_c2py_fun_2>,
      METH_VARARGS | METH_KEYWORDS, _c2py_doc_2.c_str()},
-    {"dump_vxc", (PyCFunction)c2py::pyfkw<_c2py_fun_3>,
+    {"local_dos", (PyCFunction)c2py::pyfkw<_c2py_fun_3>,
      METH_VARARGS | METH_KEYWORDS, _c2py_doc_3.c_str()},
-    {"local_dos", (PyCFunction)c2py::pyfkw<_c2py_fun_4>,
+    {"pade", (PyCFunction)c2py::pyfkw<_c2py_fun_4>,
      METH_VARARGS | METH_KEYWORDS, _c2py_doc_4.c_str()},
-    {"pade", (PyCFunction)c2py::pyfkw<_c2py_fun_5>,
+    {"spectral_interpolation", (PyCFunction)c2py::pyfkw<_c2py_fun_5>,
      METH_VARARGS | METH_KEYWORDS, _c2py_doc_5.c_str()},
-    {"spectral_interpolation", (PyCFunction)c2py::pyfkw<_c2py_fun_6>,
+    {"unfold_bz", (PyCFunction)c2py::pyfkw<_c2py_fun_6>,
      METH_VARARGS | METH_KEYWORDS, _c2py_doc_6.c_str()},
-    {"unfold_bz", (PyCFunction)c2py::pyfkw<_c2py_fun_7>,
-     METH_VARARGS | METH_KEYWORDS, _c2py_doc_7.c_str()},
     {nullptr, nullptr, 0, nullptr} // Sentinel
 };
 
