@@ -2,7 +2,7 @@
 ==========================================================================
 CoQuí: Correlated Quantum ínterface
 
-Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ def make_thc_coulomb(mf, params):
     Compute or read THC-decomposed Coulomb integrals and return a ``ThcCoulomb`` handler.
 
     The ``ThcCoulomb`` object returned contains a THC representation of the 
-    two-electron Coulomb integals that are either computed during the function call 
+    two-electron Coulomb integrals that are either computed during the function call 
     or read from a pre-existing HDF5. (``save`` key in ``params``). 
 
     The resulting object can be passed to electronic structure methods such as ``run_hf`` 
@@ -57,7 +57,7 @@ def make_thc_coulomb(mf, params):
           ``"outcore"`` reads them from the HDF5 file on demand.
         - ``save`` *(str, optional, default ``""``)* — path to an HDF5 file for
           saving (or loading) the THC integrals. An empty string disables file I/O. 
-          If the file exists, the THC integrals are automically loaded. 
+          If the file exists, the THC integrals are automatically loaded. 
         - ``cd_dir`` *(str, optional, default ``""``)* — directory containing
           pre-computed Cholesky-decomposed Coulomb integrals. When provided, a
           least-squares THC fit is performed instead of ISDF.

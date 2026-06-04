@@ -2,7 +2,7 @@
 ==========================================================================
 CoQuí: Correlated Quantum ínterface
 
-Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ class IterSCF(object):
 
         app_log(1, "\nIterSCF::diis")
         app_log(1, "----------------")
-        app_log(1, "  - chekptoint h5        = {}".format(diis_chkpt))
+        app_log(1, "  - checkpoint h5        = {}".format(diis_chkpt))
         app_log(1, "  - vector list          = {}".format(list(current_vec.keys())))
         app_log(1, "  - max subspace size    = {}".format(diis_subspace))
         app_log(1, "  - current iteration    = {}".format(current_iter))
