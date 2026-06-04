@@ -148,7 +148,6 @@ namespace methods {
   }
 
 
-  // TODO take advantage of Sigma(-iw) = Sigma(iw)^{H}
   template<typename X_t, typename Xt_t>
   void simple_dyson::compute_eigenspectra(
     const X_t&_sF_skij, 
@@ -183,7 +182,9 @@ namespace methods {
 
     auto nw_half = _nw/2 + _nw%2;
 
-    // Sigma(-iw) = Sigma(iw)^{H}, so we only need to compute for half of the frequencies
+    // Define M(iw) = S^{-1} * [H0 + F + Sigma(iw)], we have M(-iw) = S^{-1} * M(iw)^{\dagger} * S and thus 
+    // eigvals(M(-iw)) = conj(eigvals(M(iw))). Thus we only need to compute eigvals for half of the frequencies. 
+    // This relation holds for general non-orthogonal basis with general oeverlap matrix S. 
     for (size_t nsk = _context->comm.rank(); nsk < nw_half*_ns*_nkpts_ibz; nsk+=_context->comm.size()) {
 
       // nsk = n_neg*ns*nkpts_ibz + is*nkpts_ibz + k
@@ -202,7 +203,7 @@ namespace methods {
       // Matsubara quantities are not Hermitian!
       spectra(n_pos, is, ik, nda::range::all) = nda::linalg::geigenvalues(SFS);
 
-      // exploit Sigma(-iw) = Sigma(iw)^{H}
+      // exploit eigvals(M(-iw)) = conj(eigvals(M(iw)))
       if (n_neg != n_pos) {
         spectra(n_neg, is, ik, nda::range::all) = nda::conj(spectra(n_pos, is, ik, nda::range::all));
       }
