@@ -44,6 +44,7 @@ namespace bdft_tests {
 #ifdef ENABLE_DLR
       pt.put("iaft.basis", "dlr");
 #else
+      pt.put("iaft.basis", "ir"); 
       pt.put("iaft.prec", "high");
 #endif
 

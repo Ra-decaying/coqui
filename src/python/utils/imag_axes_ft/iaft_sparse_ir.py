@@ -20,6 +20,7 @@ limitations under the License.
 
 import sys
 import numpy as np
+from coqui._lib.utils_module import app_log, app_warning
 
 
 def set_epsilon(prec_str: str):
@@ -76,22 +77,73 @@ def _normalize_stats(stats_input: str) -> str:
 
 class _IAFTIRAdapter(object):
     """
-    IR-based adapter using sparse_ir backend.
-    Internal implementation class; use IAFT() with basis='ir' for public API.
+    Internal adapter implementing IAFT via the ``sparse_ir`` Intermediate 
+    Representation library.
 
-    Dependency:
-        Requires sparse-ir (https://sparse-ir.readthedocs.io/en/latest/) version 1.1.7 with xprec support.
-        To install: "pip install sparse-ir[xprec]==1.1.7".
-        Note: Versions 2.0 and above of sparse-ir have not yet been tested with this code and may not be compatible.
+    Use ``IAFT(basis='ir')`` for the public-facing API; do not instantiate this 
+    class directly. 
+
+    Transforms are carried out by pre-computing projection matrices between the 
+    IR coefficient space and the sparse sampling meshes:
+
+    - ``Tlt_ff`` / ``Tlt_bb`` – tau-point-to-IR-coefficients (pseudo-inverse of Ttl)
+    - ``Tlw_ff`` / ``Tlw_bb`` – freq-point-to-IR-coefficients (pseudo-inverse of Twl)
+    - ``Ttw_ff = Ttl * Tlw`` – complete freq-to-tau transform matrix (fermionic)
+    - ``Twt_ff = Twl * Tlt`` – complete tau-to-freq transform matrix (fermionic)
+    - Analogous ``_bb`` matrices for bosons
+
+    Imaginary-time points are stored internally in the rescaled coordinate
+    t = 2τ/β − 1 ∈ [−1, 1]; the ``tau_mesh`` method converts to physical τ
+    unless ``rel_notation=True``.
+
+    Dependencies
+    ------------
+    Requires ``sparse-ir`` version 1.1.7 with xprec support::
+
+        pip install sparse-ir[xprec]==1.1.7
+
+    Versions 2.0+ have not been tested and may be incompatible.
+
+    Attributes
+    ----------
+    beta : float
+        Inverse temperature in a.u.
+    wmax : float
+        Frequency cutoff in a.u. (may be rounded up to the nearest IR grid value).
+    lmbda : float
+        Dimensionless parameter lmbda = beta * wmax.
+    prec : str
+        Active precision label.
+    eps : float
+        Active accuracy target used to construct the IR basis.
+    nt_f, nw_f : int
+        Number of fermionic tau / Matsubara sampling points.
+    nt_b, nw_b : int
+        Number of bosonic tau / Matsubara sampling points.
+    Ttw_ff : numpy.ndarray, shape (nt_f, nw_f)
+        Fermionic frequency-to-tau transform matrix.
+    Twt_ff : numpy.ndarray, shape (nw_f, nt_f)
+        Fermionic tau-to-frequency transform matrix.
+    Ttw_bb : numpy.ndarray, shape (nt_b, nw_b)
+        Bosonic frequency-to-tau transform matrix.
+    Twt_bb : numpy.ndarray, shape (nw_b, nt_b)
+        Bosonic tau-to-frequency transform matrix.
     """
     def __init__(self, beta: float, wmax: float, *, prec: str=None, eps: float=None, verbose: bool=True):
         """
         :param beta: float
-            Inverse temperature (a.u.)
+            Inverse temperature. 
         :param wmax: float
-            Frequency cutoff (a.u.)
-        :param prec: float
-            Precision for IR basis
+            Frequency cutoff. Rounded up to the nearest IR grid value
+            unless ``prec='custom'`` or ``prec=None`` (no rounding in that case).
+        :param prec: str or None
+            Precision label. If provided (and not 'custom'), ``eps`` is derived
+            from the label and ``wmax`` is rounded to the nearest IR grid value.
+            Must be provided when ``eps`` is None.
+        :param eps: float or None
+            Explicit accuracy target. Required when ``prec='custom'``.
+        :param verbose: bool
+            Print basis metadata on initialization. Default True.
         """
         import sparse_ir
 
@@ -145,10 +197,16 @@ class _IAFTIRAdapter(object):
         self._tau_mesh_b = 2.0 * (self._tau_mesh_b) / self.beta - 1.0
 
         if verbose:
-            print(self)
-            sys.stdout.flush()
+            app_log(1, str(self))
 
     def save(self, h5_grp):
+        """
+        Save basis parameters to an HDF5 group under the key
+        ``'imaginary_fourier_transform'``. No-op if the key already exists.
+
+        :param h5_grp: h5py/HDFArchive group
+            Target HDF5 group to write into.
+        """
         if 'imaginary_fourier_transform' in h5_grp:
             return
         h5_grp.create_group('imaginary_fourier_transform')
@@ -173,7 +231,7 @@ class _IAFTIRAdapter(object):
 
     def __eq__(self, other):
         return (
-            isinstance(other, _IAFTIRAdapter) and 
+            isinstance(other, _IAFTIRAdapter) and
             self.beta == other.beta and
             self.wmax == other.wmax and
             self.lmbda == other.lmbda and
@@ -182,13 +240,14 @@ class _IAFTIRAdapter(object):
 
     def tau_mesh(self, stats: str, rel_notation: bool=False):
         """
-        Return imaginary time mesh points, following the convention t = [-1, 1].
+        Return imaginary-time sampling points.
+
         :param stats: str
-            statistics: 'f' for fermions and 'b' for bosons
+            Statistics: 'f'/'fermion' for fermions, 'b'/'boson' for bosons.
         :param rel_notation: bool
-            Whether to return relative notation (t in [-1, 1]) or absolute notation (t in [0, beta))
-        :return: numpy.ndarray(dim=1)
-            imaginary time mesh points in [0, beta)
+            If True, return points in the rescaled coordinate t ∈ [−1, 1].
+            If False (default), return physical imaginary time τ ∈ [0, β].
+        :return: numpy.ndarray of float, shape (nt,)
         """
         stats = _normalize_stats(stats)
         if stats not in self.statistics:
@@ -199,24 +258,26 @@ class _IAFTIRAdapter(object):
             tau_mesh = (tau_mesh + 1.0) * self.beta / 2.0
         return tau_mesh
 
-    def wn_mesh(self, stats: str, ir_notation: bool=True, *, positive_only=False):
+    def wn_mesh(self, stats: str, *, phys_notation: bool=False, positive_only=False):
         """
-        Return Matsubara frequency indices.
-        :param stats: str
-            statistics: 'f' for fermions and 'b' for bosons
-        :param ir_notation: bool
-            Whether wn_mesh_interp is in sparse_ir notation where iwn = n*pi/beta for both fermions and bosons.
-            Otherwise, iwn = (2n+1)*pi/beta  for fermions and 2n*pi/beta for bosons.
+        Return Matsubara-frequency sampling indices.
 
-        :return: numpy.ndarray(dim=1)
-            Matsubara frequency indices
+        :param stats: str
+            Statistics: 'f'/'fermion' for fermions, 'b'/'boson' for bosons.
+        :param phys_notation: bool, keyword-only
+            If False (default), use the CoQuí/IR convention iω_n = n·π/β (n odd
+            for fermions, even for bosons). If True, use the physical convention
+            iω_n = (2n+1)·π/β for fermions and 2n·π/β for bosons.
+        :param positive_only: bool, keyword-only
+            If True, return only the non-negative half of the mesh.
+        :return: numpy.ndarray of int, shape (nw,) or (nw//2,)
         """
         stats = _normalize_stats(stats)
         if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
         wn_mesh = np.array(self._wn_mesh_f, dtype=int) if stats == 'f' else np.array(self._wn_mesh_b, dtype=int)
-        if not ir_notation:
+        if phys_notation:
             wn_mesh = (wn_mesh - 1) // 2 if stats == 'f' else wn_mesh // 2
 
         if positive_only:
@@ -226,6 +287,15 @@ class _IAFTIRAdapter(object):
             return wn_mesh
 
     def tau_to_w(self, Ot, stats: str):
+        """
+        Fourier transform from imaginary-time axis to Matsubara-frequency axis.
+
+        :param Ot: numpy.ndarray, shape (nt, ...)
+            Array on the imaginary-time mesh.
+        :param stats: str
+            Statistics: 'f'/'fermion' or 'b'/'boson'.
+        :return: numpy.ndarray, shape (nw, ...)
+        """
         stats = _normalize_stats(stats)
         if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
@@ -244,6 +314,19 @@ class _IAFTIRAdapter(object):
         return Ow
 
     def tau_to_w_phsym(self, Ot, stats: str):
+        """
+        Particle-hole-symmetric Fourier transform from imaginary-time to Matsubara-frequency.
+        Bosons only; input is the first half of the tau mesh.
+
+        Constructs a reduced transform matrix that folds the bosonic symmetry
+        O(β−τ) = O(τ) before projecting onto positive Matsubara frequencies.
+
+        :param Ot: numpy.ndarray, shape (nt_b//2 + nt_b%2, ...)
+        :param stats: str
+            Must be 'b' or 'boson'.
+        :return: numpy.ndarray, shape (nw_b//2 + nw_b%2, ...)
+        :raises ValueError: if stats is not bosonic.
+        """
         stats = _normalize_stats(stats)
         if stats != 'b':
             raise ValueError("FT w/ particle-hole symmetry only support bosonic correlation functions")
@@ -270,6 +353,15 @@ class _IAFTIRAdapter(object):
         return Ow
 
     def w_to_tau(self, Ow, stats):
+        """
+        Fourier transform from Matsubara-frequency axis to imaginary-time axis.
+
+        :param Ow: numpy.ndarray, shape (nw, ...)
+            Array on the Matsubara-frequency mesh.
+        :param stats: str
+            Statistics: 'f'/'fermion' or 'b'/'boson'.
+        :return: numpy.ndarray, shape (nt, ...)
+        """
         stats = _normalize_stats(stats)
         if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
@@ -288,6 +380,19 @@ class _IAFTIRAdapter(object):
         return Ot
 
     def w_to_tau_phsym(self, Ow, stats):
+        """
+        Particle-hole-symmetric inverse Fourier transform from Matsubara-frequency to imaginary-time.
+        Bosons only; input covers positive Matsubara frequencies only.
+
+        Constructs a reduced transform matrix that exploits O(β−τ) = O(τ) to
+        produce only the first half of the tau mesh.
+
+        :param Ow: numpy.ndarray, shape (nw_b//2 + nw_b%2, ...)
+        :param stats: str
+            Must be 'b' or 'boson'.
+        :return: numpy.ndarray, shape (nt_b//2 + nt_b%2, ...)
+        :raises ValueError: if stats is not bosonic.
+        """
         stats = _normalize_stats(stats)
         if stats != 'b':
             raise ValueError("FT w/ particle-hole symmetry only support bosonic correlation functions")
@@ -313,17 +418,41 @@ class _IAFTIRAdapter(object):
         Ot = Ot.reshape((Ttw_pos.shape[0],) + Ow_shape[1:])
         return Ot
 
-    def w_interpolate(self, Ow, target, stats: str, ir_notation: bool=True, ph_sym: bool=False):
+    def w_interpolate(self, Ow, target, stats: str, *, phys_notation: bool=False, ph_sym: bool=False):
+        """
+        Interpolate a Matsubara-frequency object to arbitrary frequency indices.
+
+        :param Ow: numpy.ndarray, shape (nw, ...)
+            Array on the native Matsubara-frequency mesh (or positive half when ph_sym=True).
+        :param target: array-like of int or _IAFTIRAdapter
+            Target Matsubara indices. If an adapter instance is passed, its wn_mesh is used.
+        :param stats: str
+            Statistics: 'f'/'fermion' or 'b'/'boson'.
+        :param phys_notation: bool, keyword-only
+            Index convention for target (see wn_mesh). Default False.
+        :param ph_sym: bool, keyword-only
+            Apply particle-hole-symmetric interpolation (bosons only). Default False.
+        :return: numpy.ndarray, shape (len(target), ...)
+        """
         if isinstance(target, _IAFTIRAdapter):
-            return self._w_interpolate(Ow, target.wn_mesh(stats, ir_notation, positive_only=ph_sym), 
-                                       stats, ir_notation=ir_notation, ph_sym=ph_sym)
+            return self._w_interpolate(Ow, target.wn_mesh(stats, phys_notation=phys_notation, positive_only=ph_sym),
+                                       stats, phys_notation=phys_notation, ph_sym=ph_sym)
         else:
-            return self._w_interpolate(Ow, target, stats, ir_notation=ir_notation, ph_sym=ph_sym)
+            return self._w_interpolate(Ow, target, stats, phys_notation=phys_notation, ph_sym=ph_sym)
 
-    def w_interpolate_phsym(self, Ow, target, stats: str, ir_notation: bool=True):
-        return self.w_interpolate(Ow, target, stats, ir_notation, ph_sym=True)
+    def w_interpolate_phsym(self, Ow, target, stats: str, *, phys_notation: bool=False):
+        """
+        Particle-hole-symmetric Matsubara interpolation. Delegates to w_interpolate with ph_sym=True.
 
-    def _w_interpolate(self, Ow, wn_mesh_interp, stats: str, *, ir_notation: bool=True, ph_sym: bool=False):
+        :param Ow: numpy.ndarray, shape (nw//2, ...)
+        :param target: array-like of int or _IAFTIRAdapter
+        :param stats: str
+        :param phys_notation: bool, keyword-only
+        :return: numpy.ndarray, shape (len(target), ...)
+        """
+        return self.w_interpolate(Ow, target, stats, phys_notation=phys_notation, ph_sym=True)
+
+    def _w_interpolate(self, Ow, wn_mesh_interp, stats: str, *, phys_notation: bool=False, ph_sym: bool=False):
         stats = _normalize_stats(stats)
         if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
@@ -331,10 +460,10 @@ class _IAFTIRAdapter(object):
 
         if isinstance(wn_mesh_interp, int):
             wn_mesh_interp = np.array([wn_mesh_interp], dtype=int)
-        
-        if ir_notation:
+
+        if not phys_notation:
             wn_indices = np.asarray(wn_mesh_interp, dtype=int)
-        if not ir_notation:
+        if phys_notation:
             wn_indices = np.array([2 * n + 1 if stats == 'f' else 2 * n for n in wn_mesh_interp], dtype=int)
 
         Tlw = self.Tlw_ff if stats == 'f' else self.Tlw_bb
@@ -366,6 +495,21 @@ class _IAFTIRAdapter(object):
         return Ow_interp
 
     def tau_interpolate(self, Ot, target, stats: str, *, rel_notation: bool=False, ph_sym: bool=False):
+        """
+        Interpolate an imaginary-time object to arbitrary tau points.
+
+        :param Ot: numpy.ndarray, shape (nt, ...)
+            Array on the native imaginary-time mesh (or first half when ph_sym=True).
+        :param target: float, array-like of float, or _IAFTIRAdapter
+            Target tau points. If an adapter instance is passed, its tau_mesh is used.
+        :param stats: str
+            Statistics: 'f'/'fermion' or 'b'/'boson'.
+        :param rel_notation: bool, keyword-only
+            Coordinate convention for target (see tau_mesh). Default False.
+        :param ph_sym: bool, keyword-only
+            Apply particle-hole-symmetric interpolation (bosons only). Default False.
+        :return: numpy.ndarray, shape (len(target), ...)
+        """
         stats = _normalize_stats(stats)
         if isinstance(target, _IAFTIRAdapter):
             #tau_mesh = target._tau_mesh_f if stats == 'f' else target._tau_mesh_b
@@ -378,6 +522,15 @@ class _IAFTIRAdapter(object):
             return self._tau_interpolate(Ot, target, stats, rel_notation=rel_notation, ph_sym=ph_sym)
 
     def tau_interpolate_phsym(self, Ot, target, stats: str, *, rel_notation: bool=False):
+        """
+        Particle-hole-symmetric tau interpolation. Delegates to tau_interpolate with ph_sym=True.
+
+        :param Ot: numpy.ndarray, shape (nt//2, ...)
+        :param target: float, array-like of float, or _IAFTIRAdapter
+        :param stats: str
+        :param rel_notation: bool, keyword-only
+        :return: numpy.ndarray, shape (len(target), ...)
+        """
         return self.tau_interpolate(Ot, target, stats, rel_notation=rel_notation, ph_sym=True)
 
     def _tau_interpolate(self, Ot, tau_mesh_interp, stats: str, *, rel_notation: bool=False, ph_sym: bool=False):
@@ -385,7 +538,7 @@ class _IAFTIRAdapter(object):
         if stats not in self.statistics:
             raise ValueError("Unknown statistics '{}'. "
                              "Acceptable options are 'f' for fermion and 'b' for bosons.".format(stats))
-        
+
         if np.isscalar(tau_mesh_interp):
             try:
                 tau_mesh_interp = np.array([tau_mesh_interp], dtype=float)
@@ -425,7 +578,7 @@ class _IAFTIRAdapter(object):
                 for it in range(nt_half):
                     imt = nt - it - 1
                     Tlt_pos[l, it] = Tlt[l, it] if it == imt else Tlt[l, it] + Tlt[l, imt]
-            
+
         Ttt = np.dot(Ttl_interp, Tlt) if not ph_sym else np.dot(Ttl_interp, Tlt_pos)
         if Ot.shape[0] != Ttt.shape[1]:
             raise ValueError(
@@ -440,6 +593,25 @@ class _IAFTIRAdapter(object):
         return Ot_interp
 
     def check_leakage(self, Ot, stats: str, name: str="", w_input: bool=False):
+        """
+        Diagnose basis truncation by checking the decay of IR coefficients.
+
+        Projects ``Ot`` onto the IR basis and compares the magnitude of the last
+        two coefficients with the first. If ``coeff_last/coeff_first >= 1e-5``,
+        a warning is printed. A well-represented function should show rapid
+        coefficient decay.
+
+        :param Ot: numpy.ndarray, shape (nt, ...) or (nw, ...)
+            Input array on the imaginary-time mesh, or on the Matsubara-frequency
+            mesh when ``w_input=True``.
+        :param stats: str
+            Statistics: 'f'/'fermion' or 'b'/'boson'.
+        :param name: str, optional
+            Label printed in the output. Default "".
+        :param w_input: bool, optional
+            If True, ``Ot`` is on the Matsubara-frequency mesh and is transformed
+            to imaginary time before checking. Default False.
+        """
         stats = _normalize_stats(stats)
         if w_input:
             Ot_ = self.w_to_tau(Ot, stats)
@@ -461,13 +633,29 @@ class _IAFTIRAdapter(object):
         coeff_last = np.max(np.abs(O_lm2_t))
 
         leakage = coeff_last / coeff_first
-        print("IAFT leakage of {}: {}".format(name, leakage))
+        app_log(1, "IAFT leakage of {}: {}".format(name, leakage))
         if leakage >= 1e-5:
-            print("[WARNING] check_leakage: coeff_last/coeff_first = {} >= 1e-5; "
-                  "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))
+            app_log(1, "[WARNING] check_leakage: coeff_last/coeff_first = {} >= 1e-5; " \
+                    "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))
         sys.stdout.flush()
 
     def check_leakage_phsym(self, Ot, stats: str, name: str="", w_input: bool=False):
+        """
+        Particle-hole-symmetric variant of check_leakage. Bosons only.
+
+        Input ``Ot`` must cover the first half of the imaginary-time mesh (or, when
+        ``w_input=True``, the positive Matsubara half-mesh).
+
+        :param Ot: numpy.ndarray, shape (nt_b//2, ...) or (nw_b//2, ...)
+            Bosonic half-mesh input array.
+        :param stats: str
+            Must be 'b' or 'boson'.
+        :param name: str, optional
+            Label printed in the output. Default "".
+        :param w_input: bool, optional
+            If True, ``Ot`` is on the positive Matsubara half-mesh. Default False.
+        :raises ValueError: if stats is not bosonic.
+        """
         stats = _normalize_stats(stats)
         if stats != 'b':
             raise ValueError("FT w/ particle-hole symmetry only support bosonic correlation functions")
@@ -504,8 +692,7 @@ class _IAFTIRAdapter(object):
         coeff_last = np.max(np.abs(O_lm2_t))
 
         leakage = coeff_last / coeff_first
-        print("IAFT leakage of {}: {}".format(name, leakage))
+        app_log(1, "IAFT leakage of {}: {}".format(name, leakage))
         if leakage >= 1e-5:
-            print("[WARNING] check_leakage_phsym: coeff_last/coeff_first = {} >= 1e-5; "
-                  "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))
-        sys.stdout.flush()
+            app_log(1, "[WARNING] check_leakage_phsym: coeff_last/coeff_first = {} >= 1e-5; " \
+                       "coeff_last = {}, coeff_first = {}".format(leakage, coeff_last, coeff_first))

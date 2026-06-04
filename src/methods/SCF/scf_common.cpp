@@ -20,7 +20,6 @@
 
 
 #include "scf_common.hpp"
-#include "dca_dyson.h"
 #include "hamiltonian/one_body_hamiltonian.hpp"
 #include "mean_field/MF.hpp"
 #include "utilities/mpi_context.h"
@@ -28,6 +27,7 @@
 #include "simple_dyson.h"
 
 namespace methods {
+
 double compute_Nelec(double mu, const nda::array<ComplexType, 4> &spectra,
                      const mf::MF &mf, const imag_axes_ft::IAFT &FT) {
   auto [_nw, _ns, nkpts, _nbnd] = spectra.shape();
@@ -35,7 +35,7 @@ double compute_Nelec(double mu, const nda::array<ComplexType, 4> &spectra,
   nda::array<ComplexType, 2> Xt(FT.nt_f(), _ns);
   nda::array<ComplexType, 1> nelecs(_ns);
   auto k_weight = mf.k_weight();
-  double scl = (_ns == 1 and mf.npol() == 1 ? 2.0 : 1.0); 
+  double scl = (_ns == 1 and mf.npol() == 1 ? -2.0 : -1.0); 
 
   for (size_t n = 0; n < _nw; ++n) {
     long wn = FT.wn_mesh()(n);
@@ -53,10 +53,8 @@ double compute_Nelec(double mu, const nda::array<ComplexType, 4> &spectra,
   FT.tau_to_beta(Xt, nelecs);
 
   ComplexType nelec = scl*std::accumulate(nelecs.begin(),nelecs.end(),ComplexType(0.0));
-  nelec *= -1.0;
-  if (nelec.imag() / mf.nelec() >= 1e-10) {
-    app_log(1, "[WARNING] nelec.imag()/nelec_target = {}",
-            nelec.imag() / mf.nelec());
+  if (nelec.imag() / mf.nelec() >= 1e3*FT.eps()) {
+    app_log(1, "[WARNING] nelec.imag()/nelec_target = {}", nelec.imag() / mf.nelec());
   }
 
   return nelec.real();
@@ -94,11 +92,11 @@ auto eval_hf_energy(const X_t &sDm_skij, const X_t &sF_skij, const X_t &sH0_skij
   e_1e *= spin_factor;
   e_hf *= spin_factor;
   // TODO CNY: _MF->e_nuc() is missing
-  if (e_1e.imag() / e_1e.real() >= 1e-10) {
+  if (e_1e.imag() / e_1e.real() >= 1e-8) {
     app_log(1, "[WARNING] e_1e.imag()/e_1e.real() = {}, e_1e.imag() = {}, e_1e.real() = {}",
             e_1e.imag()/e_1e.real(), e_1e.imag(), e_1e.real());
   }
-  if (e_hf.imag() / e_hf.real() >= 1e-10) {
+  if (e_hf.imag() / e_hf.real() >= 1e-8) {
     app_log(1, "[WARNING] e_hf.imag()/e_hf.real() = {}, e_hf.imag() = {}, e_hf.real() = {}",
             e_hf.imag()/e_hf.real(), e_hf.imag(), e_hf.real());
   }
@@ -149,7 +147,7 @@ double eval_corr_energy(comm_t& comm, const imag_axes_ft::IAFT &FT,
   // MAM: need to know npol here, scale only when npol==1 and ns==1
   RealType spin_factor = (ns == 2) ? 1.0 : 2.0;
   ComplexType e_corr = (-0.5 * spin_factor) * nda::sum(SigmaG_beta_s);
-  if (e_corr.imag() / e_corr.real() >= 1e-8) {
+  if (e_corr.imag() / e_corr.real() >= 1e2*FT.eps()) {
     app_log(1, "[WARNING] e_corr.imag()/e_corr.real() = {}, e_corr.imag() = {}, e_corr.real() = {}",
             e_corr.imag()/e_corr.real(), e_corr.imag(), e_corr.real());
   }
@@ -161,65 +159,75 @@ void update_G(dyson_type &dyson, const mf::MF &mf, const imag_axes_ft::IAFT &FT,
               const X_t & F, const Xt_t &Sigma, double &mu, bool const_mu) {
   app_log(2, "* Solving Green's function:");
   if(!const_mu)
-    mu = update_mu(mu, dyson, mf, FT, F, G, Sigma);
+    mu = update_mu(mu, dyson, mf, FT, F, Sigma);
   dyson.solve_dyson(Dm, G, F, Sigma, mu);
 }
 
 template<typename dyson_type, typename X_t, typename Xt_t>
-double update_mu(double old_mu, dyson_type& dyson, const mf::MF &mf, const imag_axes_ft::IAFT &FT,
-                 const X_t&F, const Xt_t&G, const Xt_t&Sigma) {
-  double nel, mu1, mu2, mu_mid;
-  double mu = old_mu;
+double update_mu_bisection(double old_mu, dyson_type& dyson, const mf::MF &mf,
+                           const imag_axes_ft::IAFT &FT,
+                           const X_t&F, const Xt_t&Sigma) {
   double nel_target = mf.nelec();
   double delta = 0.2;
   nda::array<ComplexType, 4> FpSigma_spectra(FT.nw_f(), mf.nspin(), mf.nkpts_ibz(), mf.nbnd());
-  dyson.compute_eigenspectra(mu, F, G, Sigma, FpSigma_spectra);
-  nel = compute_Nelec(old_mu, FpSigma_spectra, mf, FT);
-  app_log(2, "Initial chemical potential (mu) = {}, nelec = {}", old_mu, nel);
+  dyson.compute_eigenspectra(F, Sigma, FpSigma_spectra);
+  auto eval_f = [&](double mu) {
+    return compute_Nelec(mu, FpSigma_spectra, mf, FT) - nel_target;
+  };
 
-  if (std::abs(nel - nel_target) < dyson.mu_tol()) {
-    app_log(1, "Chemical potential found (mu) = {} a.u.", mu);
-    app_log(1, "Number of electrons per unit cell = {}", nel);
-    return mu;
-  }
+  double nel_old = compute_Nelec(old_mu, FpSigma_spectra, mf, FT);
+  app_log(2, "Initial chemical potential (mu) = {}, nelec = {}", old_mu, nel_old);
 
-  if (nel >= nel_target) {
-    mu2 = old_mu;
-    mu1 = old_mu - delta;
-    double nel1 = compute_Nelec(mu1, FpSigma_spectra, mf, FT);
-    while (nel1 > nel_target) {
-      mu1 -= delta;
-      nel1 = compute_Nelec(mu1, FpSigma_spectra, mf, FT);
-    }
-    app_log(4, "mu = {}, nelec = {}", mu1, nel1);
-  } else {
-    mu1 = old_mu;
-    mu2 = old_mu + delta;
-    double nel2 = compute_Nelec(mu2, FpSigma_spectra, mf, FT);
-    while (nel2 < nel_target) {
-      mu2 += delta;
-      nel2 = compute_Nelec(mu2, FpSigma_spectra, mf, FT);
-    }
-    app_log(4, "mu = {}, nelec = {}", mu2, nel2);
-  }
-  mu_mid = (mu1 + mu2) * 0.5;
-  nel = compute_Nelec(mu_mid, FpSigma_spectra, mf, FT);
-  app_log(4, "mu = {}, nelec = {}", mu_mid, nel);
-
-  while (std::abs(nel - nel_target) >= dyson.mu_tol()) {
-    if (nel >= nel_target) {
-      mu2 = mu_mid;
-    } else {
-      mu1 = mu_mid;
-    }
-    mu_mid = (mu1 + mu2) * 0.5;
-    nel = compute_Nelec(mu_mid, FpSigma_spectra, mf, FT);
-    app_log(4, "mu = {}, nelec = {}", mu_mid, nel);
-  }
-  mu = mu_mid;
+  auto [mu, f_mu] = detail::update_mu_bisection_impl(old_mu, dyson.mu_tol(), delta, eval_f);
+  double nel = f_mu + nel_target;
   app_log(1, "Chemical potential found (mu) = {} a.u.", mu);
   app_log(1, "Number of electrons per unit cell = {}", nel);
   return mu;
+}
+
+template<typename dyson_type, typename X_t, typename Xt_t>
+double update_mu_midpoint(double old_mu, dyson_type& dyson, const mf::MF &mf,
+                          const imag_axes_ft::IAFT &FT, const X_t&F,
+                          const Xt_t&Sigma) {
+  double nel_target = mf.nelec();
+  double tol = dyson.mu_tol();
+  double delta = 0.2;
+
+  nda::array<ComplexType, 4> FpSigma_spectra(
+      FT.nw_f(), mf.nspin(), mf.nkpts_ibz(), mf.nbnd());
+  dyson.compute_eigenspectra(F, Sigma, FpSigma_spectra);
+
+  auto eval_f = [&](double mu) {
+    return compute_Nelec(mu, FpSigma_spectra, mf, FT) - nel_target;
+  };
+
+  double f_old = eval_f(old_mu);
+  app_log(2, "Initial chemical potential (mu) = {}, nelec - target = {}",
+          old_mu, f_old);
+
+  auto [mu, f_mu, mu_left, mu_right] =
+      detail::update_mu_midpoint_impl(old_mu, tol, delta, eval_f);
+  double nel = f_mu + nel_target;
+  app_log(1, "Chemical potential bounds found (mu_left, mu_right) = ({}, {}) a.u.",
+          mu_left, mu_right);
+  app_log(1, "Chemical potential found (mu) = {} a.u.", mu);
+  app_log(1, "Number of electrons per unit cell = {}", nel);
+  return mu;
+}
+
+template<typename dyson_type, typename X_t, typename Xt_t>
+double update_mu(double old_mu, dyson_type& dyson, const mf::MF &mf,
+                 const imag_axes_ft::IAFT &FT,
+                 const X_t&F, const Xt_t&Sigma) {
+  if (dyson.mu_update_alg() == "bisection") {
+    return update_mu_bisection(old_mu, dyson, mf, FT, F, Sigma);
+  } else if (dyson.mu_update_alg() == "midpoint") {
+    return update_mu_midpoint(old_mu, dyson, mf, FT, F, Sigma);
+  } else {
+    utils::check(
+      false, "scf_common.cpp::update_mu: unknown mu update algorithm {}.", dyson.mu_update_alg());
+  }
+  return old_mu;
 }
 
 template<typename X_t, typename Xt_t>
@@ -467,17 +475,9 @@ template void update_G(simple_dyson &, const mf::MF &, const imag_axes_ft::IAFT 
                        sArray_t<Array_view_4D_t> & Dm, sArray_t<Array_view_5D_t> &G,
                        const sArray_t<Array_view_4D_t> & F, const sArray_t<Array_view_5D_t> &Sigma, double&,
                        bool);
-template void update_G(dca_dyson &, const mf::MF &, const imag_axes_ft::IAFT &,
-                       sArray_t<Array_view_4D_t> & Dm, sArray_t<Array_view_5D_t> &G,
-                       const sArray_t<Array_view_4D_t> & F, const sArray_t<Array_view_5D_t> &Sigma, double&,
-                       bool);
 
 template double update_mu(double, simple_dyson&, const mf::MF &, const imag_axes_ft::IAFT &,
-                          const sArray_t<Array_view_4D_t>&, const sArray_t<Array_view_5D_t>&,
-                          const sArray_t<Array_view_5D_t>&);
-template double update_mu(double, dca_dyson &, const mf::MF &, const imag_axes_ft::IAFT &,
-                          const sArray_t<Array_view_4D_t>&, const sArray_t<Array_view_5D_t>&,
-                          const sArray_t<Array_view_5D_t>&);
+                          const sArray_t<Array_view_4D_t>&, const sArray_t<Array_view_5D_t>&);
 
 template auto solve_iterative(utils::mpi_context_t<mpi3::communicator>&, iter_scf::iter_scf_t&, long, std::string,
                               sArray_t<Array_view_4D_t>&, sArray_t<Array_view_5D_t>&, const imag_axes_ft::IAFT*,

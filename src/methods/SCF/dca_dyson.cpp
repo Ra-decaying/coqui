@@ -23,8 +23,11 @@
 #include "nda/linalg/eigenelements.hpp"
 
 namespace methods {
-dca_dyson::dca_dyson(utils::mpi_context_t<mpi3::communicator> &context, mf::MF *mf, imag_axes_ft::IAFT *ft, mf::MF &dca_mf, double mu_tol) :
-    _context(context), _MF(mf), _FT(ft), _PSP(hamilt::make_pseudopot(*_MF)), _nk_tilde(dca_mf.nkpts()/mf->nkpts()), _mu_tol(mu_tol),
+dca_dyson::dca_dyson(utils::mpi_context_t<mpi3::communicator> &context, mf::MF *mf,
+           imag_axes_ft::IAFT *ft, mf::MF &dca_mf, double mu_tol,
+           std::string mu_update_alg) :
+  _context(context), _MF(mf), _FT(ft), _PSP(hamilt::make_pseudopot(*_MF)), _nk_tilde(dca_mf.nkpts()/mf->nkpts()), _mu_tol(mu_tol),
+  _mu_update_alg(mu_update_alg),
     _sH0_skij(math::shm::make_shared_array<Array_view_4D_t>(context.comm, context.internode_comm, context.node_comm,
                                                             {mf->nspin(), mf->nkpts(), mf->nbnd(), mf->nbnd()})),
     _sS_skij(math::shm::make_shared_array<Array_view_4D_t>(context.comm, context.internode_comm, context.node_comm,

@@ -43,6 +43,11 @@ namespace coqui_py {
     return utils::utest_filename(src);
   }
 
+  void app_log(int level, const std::string& msg)   { ::app_log(level, "{}", msg); }
+  void app_debug(int level, const std::string& msg) { ::app_debug(level, "{}", msg); }
+  void app_warning(const std::string& msg)          { ::app_warning("{}", msg); }
+  void app_error(const std::string& msg)            { ::app_error("{}", msg); }
+
 } // coqui_py
 
 #include "utils_module.wrap.cxx"

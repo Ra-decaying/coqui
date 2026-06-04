@@ -31,7 +31,8 @@ svo_thc = coqui.make_thc_coulomb(mf=svo_mf, params=eri_params)
 
 # GW
 gw_params = {
-    "output": "svo.evgw",
+    "outdir": "./",
+    "prefix": "svo.evgw",
     "niter": 1,
     "beta": 200,
     "iaft": {
@@ -49,14 +50,13 @@ winter_params = {
     "iteration": 1,
     "wannier_file": wan_h5, 
     "bands_num_npoints": 100, 
-    "kpath": """
-      G 0.00 0.00 0.00
-      X 0.00 0.50 0.00
-      M 0.50 0.50 0.00
-      G 0.00 0.00 0.00
-    """
+    "kpath": (
+      "G 0.00 0.00 0.00 "
+      "X 0.00 0.50 0.00 "
+      "M 0.50 0.50 0.00 "
+      "G 0.00 0.00 0.00 "
+    )
 }
-
 band_interpolation(svo_mf, winter_params)
 
 # Wannier interpolation for PBE 

@@ -17,27 +17,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==========================================================================
 """
+import os
 from copy import deepcopy
 import triqs.utility.mpi as mpi
 from h5 import HDFArchive
 import numpy as np
+from coqui import app_log
 
 
-def convert_gw_edmft_params(params_dict):
-    params = deepcopy(params_dict)
-
-    # Check if 'gw_edmft' key exists in params (new format)
-    if 'gw_edmft' not in params:
-       return params
-
-    # Extract the gw_edmft group
-    gw_edmft_group = params.pop('gw_edmft')
+def convert_gw_edmft_params(gw_edmft_params: dict):
+    gw_edmft_group = deepcopy(gw_edmft_params)
 
     # Copy top-level gw_edmft settings
     gw_edmft_params = {}
     niter = gw_edmft_group.get('niter')
     gw_iter_per_loop = gw_edmft_group.get('gw_iter_per_loop', 1)
     edmft_iter_per_loop = gw_edmft_group.get('edmft_iter_per_loop', 1)
+    if gw_edmft_group.get('wannier_file'):
+        gw_edmft_params['wannier_file'] = gw_edmft_group.get('wannier_file')
     if niter is None:
         raise KeyError("Missing 'niter' parameter to specify the total number of GW+EDMFT cycles.")
     if not isinstance(niter, int) or niter <= 0:
@@ -61,24 +58,49 @@ def convert_gw_edmft_params(params_dict):
     gw_edmft_params['gw_iter_per_loop'] = gw_iter_per_loop
     gw_edmft_params['edmft_iter_per_loop'] = edmft_iter_per_loop
     
-    screen_type = gw_edmft_group.get('screen_type', 'gw_edmft_density')
+    screen_type = gw_edmft_group.get('screen_type', 'gw_edmft')
     div_treatment = gw_edmft_group.get('div_treatment', 'gygi')
     outdir = gw_edmft_group.get('outdir', './')
     prefix = gw_edmft_group.get('prefix', 'coqui')
-    restart = gw_edmft_group.get('restart', False)
+    # restart = False implies the workflow will start from a fresh checkpoint where both GW and EDMFT parts start from scratch;
+    # this is not available yet in the current implementation as the GW part is always assumed to restart from a previous checkpoint.
+    restart = gw_edmft_group.get('restart', True)
+    if restart is False:
+        raise NotImplementedError(
+            "Starting the GW+EDMFT workflow from scratch (restart=False) is not implemented yet. " \
+            "Set restart=True (i.e. current default) to start from a previous checkpoint."
+        )
+    coqui_chkpt_h5 = outdir + "/" + prefix + ".mbpt.h5"
+    if not os.path.exists(coqui_chkpt_h5):
+        raise FileNotFoundError(
+            f"The GW checkpoint {coqui_chkpt_h5} is missing. A valid GW checkpoint file is necessary to initialize the GW+EDMFT workflow."
+        )
+
+    iter_params = gw_edmft_group.pop('iter_alg', {"alg": "damping", "mixing": 0.3})
+    if iter_params['alg'] != 'damping':
+        raise NotImplementedError(
+            f"Iterative algorithm '{iter_params['alg']}' is not supported in the GW+EDMFT workflow at the moment. "
+        )
+    gw_mixing = iter_params.pop('gw_mixing', iter_params.get('mixing', 0.3))
+    edmft_mixing = iter_params.pop('edmft_mixing', iter_params.get('mixing', 0.3))
+    edmft_mix_in_first_iter = iter_params.pop('edmft_mix_in_first_iter', True)
+    gw_iter_params = iter_params.copy()
+    gw_iter_params['mixing'] = gw_mixing
+    edmft_iter_params = iter_params.copy()
+    edmft_iter_params['mixing'] = edmft_mixing
+    edmft_iter_params['mix_in_first_iter'] = edmft_mix_in_first_iter
 
     # GW parameters
-    if 'gw' in gw_edmft_group:
-        gw_edmft_params['gw'] = gw_edmft_group.pop('gw')
-        gw_edmft_params['gw']['output'] = outdir+"/"+prefix
-        gw_edmft_params['gw']['restart'] = restart
-        gw_edmft_params['gw']['screen_type'] = screen_type
-        gw_edmft_params['gw']['niter'] = 1
-        gw_edmft_params['gw']['div_treatment'] = div_treatment
-        if 'iter_alg' in gw_edmft_params['gw']:
-            assert gw_edmft_params['gw']['iter_alg']['alg'] == 'damping', (
-                "Only \'damping\' iterative algorithm is supported in the GW part of the GW+EDMFT workflow at the moment."
-            )
+    if gw_iter_per_loop > 0:
+        gw_edmft_params['gw'] = { 
+            'outdir': outdir, 
+            'prefix': prefix,
+            'restart': True, 
+            'screen_type': screen_type,
+            'niter': 1,
+            'div_treatment': div_treatment,
+            'iter_alg': gw_iter_params
+        }
 
     # wloc parameters
     gw_edmft_params['wloc'] = {'outdir': outdir, 'prefix': prefix, 'screen_type': screen_type, 
@@ -86,13 +108,23 @@ def convert_gw_edmft_params(params_dict):
     # gloc parameters
     gw_edmft_params['gloc'] = {'outdir': outdir, 'prefix': prefix}
     # embed parameters
-    gw_edmft_params['dmft_embed'] = {'outdir': outdir, 'prefix': prefix, 'corr_only': gw_edmft_group.get('corr_only', True)}
+    gw_edmft_params['dmft_embed'] = {
+        'outdir': outdir, 'prefix': prefix, 
+        'corr_only': gw_edmft_group.get('corr_only', True), 
+        # disable iterative solver for the embedding step. The iterative solve happens somewhere else. 
+        'iter_alg': {'enable': False} 
+    }
 
     # Convert 'edmft' section to 'impurity' (with nested 'impurity' -> 'solver')
     if 'edmft' not in gw_edmft_group:
         raise KeyError("Missing 'edmft' section in 'gw_edmft' parameters to specify the EDMFT part of the workflow.")
     edmft_section = gw_edmft_group.pop('edmft')
-    gw_edmft_params['impurity'] = {'restart': restart}
+    
+    gw_edmft_params['impurity'] = {
+        'restart': restart, 
+        'iter_alg': edmft_iter_params,
+        'chkpt_h5': edmft_section.pop('chkpt_h5', outdir+"/"+prefix+".mbpt.h5")
+    }
   
     # Convert 'impurity' (new) to 'solver' (old)
     if 'impurity' in edmft_section:
@@ -103,18 +135,10 @@ def convert_gw_edmft_params(params_dict):
         for solver_params in solver_list:
             if solver_params.get('degenerate_blk'):
                 solver_params['degenerate_blk'] = [np.array(x) for x in solver_params['degenerate_blk']]
-
+        
         gw_edmft_params['impurity']['solver'] = solver_list
 
-    # Copy iter_alg if present
-    if 'iter_alg' in edmft_section:
-        assert edmft_section['iter_alg']['alg'] == 'damping', (
-            "Only \'damping\' iterative algorithm is supported in the EDMFT part of the GW+EDMFT workflow at the moment."
-        )
-        gw_edmft_params['impurity']['iter_alg'] = edmft_section.pop('iter_alg')
-
     # Copy any remaining keys
-    gw_edmft_params['impurity']['chkpt_h5'] = edmft_section.get('chkpt_h5', outdir+"/"+prefix+".mbpt.h5")
     for key, value in edmft_section.items():
         gw_edmft_params['impurity'][key] = value
 
@@ -131,10 +155,16 @@ def _normalize_solver_params_list(solver_params_list, comm_size):
     for solver_params in solver_params_list:
         solver_params_norm = deepcopy(solver_params)
 
-        solver_params_norm['n_cycles'] = int(solver_params_norm['n_cycles']/comm_size)
         mu_params = solver_params_norm.get('chemical_potential')
-        if mu_params and 'n_cycles' in mu_params.keys():
-            mu_params['n_cycles'] = int(mu_params['n_cycles']/comm_size)
+        if mu_params: 
+            mu_params.setdefault('n_cycles', int(solver_params_norm['n_cycles']*0.05))
+            mu_params['n_cycles'] = int(mu_params['n_cycles']/comm_size) 
+            mu_params.setdefault('n_warmup_cycles', int(solver_params_norm['n_warmup_cycles']))
+            mu_params.setdefault('length_cycle', int(solver_params_norm['length_cycle']))
+
+        solver_params_norm['n_cycles'] = int(solver_params_norm['n_cycles']/comm_size)
+        solver_params_norm['n_warmup_cycles'] = int(solver_params_norm['n_warmup_cycles'])
+        solver_params_norm['length_cycle'] = int(solver_params_norm['length_cycle'])
 
         normalized_list.append(solver_params_norm)
 
@@ -153,17 +183,17 @@ def print_title_box(name, box_width=19):
     top_border = f"{top_left}{horizontal * (box_width - 2)}{top_right}"
     bottom_border = f"{bottom_left}{horizontal * (box_width - 2)}{bottom_right}"
 
-    mpi.report("\n"+top_border)
-    mpi.report(title)
-    mpi.report(bottom_border+"\n")
+    app_log(1, "\n"+top_border)
+    app_log(1, title)
+    app_log(1, bottom_border+"\n")
 
 
 def print_degenerate_blks(deg_blks, gf_struct):
-    mpi.report(f"Degenerate blocks for impurity")
-    mpi.report("-------------------------------")
+    app_log(1, f"Degenerate blocks for impurity")
+    app_log(1, "-------------------------------")
     for i, blks in enumerate(deg_blks):
         subset = [gf_struct[b] for b in blks]
-        mpi.report(f"Shell {i}: {subset}\n")
+        app_log(1, f"Shell {i}: {subset}\n")
 
 
 def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impurity_index=-1, iteration=-1):
@@ -240,6 +270,7 @@ def save_impurities(dmft_grp, *, solver_results=None, solver_inputs=None, impuri
         if solver_inputs is not None:
             _write_impurity_inputs(imp_grp, solver_inputs[imp_i])
 
+    # FIXME this is beyond the save_impurities responsibility since this will affect the restart behavior of the DMFT SCF loop. 
     dmft_grp["final_iter"] = iteration
 
 
@@ -268,7 +299,7 @@ def _write_impurity_results(h5_grp, impurity_results):
     # ----- optional keys (raw numpy arrays on IR mesh) -----
     # "_data" appendices imply raw numpy arrays on IR mesh
     optional_keys = [
-        'gf_struct', 'mu_imp',
+        'gf_struct', 'mu_imp', 'convergence', 'density',
         'G_iw_data', 'Sigma_iw_data',
         'Pi_iw_data', 'W_iw_data',
         'Sigma_infty_dc', 'Sigma_iw_dc_data', 'Pi_iw_dc_data'
@@ -323,7 +354,7 @@ def read_impurity_chkpt(h5_filename, iteration=-1, *, read="both", impurity_indi
         - "inputs"  → list of solver_inputs
         - "both"    → (solver_results, solver_inputs)
     """
-    mpi.report(f"Reading impurity checkpoint file: {h5_filename}")
+    app_log(2, f"Reading impurity checkpoint file: {h5_filename}")
     assert read in {"results", "inputs", "both"}, \
         "Argument 'read' must be one of {'results', 'inputs', 'both'}."
     solver_results, solver_inputs = [], []
@@ -349,7 +380,7 @@ def read_impurity_chkpt(h5_filename, iteration=-1, *, read="both", impurity_indi
                 impurity_indices = np.arange(num_impurities)
             else:
                 assert isinstance(impurity_indices, list), "impurity_indices must be a list of integers."
-            mpi.report(f"impurity list = {impurity_indices}\n")
+            app_log(2, f"impurity list = {impurity_indices}\n")
 
             for i in impurity_indices:
                 if read in {"results", "both"}:
@@ -434,7 +465,7 @@ def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1
                 _ = ar[f'dmft/iter{iteration}/impurity_0/results']
             except KeyError:
                 # automatically go to the previous iteration if the current one does not exist
-                mpi.report(
+                app_log(1, 
                     f"[Warning] Path 'dmft/iter{iteration}/impurity_0/results' "
                     f"not found in checkpoint file '{h5_filename}'.\n"
                     f"→ Falling back to the previous iteration: iter{iteration-1}.\n"
@@ -447,7 +478,7 @@ def update_impurity_results_from_chkpt(solver_results, h5_filename, iteration=-1
                     f"Ensure the checkpoint file is complete and not corrupted."
                 )
 
-            mpi.report(
+            app_log(1, 
                 f"Loading impurity results from checkpoint '{h5_filename}' "
                 f"at DMFT iteration {iteration}.\n"
             )
@@ -471,3 +502,4 @@ def read_all_keys(h5_grp):
     for key in h5_grp.keys():
         output[key] = h5_grp[key]
     return output
+

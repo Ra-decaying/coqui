@@ -31,6 +31,7 @@ def test_hf_thc(mpi):
     thc_params = {
         "storage": "incore",
         "thresh": 1e-4,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }

@@ -44,6 +44,9 @@ struct qp_params_t {
   // "qp_energy": evaluate off-diagonal elements of self-energy at the quasiparticle energy
   // (defined as the average of the two diagonal elements)
   std::string off_diag_mode = "fermi";
+
+  double mu_tolerance = 1e-9;
+  std::string mu_update_alg = "bisection";
 };
 
 } // methods

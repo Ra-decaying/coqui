@@ -32,6 +32,7 @@ def test_gw_thc(mpi):
     eri_params = {
         "storage": "incore",
         "thresh": 1e-4,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }
@@ -57,6 +58,7 @@ def test_gw_mix_thc_chol(mpi):
     thc_params = {
         "storage": "incore",
         "thresh": 1e-4,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }
@@ -102,6 +104,7 @@ def test_g0w0_thc(mpi):
     eri_params = {
         "storage": "incore",
         "thresh": 1e-4,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }

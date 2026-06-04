@@ -31,7 +31,8 @@ svo_thc = coqui.make_thc_coulomb(mf=svo_mf, params=eri_params)
 
 # GW
 gw_params = {
-    "output": "svo.qpgw",
+    "outdir": "./",
+    "prefix": "svo.qpgw",
     "niter": 1,
     "beta": 200,
     "iaft": {

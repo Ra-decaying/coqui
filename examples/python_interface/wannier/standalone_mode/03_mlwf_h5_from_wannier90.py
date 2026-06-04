@@ -40,16 +40,17 @@ coqui.set_verbosity(mpi, output_level=2)
 
 # Constructing a MF object
 mf_params = {
-    "prefix": "svo",
-    "outdir": qe_dir,
-    "nbnd": 40
+  "prefix": "svo",
+  "outdir": qe_dir,
+  "nbnd": 40
 }
 svo_mf = coqui.make_mf(mpi, params=mf_params, mf_type="qe")
 
 # Read Wannier90 standalone output and generate MLWF HDF5
 w90_params = {
-    "prefix": "svo",              # equivalent to wannier90's seedname
-    "h5_filename": "svo.mlwf.h5", # output HDF5 filename 
+  "outdir": "./",
+  "prefix": "svo",              # equivalent to wannier90's seedname
+  "h5_filename": "svo.mlwf.h5", # output HDF5 filename 
 }
 coqui.mlwf_h5_from_wannier90_output(mf=svo_mf, params=w90_params)
 
@@ -58,15 +59,16 @@ coqui.mlwf_h5_from_wannier90_output(mf=svo_mf, params=w90_params)
 # the MLWFs into shells based on their angular momentum character. This requires specifying the `shells` parameter
 # in the `w90_params` dictionary: 
 w90_params = {
-    "prefix": "svo",              # equivalent to wannier90's seedname
-    "h5_filename": "svo.mlwf.h5", # output HDF5 filename 
-    "shells": {        
-      "atoms": [0, 1, 2],
-      "sort": [0, 1, 2],
-      "l": [2, 2, 2], 
-      "dim": [1, 1, 1], 
-      "SO": [0, 0, 0],
-      "irep": [0, 0, 0] 
-    }
+  "outdir": "./",
+  "prefix": "svo",              # equivalent to wannier90's seedname
+  "h5_filename": "svo.mlwf.h5", # output HDF5 filename 
+  "shells": {        
+    "atoms": [0, 1, 2],
+    "sort": [0, 1, 2],
+    "l": [2, 2, 2], 
+    "dim": [1, 1, 1], 
+    "SO": [0, 0, 0],
+    "irep": [0, 0, 0] 
+  }
 }
 coqui.mlwf_h5_from_wannier90_output(mf=svo_mf, params=w90_params)

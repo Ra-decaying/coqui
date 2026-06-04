@@ -33,6 +33,7 @@ def test_thc_eri(mpi):
         "storage": "incore",
         "nIpts": mf.nbnd() * 10,
         "thresh": 1e-10,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }
@@ -48,6 +49,7 @@ def test_thc_restart(mpi):
         "storage": "incore",
         "nIpts": mf.nbnd() * 10,
         "thresh": 1e-10,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }
@@ -80,6 +82,7 @@ def test_ls_thc_eri(mpi):
         "storage": "incore",
         "nIpts": mf.nbnd() * 10,
         "thresh": 1e-10,
+        "ecut": mf.ecutrho(),
         "cd_dir": "./",
         "chol_block_size": 1,
         "init": True

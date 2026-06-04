@@ -40,7 +40,7 @@ message(STATUS "CoQuí @ git branch ${GIT_BRANCH_NAME}, commit ${GIT_COMMIT_HASH
 ######################################################################
 
 set(COQUI_VERSION_MAJOR 0)
-set(COQUI_VERSION_MINOR 1)
+set(COQUI_VERSION_MINOR 3)
 set(COQUI_VERSION_PATCH 0)
 set(COQUI_VERSION "${COQUI_VERSION_MAJOR}.${COQUI_VERSION_MINOR}.${COQUI_VERSION_PATCH}")
 
@@ -371,6 +371,10 @@ if(COQUI_PYTHON_SUPPORT)
 else()
   set(PythonSupport ${NDA_PYTHON_SUPPORT} CACHE INTERNAL "")
 endif()
+# h5/unstable defaults Update_Python_Bindings=ON, which invokes clair-c2py to
+# regenerate its checked-in .wrap.cxx files. CoQui only needs to *compile* h5's
+# Python bindings, not regenerate them, so suppress the clair dependency here.
+set(Update_Python_Bindings OFF CACHE INTERNAL "")
 FetchContent_Declare(
         nda
         GIT_REPOSITORY "https://github.com/triqs/nda.git"
@@ -428,19 +432,21 @@ endif()
 ######################################################################
 # catch2
 ######################################################################
-if(DEFINED CATCH2)
-  set(FETCHCONTENT_SOURCE_DIR_CATCH2 ${CATCH2})
-endif()
+if(BUILD_UNIT_TESTS)
+  if(DEFINED CATCH2)
+    set(FETCHCONTENT_SOURCE_DIR_CATCH2 ${CATCH2})
+  endif()
 
-FetchContent_Declare(
-  Catch2
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG        v2.13.10
-)
-  #GIT_TAG        v3.4.0
-FetchContent_MakeAvailable(Catch2)
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/contrib)
-include( Catch )
+  FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG        v2.13.10
+  )
+    #GIT_TAG        v3.4.0
+  FetchContent_MakeAvailable(Catch2)
+  list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/contrib)
+  include( Catch )
+endif(BUILD_UNIT_TESTS)
 
 ######################################################################
 # cpptrace 

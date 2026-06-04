@@ -753,7 +753,7 @@ namespace methods {
     _Timer.stop("DF_UPFOLD");
 
     _Timer.start("DF_FIND_MU");
-    mu = update_mu(mu, dyson, *_MF, *ft, sVhf_skij, sG_tskij, sSigma_tskij);
+    mu = update_mu(mu, dyson, *_MF, *ft, sVhf_skij, sSigma_tskij);
     mpi->comm.barrier();
     _Timer.stop("DF_FIND_MU");
 

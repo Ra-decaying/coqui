@@ -19,21 +19,27 @@ limitations under the License.
 """
 
 from .post_proc import (
-  ac,
   band_interpolation,
   spectral_interpolation,
   local_dos,
   unfold_bz,
   dump_vxc,
-  dump_hartree
+  dump_hartree,
+  pade,
+  aaa_adapol_on_mesh,
+  aaa_adapol,
+  aaa_adapol_imag,
+  minipole,
 )
-from . import plot_utils
+from .plot_utils import band_plot, spectral_plot
 
 _TRIQS_AVAILABLE = False
 _TRIQS_IMPORT_ERROR = None
 
 try:
   from .analytic_cont import (
+    pade_triqs,
+    maxent_triqs,
     maxent_sigma,
     maxent_sigma_k,
   )
@@ -42,7 +48,7 @@ except ImportError as _e:
   _TRIQS_IMPORT_ERROR = _e
 
 # Names from analytic_cont that require TRIQS
-_TRIQS_AC_NAMES = frozenset(["maxent_sigma", "maxent_sigma_k"])
+_TRIQS_AC_NAMES = frozenset(["maxent_sigma", "maxent_sigma_k", "pade_triqs", "maxent_triqs"])
 
 def __getattr__(name):
   if name in _TRIQS_AC_NAMES:
@@ -54,10 +60,11 @@ def __getattr__(name):
   raise AttributeError(f"module 'coqui.post_proc' has no attribute '{name}'")
 
 __all__ = [
-  "ac", "band_interpolation", "spectral_interpolation",
+  "band_interpolation", "spectral_interpolation",
   "local_dos", "unfold_bz", "dump_vxc", "dump_hartree",
-  "plot_utils",
+  "pade", "aaa_adapol_on_mesh", "aaa_adapol", "aaa_adapol_imag", "minipole",
+  "band_plot", "spectral_plot",
 ]
 
 if _TRIQS_AVAILABLE:
-  __all__.extend(["maxent_sigma", "maxent_sigma_k"])
+  __all__.extend(["maxent_sigma", "maxent_sigma_k", "pade_triqs", "maxent_triqs"])

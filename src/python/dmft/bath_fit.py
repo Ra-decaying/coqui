@@ -23,11 +23,12 @@ Utility functions for bath fitting
 """
 import triqs.utility.mpi as mpi
 import numpy as np
+from coqui import app_log
 
 
 def bath_fitting(A_wsab, iw_mesh, statistics, Np=5,
                  *, name="", iw_mesh_out=None):
-    mpi.report(f"Causal projection for {name} with nbath/orbital = {Np} and statistics = {statistics}")
+    app_log(2, f"Causal projection for {name} with nbath/orbital = {Np} and statistics = {statistics}")
     try:
         from adapol import hybfit as adapol_hybfit
     except ImportError:
@@ -60,7 +61,7 @@ def bath_fitting(A_wsab, iw_mesh, statistics, Np=5,
         )
         A_out[:, s] = func(iw_mesh_out)
         error = max(error, abs(fit_error))
-    mpi.report(f"Causal projection error =  {error}\n")
+    app_log(2, f"Causal projection error =  {error}\n")
 
     if original_shape is not None:
         A_wsab = A_wsab.reshape(original_shape)
@@ -107,7 +108,7 @@ def causal_projection_boson(A_iw, iaft, causal_params,
         A_iw = apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name)
 
     if causal_params["nbath_per_orbital"] <= 0:
-        mpi.report(f"Skipping causal projection for {target_name} as nbath_per_orbital <= 0")
+        app_log(2, f"Skipping causal projection for {target_name} as nbath_per_orbital <= 0")
         return A_iw
 
     exclude_w0 = causal_params.get('exclude_w0', False)
@@ -257,12 +258,12 @@ def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
     Returns:
         numpy.ndarray: The modified bosonic Green's function with regularized iw = 0 component.
     """
-    mpi.report(f"Applying w=0 regularization for {target_name} before causal projection:")
+    app_log(2, f"Applying w=0 regularization for {target_name} before causal projection:")
     
     if w0_regularization == "flatten":
         
         # For insulating case, flatten at iw=0 by setting A(iw=0) = A(iw1)
-        mpi.report(f"  --> Flattening {target_name} at w=0.")
+        app_log(2, f"  --> Flattening {target_name} at w=0.")
         zero_index = np.where(iw_mesh_b == 0.0)[0][0]
         A_iw[zero_index] = A_iw[zero_index + 1]
     
@@ -274,7 +275,7 @@ def apply_w0_regularization(A_iw, iw_mesh_b, w0_regularization, target_name):
             raise ValueError(
                 f"Invalid extrapolate_order value: {w0_regularization[18:]}. Must be an integer."
             )
-        mpi.report(f"  --> Extrapolating {target_name} at w = 0 as an O(w²) polynomial of order {order}.")
+        app_log(2, f"  --> Extrapolating {target_name} at w = 0 as an O(w²) polynomial of order {order}.")
         zero_index = np.where(iw_mesh_b == 0.0)[0][0]
         available_points = iw_mesh_b[zero_index+1:].shape[0]
         if order+1 > available_points:

@@ -71,7 +71,7 @@ def compare_sparse_ir_h5(wmax: float, prec: str):
     :param wmax: frequency cutoff
     :param prec: "low" (1e-6), "medium" (1e-10), "high" (1e-15)
     """
-    ir = IAFT(beta=1.0, wmax=wmax, prec=prec)
+    ir = IAFT(beta=1.0, wmax=wmax, prec=prec, basis='ir')
     with HDFArchive(ir_filename(ir.lmbda, ir.eps), "r") as ar:
         tau_mesh = ar["fermion"]["tau_mesh"]
         wn_mesh = ar["fermion"]["wn_mesh"]

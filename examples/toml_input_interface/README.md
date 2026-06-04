@@ -63,13 +63,18 @@ lambda    = 1200.0
 iaft_prec = "high"
 niter     = 12
 restart   = false
-output    = "hf"
+outdir    = "./"
+prefix    = "hf"
 [hf.iter_alg]
 alg    = "damping"
 mixing = 0.7
 ```
+
+For MBPT sections such as `[hf]`, `[gw]`, and `[rpa]`, the preferred checkpoint naming is `outdir` + `prefix`, which writes `outdir/prefix.mbpt.h5`. The legacy `output` key is still accepted for backward compatibility.
+
 Without knowing the specifics of each section, the calculation can be
 understood as follows:
+
 1. **Initialize a Mean Field Object**: The `[mean_field.qe]` object reads the
    mean-field solution as well as the metadata for the simulated system from the input
    DFT codes (Quantum ESPRESSO in this case).

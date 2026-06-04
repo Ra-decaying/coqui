@@ -37,17 +37,19 @@ of EDMFT, including:
 Dependencies
 ------------
 This module relies on the TRIQS ecosystem, in particular:
-- `triqs.gf` for Green’s function containers and operations
+- `triqs.gfs` for Green’s function containers and operations
 - `triqs.operators` for operator algebra
 - `triqs.utility.mpi` for parallelism
 """
-from h5 import HDFArchive
 import numpy as np
 from itertools import product
 
-from triqs.gf import inverse, iOmega_n, Gf, make_gf_dlr, BlockGf, Block2Gf, MeshImFreq, MeshDLRImFreq
+from triqs.gfs import (
+    inverse, iOmega_n, Gf, make_gf_dlr, BlockGf, Block2Gf, 
+    MeshImFreq, MeshDLRImFreq, 
+)
 from triqs.operators import c_dag, c, Operator, util
-from triqs.operators.util.extractors import block_matrix_from_op
+from triqs.operators.util.extractors import block_matrix_from_op, extract_U_dict2, dict_to_matrix
 import coqui.dmft as coqui_dmft
 
 
@@ -182,7 +184,7 @@ def to_block_gf(giw_ir, iaft, gf_struct, mesh_iw):
             giw_ir[:, s, offset[s]:offset[s]+blk_dim, offset[s]:offset[s]+blk_dim],
             mesh_iw_idx,
             stats="f",
-            ir_notation=False
+            phys_notation=True
         )
         offset[s] += blk_dim
         assert offset[s] <= nbnd, f"Spin {s} block exceeds band range"
@@ -206,7 +208,7 @@ def to_block2_gf(Diw_ir, iaft, gf_struct, mesh_iw):
     nbnd = Diw_ir.shape[-1]
 
     mesh_iw_idx = np.array([iwn.index for iwn in mesh_iw])
-    Diw_data = iaft.w_interpolate_phsym(Diw_ir, mesh_iw_idx, stats="b", ir_notation=False)
+    Diw_data = iaft.w_interpolate_phsym(Diw_ir, mesh_iw_idx, stats="b", phys_notation=True)
 
     gf_array = []
     o1 = [0, 0]
@@ -282,11 +284,11 @@ def to_triqs_containers(h0, delta_iw, Vimp, u_weiss_iw, iaft,
     -------
     h0 : triqs.operators.many_body_operator
         One-particle Hamiltonian in TRIQS operator form.
-    delta_iw : triqs.gf.BlockGf
+    delta_iw : triqs.gfs.BlockGf
         Hybridization function Δ(iωₙ) as a TRIQS block Green’s function.
     h_int : triqs.operators.many_body_operator
         Local interaction Hamiltonian in density-density approximation.
-    u_weiss_iw : triqs.gf.Block2Gf
+    u_weiss_iw : triqs.gfs.Block2Gf
         Dynamical screened interaction U(iωₙ) as a TRIQS two-particle block Green’s function.
 
     Notes
@@ -356,16 +358,15 @@ def gf_dlr_from_ir(giw_ir, iaft, mesh_dlr_iw):
     else:
         mesh_dlr_iw_idx = np.array([iwn.index for iwn in mesh_dlr_iw])
 
-    gf_dlr_iw.data[:] = iaft.w_interpolate(giw_ir, mesh_dlr_iw_idx, stats=stats, ir_notation=False)
+    gf_dlr_iw.data[:] = iaft.w_interpolate(giw_ir, mesh_dlr_iw_idx, stats=stats, phys_notation=True)
 
     return make_gf_dlr(gf_dlr_iw)
 
 
 def gf_dlr_to_ir(gf_dlr, iaft):
     stats = 'b' if gf_dlr.mesh.statistic == 'Boson' else 'f'
-    ir_idx = iaft.wn_mesh(stats=stats, ir_notation=False)
+    ir_idx = iaft.wn_mesh(stats=stats, phys_notation=True)
     nw = len(ir_idx)
-    nw_half = nw//2 if nw%2==0 else nw//2+1
     iw_mesh_uniform = MeshImFreq(
         beta=gf_dlr.mesh.beta,
         statistic=gf_dlr.mesh.statistic,
@@ -373,15 +374,10 @@ def gf_dlr_to_ir(gf_dlr, iaft):
     )
     def fill_gf_ir(gf_input):
         gf_ir_out = np.zeros((nw,) + gf_input.data[:].shape[1:], dtype=complex)
-        # fermions/bosons have even/odd numbers of IR frequencies
-        for idx in range(nw_half):
-            # nw = 11 -> nw_half = 6: (10,0), (9,1), (8,2), (7,3), (6,4), (5,5)
-            # nw = 10 -> nw_half = 5: (9,0), (8,1), (7,2), (6,3), (5,4)
-            iw_pos = nw-idx-1
-            iw_neg = idx
-            gf_ir_out[iw_pos] = gf_input(iw_mesh_uniform(ir_idx[iw_pos]))
-            if iw_pos != iw_neg:
-                gf_ir_out[iw_neg] = gf_input(iw_mesh_uniform(ir_idx[iw_pos])).conj()
+        # we don't symmetrize gf here. Call `make_hermitian` externally if needed. 
+        for i, idx in enumerate(ir_idx):
+            gf_ir_out[i] = gf_input(iw_mesh_uniform(idx))
+
         return gf_ir_out
 
     if isinstance(gf_dlr, BlockGf):
@@ -404,7 +400,7 @@ def gf_dlr_to_ir_phsym(gf_dlr, iaft):
     assert gf_dlr.mesh.statistic == "Boson", (
         "gf_dlr_to_ir_phsym: Gf statistics must be Boson"
     )
-    ir_idx_b = iaft.wn_mesh(stats='b', ir_notation=False, positive_only=True)
+    ir_idx_b = iaft.wn_mesh(stats='b', phys_notation=True, positive_only=True)
     nw_b_pos = len(ir_idx_b)
     iw_mesh_uniform_b = MeshImFreq(
         beta=gf_dlr.mesh.beta,
@@ -678,8 +674,12 @@ def _dlr_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, iaft=None):
                 "W_iw_data": w_iw_data, "Pi_iw_data": pi_iw_data}
 
     # converter Sigma and Pi to IR Matsubara mesh
-    g_iw_data     = coqui_dmft.gf_dlr_to_ir(make_gf_dlr(g_iw), iaft)
-    sigma_iw_data = coqui_dmft.gf_dlr_to_ir(make_gf_dlr(sigma_iw), iaft)
+    g_iw_data     = coqui_dmft.make_hermitian(
+        coqui_dmft.gf_dlr_to_ir(make_gf_dlr(g_iw), iaft)
+    )
+    sigma_iw_data = coqui_dmft.make_hermitian(
+        coqui_dmft.gf_dlr_to_ir(make_gf_dlr(sigma_iw), iaft)
+    )
     pi_iw_data = [coqui_dmft.gf_dlr_to_ir_phsym(make_gf_dlr(pi_iw), iaft)]
     w_iw_data = [coqui_dmft.gf_dlr_to_ir_phsym(make_gf_dlr(w_iw), iaft)]
     return {"G_iw_data": g_iw_data, "Sigma_iw_data": sigma_iw_data,
@@ -719,7 +719,7 @@ def _full_mesh_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, iaft=None):
         return {"Sigma_iw_data": sigma_iw_data, "Pi_iw_data": pi_iw_data}
 
     # converter Sigma and Pi to IR Matsubara mesh
-    ir_idx_f = iaft.wn_mesh(stats='f', ir_notation=False)
+    ir_idx_f = iaft.wn_mesh(stats='f', phys_notation=True)
     nw_f = len(ir_idx_f)
     nw_f_half = nw_f // 2
     for i, sigma_dyn in enumerate(sigma_iw_data):
@@ -733,7 +733,7 @@ def _full_mesh_imp_results_to_raw_data(g_iw, sigma_iw, w_iw, pi_iw, iaft=None):
         sigma_iw_data[i] = sigma_dyn_ir
 
     # interpolate solver_res.Pi_iw to ir grid
-    ir_idx_b = iaft.wn_mesh(stats='b', ir_notation=False, positive_only=True)
+    ir_idx_b = iaft.wn_mesh(stats='b', phys_notation=True, positive_only=True)
     nw_b_pos = len(ir_idx_b)
     pi_iw_ir = np.zeros((nw_b_pos,) + pi_iw_data[0].shape[1:], dtype=complex)
     for idx in range(nw_b_pos):
@@ -757,6 +757,63 @@ def symmetrize_h0_op(h0_op, deg_blk, gf_struct):
     h0_blk_mat = block_matrix_from_op(h0_op, gf_struct)
     h0_blk_sym = symmetrize_blk_mat(h0_blk_mat, deg_blk)
     return blk_h0_to_h0_operator(h0_blk_sym, gf_struct)
+
+
+def symmetrize_h_int_op(h_int_op, deg_blk, gf_struct):
+    # extract the density-density Coulomb matrix U_dd
+    u_dd = dict_to_matrix(extract_U_dict2(h_int_op), gf_struct=gf_struct)
+    n_orb = u_dd.shape[0]//2
+
+    for i, blks in enumerate(deg_blk):
+
+        u_diag_buffer, u_offdiag_buffer, up_diag_buffer, up_offdiag_buffer = 0.0, 0.0, 0.0, 0.0
+        diag_count, offdiag_count = 0, 0
+        diag_count_prime, offdiag_count_prime = 0, 0
+
+        # different treatment for same-spin and opposite-spin in case they are different
+        for b1, b2 in product(blks, repeat=2):
+            blk_name1, blk_name2 = gf_struct[b1][0], gf_struct[b2][0]
+            spin1, orb_blk1 = blk_name1.split('_')
+            spin2, orb_blk2 = blk_name2.split('_')
+
+            # same spin
+            if spin1 == spin2:
+                if orb_blk1 == orb_blk2:
+                    u_diag_buffer += u_dd[b1, b2]
+                    diag_count += 1
+                else:
+                    u_offdiag_buffer += u_dd[b1, b2]
+                    offdiag_count += 1
+            else:
+                if orb_blk1 == orb_blk2:
+                    up_diag_buffer += u_dd[b1, b2]
+                    diag_count_prime += 1
+                else:
+                    up_offdiag_buffer += u_dd[b1, b2]
+                    offdiag_count_prime += 1
+
+        for b1, b2 in product(blks, repeat=2):
+            blk_name1, blk_name2 = gf_struct[b1][0], gf_struct[b2][0]
+            spin1, orb_blk1 = blk_name1.split('_')
+            spin2, orb_blk2 = blk_name2.split('_')
+
+            if spin1 == spin2:
+                if orb_blk1 == orb_blk2 and diag_count > 0:
+                    u_dd[b1, b2] = u_diag_buffer / diag_count
+                elif orb_blk1 != orb_blk2 and offdiag_count > 0:
+                    u_dd[b1, b2] = u_offdiag_buffer / offdiag_count
+            else:
+                if orb_blk1 == orb_blk2 and diag_count_prime > 0:
+                    u_dd[b1, b2] = up_diag_buffer / diag_count_prime
+                elif orb_blk1 != orb_blk2 and offdiag_count_prime > 0:
+                    u_dd[b1, b2] = up_offdiag_buffer / offdiag_count_prime
+    
+    c_to_solver = get_c_to_solver_mapping(gf_struct)
+    U_same_spin = u_dd[:n_orb, :n_orb]
+    U_opposite_spin = u_dd[:n_orb, n_orb:]
+    h_int = util.h_int_density(['up', 'down'], n_orb, U=U_same_spin, Uprime=U_opposite_spin, 
+                               map_operator_structure=c_to_solver)
+    return h_int
 
 
 def symmetrize_blk2_gf(u_iw_blk_gf2, deg_blk, gf_struct):

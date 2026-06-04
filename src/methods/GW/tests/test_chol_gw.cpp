@@ -46,7 +46,7 @@ namespace bdft_tests {
   TEST_CASE("chol_g0w0_qe", "[methods][chol][gw][qe]") {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
-    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_basis);
+    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_basis, "high");
     std::string output = "coqui";
 
     auto solve_thc_g0w0 = [&](std::shared_ptr<mf::MF> &mf) {
@@ -117,7 +117,7 @@ namespace bdft_tests {
     auto& mpi_context = utils::make_unit_test_mpi_context();
 
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "qe_lih222"));
-    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_basis);
+    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_basis, "high");
     chol_reader_t chol(mf, methods::make_chol_reader_ptree(1e-10, mf->ecutrho(), 32, "./"));
     auto eri = mb_eri_t(chol, chol);
     solvers::gw_t gw(std::addressof(ft), "gygi_smallest_q");
@@ -149,7 +149,7 @@ namespace bdft_tests {
 
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "qe_lih222"));
 
-    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_basis);
+    imag_axes_ft::IAFT ft(1000, 1.2, imag_axes_ft::ir_basis, "high");
     chol_reader_t chol(mf, methods::make_chol_reader_ptree(1e-10, mf->ecutrho(), 32, "./"));
     auto eri = mb_eri_t(chol, chol);
     solvers::gw_t gw(std::addressof(ft), "gygi_smallest_q");
@@ -181,7 +181,7 @@ namespace bdft_tests {
 
     auto mf = std::make_shared<mf::MF>(mf::MF(mf::pyscf::pyscf_readonly(mpi_context, filepath, "pyscf")));
 
-    imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_basis);
+    imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_basis, "high");
     chol_reader_t chol(mf, methods::make_chol_reader_ptree(1e-10, mf->ecutrho(), 32, "./"));
     auto eri = mb_eri_t(chol, chol);
     solvers::gw_t gw(std::addressof(ft), "gygi_smallest_q");
@@ -216,7 +216,7 @@ namespace bdft_tests {
 
     auto mf = std::make_shared<mf::MF>(mf::MF(mf::pyscf::pyscf_readonly(mpi_context, filepath, "pyscf")));
 
-    imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_basis);
+    imag_axes_ft::IAFT ft(1000, 12.0, imag_axes_ft::ir_basis, "high");
     chol_reader_t chol(mf, methods::make_chol_reader_ptree(1e-10, mf->ecutrho(), 32, "./"));
     auto eri = mb_eri_t(chol, chol);
     solvers::gw_t gw(std::addressof(ft), "gygi_smallest_q");
@@ -245,7 +245,7 @@ namespace bdft_tests {
     std::string gdf_dir = std::string(PROJECT_SOURCE_DIR)+"/tests/unit_test_files/pyscf/h2o_mol/gdf_eri/";
     auto mf = std::make_shared<mf::MF>(mf::default_MF(mpi_context, "pyscf_h2o_mol"));
 
-    imag_axes_ft::IAFT ft(2000, 6.0, imag_axes_ft::ir_basis);
+    imag_axes_ft::IAFT ft(2000, 6.0, imag_axes_ft::ir_basis, "high");
 
     chol_reader_t chol(mf, gdf_dir);
     auto eri = mb_eri_t(chol, chol);
