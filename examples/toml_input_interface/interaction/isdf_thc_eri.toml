@@ -26,7 +26,8 @@ ecut            = 60               # [optional] Energy cutoff in the evaluation 
                                    #            charge density, sometimes even for wfc. Fine-tuning
                                    #            this value can significantly reduce the computational
                                    #            cost and memory requiremtnt.
-                                   #            Default = ecut for charge density.
+                                   #            Default = 1.4 x wfc cutoff (falls back to
+                                   #            0.4 x charge-density cutoff when no wfc grid).
 save            = "thc_eri.h5"     # [optional] h5 archive to store the THC outputs;
                                    #            default = "", i.e. not to store on the disk
 storage         = "incore"         # [optional] this determines how THC will be accessed in the

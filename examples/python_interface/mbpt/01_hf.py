@@ -24,10 +24,13 @@ svo_thc = coqui.make_thc_coulomb(mf=svo_mf, params=eri_params)
 # Hartree-Fock 
 hf_params = {
     "beta": 300,
-    "wmax": 3.0,
-    "iaft_prec": "medium",
+    "iaft": {
+        "wmax": 3.0,
+        "prec": "medium",
+    },
     "niter": 8,
-    "output": "svo_hf",
+    "outdir": "./",
+    "prefix": "svo_hf",
     "iter_alg": {
         "alg": "damping",
         "mixing": 0.7

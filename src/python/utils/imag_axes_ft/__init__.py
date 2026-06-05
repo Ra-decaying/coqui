@@ -2,7 +2,7 @@
 ==========================================================================
 CoQuí: Correlated Quantum ínterface
 
-Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,5 +19,9 @@ limitations under the License.
 """
 
 from .iaft import IAFT
-
 __all__ = ["IAFT"]
+try:
+    from coqui._lib.iaft_module import build_g_tau_ref, build_g_iw_ref
+    __all__ += ["build_g_tau_ref", "build_g_iw_ref"]
+except ImportError:
+    pass

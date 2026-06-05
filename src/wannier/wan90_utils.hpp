@@ -2,7 +2,7 @@
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -587,9 +587,10 @@ void write_wan90_h5(mf::MF &mf, ptree pt, nda::array<int,1> const& band_list,
 
   auto [nspin,nkpts,nwann,nband] = Pkwa.shape();
 
+  auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
   auto prefix = io::get_value<std::string>(pt,"prefix");
   auto dset_name = io::get_value_with_default<std::string>(pt,"dset_name","dft_input");
-  auto h5_fname = io::get_value_with_default<std::string>(pt,"h5_filename",prefix+".mlwf.h5");
+  auto h5_fname = io::get_value_with_default<std::string>(pt,"h5_filename",outdir+"/"+prefix+".mlwf.h5");
  
   // read shell information: 'atom', 'sort', 'l', 'dim', 'SO', 'irep'
   nda::array<long,2> shells = { {0,0,0,long(nwann),0,0} };

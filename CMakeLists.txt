@@ -40,7 +40,7 @@ message(STATUS "CoQuí @ git branch ${GIT_BRANCH_NAME}, commit ${GIT_COMMIT_HASH
 ######################################################################
 
 set(COQUI_VERSION_MAJOR 0)
-set(COQUI_VERSION_MINOR 1)
+set(COQUI_VERSION_MINOR 3)
 set(COQUI_VERSION_PATCH 0)
 set(COQUI_VERSION "${COQUI_VERSION_MAJOR}.${COQUI_VERSION_MINOR}.${COQUI_VERSION_PATCH}")
 
@@ -111,6 +111,7 @@ option(ENABLE_TBLIS "Build using tblis library. Must set TBLIS_ROOT" OFF)
 option(ENABLE_SPDLOG "Build with spdlog" ON)
 option(ENABLE_SPHERICART "Build with shericart" OFF)
 option(ENABLE_WANNIER90 "Build with wannier90 support." ON)
+option(ENABLE_DLR "Build with cppdlr backend for IAFT." ON)
 option(REQUIRE_NCCL "Require NCCL library with CUDA backend." OFF)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(BUILD_STATIC "Link to static libraries" OFF)
@@ -370,6 +371,10 @@ if(COQUI_PYTHON_SUPPORT)
 else()
   set(PythonSupport ${NDA_PYTHON_SUPPORT} CACHE INTERNAL "")
 endif()
+# h5/unstable defaults Update_Python_Bindings=ON, which invokes clair-c2py to
+# regenerate its checked-in .wrap.cxx files. CoQui only needs to *compile* h5's
+# Python bindings, not regenerate them, so suppress the clair dependency here.
+set(Update_Python_Bindings OFF CACHE INTERNAL "")
 FetchContent_Declare(
         nda
         GIT_REPOSITORY "https://github.com/triqs/nda.git"
@@ -427,19 +432,21 @@ endif()
 ######################################################################
 # catch2
 ######################################################################
-if(DEFINED CATCH2)
-  set(FETCHCONTENT_SOURCE_DIR_CATCH2 ${CATCH2})
-endif()
+if(BUILD_UNIT_TESTS)
+  if(DEFINED CATCH2)
+    set(FETCHCONTENT_SOURCE_DIR_CATCH2 ${CATCH2})
+  endif()
 
-FetchContent_Declare(
-  Catch2
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG        v2.13.10
-)
-  #GIT_TAG        v3.4.0
-FetchContent_MakeAvailable(Catch2)
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/contrib)
-include( Catch )
+  FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG        v2.13.10
+  )
+    #GIT_TAG        v3.4.0
+  FetchContent_MakeAvailable(Catch2)
+  list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/contrib)
+  include( Catch )
+endif(BUILD_UNIT_TESTS)
 
 ######################################################################
 # cpptrace 
@@ -520,6 +527,31 @@ if(ENABLE_WANNIER90)
     target_include_directories(Wannier90_lib PRIVATE "${GFORTRAN_INCLUDE_DIR}")
     add_compile_definitions(ENABLE_WANNIER90)
 endif(ENABLE_WANNIER90)
+
+######################################################################
+# cppdlr: Discrete Lehmann Representation backend (optional)
+######################################################################
+if(ENABLE_DLR)
+  # cppdlr main branch currently checks CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT
+  # at configure time even as a subproject. Clear it to allow FetchContent use.
+  if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT FALSE)
+  endif()
+
+  FetchContent_Declare(
+      cppdlr
+      GIT_REPOSITORY https://github.com/flatironinstitute/cppdlr.git
+      GIT_TAG        f6bd6ab1823403015486c2c6b3399fd4db4468c1 #main
+  )
+  FetchContent_MakeAvailable(cppdlr)
+  # temporary workaround before cppdlr's nda dependency is updated. 
+  if(TARGET cppdlr_c)
+    target_compile_options(cppdlr_c PRIVATE
+      -include ${CMAKE_SOURCE_DIR}/src/numerics/imag_axes_ft/dlr/nda_linalg_compat.hpp
+    )
+  endif()
+  add_compile_definitions(ENABLE_DLR)
+endif(ENABLE_DLR)
 
 ######################################################################
 # Boost

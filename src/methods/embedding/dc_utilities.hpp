@@ -2,7 +2,7 @@
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -253,11 +253,11 @@ nda::array<ComplexType, 4> exchange_double_counting(const nda::MemoryArrayOfRank
       }
     }
   }
-  ft.check_leakage(gw_dc_tsIab, imag_axes_ft::fermi, std::addressof(comm), "double counting GW self-energy");
+  ft.check_leakage(gw_dc_tsIab, imag_axes_ft::fermion, std::addressof(comm), "double counting GW self-energy");
 
   if constexpr (w_out) {
     nda::array<ComplexType, 5> gw_dc_wsIab(ft.nw_f(), ns, nImps, nImpOrbs, nImpOrbs);
-    ft.tau_to_w(gw_dc_tsIab, gw_dc_wsIab, imag_axes_ft::fermi);
+    ft.tau_to_w(gw_dc_tsIab, gw_dc_wsIab, imag_axes_ft::fermion);
     return gw_dc_wsIab;
   } else {
     return gw_dc_tsIab;
@@ -350,11 +350,11 @@ auto gw_double_counting_dmft(utils::Communicator auto &comm,
       }
     }
   }
-  ft.check_leakage(gw_dc_tsIab, imag_axes_ft::fermi, std::addressof(comm), "double counting GW self-energy");
+  ft.check_leakage(gw_dc_tsIab, imag_axes_ft::fermion, std::addressof(comm), "double counting GW self-energy");
 
   if constexpr (w_out) {
     nda::array<ComplexType, 5> gw_dc_wsIab(ft.nw_f(), ns, nImps, nImpOrbs, nImpOrbs);
-    ft.tau_to_w(gw_dc_tsIab, gw_dc_wsIab, imag_axes_ft::fermi);
+    ft.tau_to_w(gw_dc_tsIab, gw_dc_wsIab, imag_axes_ft::fermion);
     return gw_dc_wsIab;
   } else {
     return gw_dc_tsIab;
@@ -402,11 +402,11 @@ auto gw_edmft_double_counting(utils::Communicator auto &comm,
       }
     }
   }
-  ft.check_leakage(gw_dc_tsIab, imag_axes_ft::fermi, std::addressof(comm), "double counting GW self-energy");
+  ft.check_leakage(gw_dc_tsIab, imag_axes_ft::fermion, std::addressof(comm), "double counting GW self-energy");
 
   if constexpr (w_out) {
     nda::array<ComplexType, 5> gw_dc_wsIab(ft.nw_f(), ns, nImps, nImpOrbs, nImpOrbs);
-    ft.tau_to_w(gw_dc_tsIab, gw_dc_wsIab, imag_axes_ft::fermi);
+    ft.tau_to_w(gw_dc_tsIab, gw_dc_wsIab, imag_axes_ft::fermion);
     return gw_dc_wsIab;
   } else {
     return gw_dc_tsIab;

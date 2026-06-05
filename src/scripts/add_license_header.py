@@ -1,15 +1,27 @@
 #!/usr/bin/env python3
 import os
+import re
 import sys
 from pathlib import Path
 
 # ---- Configuration ----
-HEADER_CPP = """\
+# Year range shown in the copyright line. Bump END_YEAR to refresh headers.
+START_YEAR = 2022
+END_YEAR = 2026
+
+# Matches "Copyright (c) <start>-<end>" in an existing header, regardless of the
+# current end year, so the range can be updated in place.
+COPYRIGHT_RE = re.compile(
+    r"Copyright \(c\) " + str(START_YEAR) + r"-\d{4}"
+)
+COPYRIGHT_LINE = f"Copyright (c) {START_YEAR}-{END_YEAR}"
+
+HEADER_CPP = f"""\
 /**
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * {COPYRIGHT_LINE} Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,11 +38,11 @@ HEADER_CPP = """\
  */
 """
 
-HEADER_PY = '''"""
+HEADER_PY = f'''"""
 ==========================================================================
 CoQuí: Correlated Quantum ínterface
 
-Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+{COPYRIGHT_LINE} Simons Foundation & The CoQuí developer team
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,11 +58,11 @@ limitations under the License.
 ==========================================================================
 """'''
 
-HEADER_FORTRAN = '''\
+HEADER_FORTRAN = f'''\
 !=============================================================================
 ! CoQuí: Correlated Quantum ínterface
 !
-! Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+! {COPYRIGHT_LINE} Simons Foundation & The CoQuí developer team
 !
 ! Licensed under the Apache License, Version 2.0 (the "License");
 ! you may not use this file except in compliance with the License.
@@ -67,7 +79,7 @@ HEADER_FORTRAN = '''\
 '''
 
 
-CPP_EXTENSIONS = {".cpp", ".cxx", ".cc", ".h", ".hpp", ".hh", ".cu", ".cuh"}
+CPP_EXTENSIONS = {".cpp", ".cc", ".h", ".hpp", ".hh", ".cu", ".cuh"}
 PY_EXTENSIONS = {".py"}
 FORTRAN_EXTENSIONS = {".f90", ".f95", ".f03", ".f08", ".f", ".f77"}
 
@@ -85,11 +97,12 @@ def choose_header(ext: str) -> str | None:
     return None
 
 
-def file_needs_header(path: Path, header: str) -> bool:
+def has_header(path: Path, header: str) -> bool:
+    """Return True if the file already starts with a CoQuí license header."""
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             start = f.read(len(header))
-            return "Apache License" not in start
+            return "Apache License" in start
     except Exception:
         return False
 
@@ -101,6 +114,24 @@ def add_header(path: Path, header: str):
         f.write(header + "\n\n" + content)
 
 
+def update_header_year(path: Path) -> bool:
+    """Refresh the copyright year range in an existing header.
+
+    Returns True if the file was modified.
+    """
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+    except Exception:
+        return False
+    new_content, n = COPYRIGHT_RE.subn(COPYRIGHT_LINE, content)
+    if n == 0 or new_content == content:
+        return False
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(new_content)
+    return True
+
+
 def main(root: Path):
     for dirpath, _, filenames in os.walk(root):
         for filename in filenames:
@@ -109,9 +140,11 @@ def main(root: Path):
             if header is None:
                 continue
             path = Path(dirpath) / filename
-            if file_needs_header(path, header):
+            if not has_header(path, header):
                 print(f"Adding header to {path}")
                 add_header(path, header)
+            elif update_header_year(path):
+                print(f"Updating header year in {path}")
 
 
 if __name__ == "__main__":

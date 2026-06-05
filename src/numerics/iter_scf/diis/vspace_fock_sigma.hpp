@@ -2,7 +2,7 @@
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -218,12 +218,12 @@ void commutator_t(Array_G& C_t, const imag_axes_ft::IAFT *FT,
     nda::array<ComplexType, 5> G_w(nw,ns,nk,nao,nao);
     nda::array<ComplexType, 5> Sigma_w(nw,ns,nk,nao,nao);
     // G_w is filled
-    FT->tau_to_w(G_t, G_w, imag_axes_ft::fermi);
+    FT->tau_to_w(G_t, G_w, imag_axes_ft::fermion);
     // Sigma_t is filled
     auto Sigma_t = FS_t.get_sigma();
     auto Fock = FS_t.get_fock();
     // Sigma_w is filled
-    FT->tau_to_w(Sigma_t, Sigma_w, imag_axes_ft::fermi);
+    FT->tau_to_w(Sigma_t, Sigma_w, imag_axes_ft::fermion);
 
     nda::array<ComplexType, 4> Dm(ns,nk,nao,nao);
     FT->tau_to_beta(G_t, Dm);
@@ -256,7 +256,7 @@ void commutator_t(Array_G& C_t, const imag_axes_ft::IAFT *FT,
         C_wsk = nda::make_regular(I1 - I2);
     }
 
-    FT->w_to_tau(C_w, C_t, imag_axes_ft::fermi);
+    FT->w_to_tau(C_w, C_t, imag_axes_ft::fermion);
 }
 
 

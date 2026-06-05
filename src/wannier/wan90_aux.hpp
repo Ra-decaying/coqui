@@ -2,7 +2,7 @@
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -637,7 +637,9 @@ auto compute_amn_projections(utils::mpi_context_t<mpi3::communicator> &mpi, mf::
 {
   using Array_view_3D_t = nda::array_view<ComplexType,3>;
   // options
+  auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
   auto prefix = io::get_value<std::string>(pt,"prefix");
+  auto resolved_prefix = outdir + "/" + prefix;
   auto r0 = io::get_value_with_default<double>(pt,"r0",std::exp(-6.0));
   auto rN = io::get_value_with_default<double>(pt,"rN",10.0);
   auto nintg_points= io::get_value_with_default<long>(pt,"nr",333);
@@ -807,7 +809,7 @@ auto compute_amn_projections(utils::mpi_context_t<mpi3::communicator> &mpi, mf::
   if(mpi.node_comm.root()) 
     mpi.internode_comm.all_reduce_in_place_n(Aloc.data(),Aloc.size(),std::plus<>{});
   if(mpi.comm.root() and write_to_file) 
-    detail::write_amn_file(prefix,Aloc,transpose);
+    detail::write_amn_file(resolved_prefix,Aloc,transpose);
   mpi.comm.barrier();
 
   return Amn;
@@ -1029,7 +1031,9 @@ auto wannier90_library_run(utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF
   auto nspin = mf.nspin();
   auto kpts = mf.kpts_crystal();
 
+  auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
   auto prefix = io::get_value<std::string>(pt,"prefix");
+  auto resolved_prefix = outdir + "/" + prefix;
   auto write_mmn = io::get_value_with_default<bool>(pt,"write_mmn",false);
   auto write_amn = io::get_value_with_default<bool>(pt,"write_amn",false);
   auto write_eigv = io::get_value_with_default<bool>(pt,"write_eig",false);
@@ -1074,11 +1078,11 @@ auto wannier90_library_run(utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF
  
     // read nband, nwann, nproj_lines, proj_str, auto_projections, kpoints
     // check lattv, atom positions
-    utils::check(std::filesystem::exists(prefix+".win"), "Problems opening win file:{}",prefix+".win");
-    auto file_data = utils::read_file_to_string(prefix+".win");
+    utils::check(std::filesystem::exists(resolved_prefix+".win"), "Problems opening win file:{}",resolved_prefix+".win");
+    auto file_data = utils::read_file_to_string(resolved_prefix+".win");
     auto file_data_lower = io::tolower_copy(file_data);  // used to search at this level only
 
-    app_log(2," - Parsing {} input file. ",prefix+".win");
+    app_log(2," - Parsing {} input file. ",resolved_prefix+".win");
     nwann = read_key<true,int>(file_data,"num_wann");
     nband = read_key<false,int>(file_data,"num_bands",nwann);
     if( read_key<false,bool>(file_data, "auto_projections", false) ) auto_projections = nwann;
@@ -1283,7 +1287,7 @@ auto wannier90_library_run(utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF
   mpi.broadcast(str_len);
  
   // eigenvalues with wann_kp ordering in eV
-  auto eigv = get_eig(mpi,mf,prefix,kp_map,band_list,write_eigv);
+  auto eigv = get_eig(mpi,mf,resolved_prefix,kp_map,band_list,write_eigv);
   eigv() /= 3.674932540e-2;
 
   // nnkp array, returned by wann90_setup: 
@@ -1302,14 +1306,14 @@ auto wannier90_library_run(utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF
     ::nda::array<int,3> nnkp_(nkpts,n_neigh,4);
     int nn = 0;
 #if defined(ENABLE_WANNIER90)
-    FC_wann90_setup(prefix.data(),prefix.size(),nband,nwann,
-                   nat,at_cart_ang.data(),at_sym.extent(1),at_sym.data(),at_sym_sz.data(), 
-                   eigv.data(),lattv.data(),
-                   mf.nkpts(),mf.kp_grid().data(),wann_kp.data(),  
-                   nn, n_neigh, nnkp_.data(), 
-                   auto_projections, nproj_lines, proj_str.extent(1), proj_str.data(), 
-                   str_len.data(), proj_ints.data(), proj_doubles.data(),
-                   write_nnkp, exclude_string.data(), exclude_string.length(), err);
+    FC_wann90_setup(resolved_prefix.data(),resolved_prefix.size(),nband,nwann,
+                    nat,at_cart_ang.data(),at_sym.extent(1),at_sym.data(),at_sym_sz.data(), 
+                    eigv.data(),lattv.data(),
+                    mf.nkpts(),mf.kp_grid().data(),wann_kp.data(),  
+                    nn, n_neigh, nnkp_.data(), 
+                    auto_projections, nproj_lines, proj_str.extent(1), proj_str.data(), 
+                    str_len.data(), proj_ints.data(), proj_doubles.data(),
+                    write_nnkp, exclude_string.data(), exclude_string.length(), err);
 #else
     utils::check(false,"Calling wann90_XXX without wannier90 support. Compile with ENABLE_WANNIER90.");
 #endif
@@ -1319,14 +1323,14 @@ auto wannier90_library_run(utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF
       nnkp.resize(std::array<long,3>{nkpts,n_neigh,4});
       // call again
 #if defined(ENABLE_WANNIER90)
-      FC_wann90_setup(prefix.data(),prefix.size(),nband,nwann,
-                     nat,at_cart_ang.data(),at_sym.extent(1),at_sym.data(),at_sym_sz.data(),
-                     eigv.data(),lattv.data(),
-                     mf.nkpts(),mf.kp_grid().data(),wann_kp.data(),
-                     nn, n_neigh, nnkp.data(),  
-                     auto_projections, nproj_lines, proj_str.extent(1), proj_str.data(), 
-                     str_len.data(), proj_ints.data(), proj_doubles.data(),
-                     write_nnkp, exclude_string.data(), exclude_string.length(), err);
+      FC_wann90_setup(resolved_prefix.data(),resolved_prefix.size(),nband,nwann,
+                      nat,at_cart_ang.data(),at_sym.extent(1),at_sym.data(),at_sym_sz.data(),
+                      eigv.data(),lattv.data(),
+                      mf.nkpts(),mf.kp_grid().data(),wann_kp.data(),
+                      nn, n_neigh, nnkp.data(),  
+                      auto_projections, nproj_lines, proj_str.extent(1), proj_str.data(), 
+                      str_len.data(), proj_ints.data(), proj_doubles.data(),
+                      write_nnkp, exclude_string.data(), exclude_string.length(), err);
 #else
       utils::check(false,"Calling wann90_XXX without wannier90 support. Compile with ENABLE_WANNIER90.");
 #endif
@@ -1367,7 +1371,7 @@ auto wannier90_library_run(utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF
    */
   app_log(2, " - Computing orbital overlaps, Mmn");
   // transpose=true, since it will be passed to fortran
-  auto Mmn = detail::compute_mmn(mpi,mf,prefix,kp_map,wann_kp,nnkp,band_list,true,write_mmn);
+  auto Mmn = detail::compute_mmn(mpi,mf,resolved_prefix,kp_map,wann_kp,nnkp,band_list,true,write_mmn);
   mpi.comm.barrier();
 
   /*
@@ -1391,7 +1395,7 @@ auto wannier90_library_run(utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF
 
   if(mpi.comm.root()) {
 #if defined(ENABLE_WANNIER90)
-    FC_wann90_run(prefix.data(),prefix.size(),nband,nwann,
+    FC_wann90_run(resolved_prefix.data(),resolved_prefix.size(),nband,nwann,
                 nat,at_cart_ang.data(),at_sym.extent(1),at_sym.data(),at_sym_sz.data(),
                 eigv.data(),lattv.data(),
                 mf.nkpts(),mf.kp_grid().data(),wann_kp.data(), n_neigh,
@@ -1422,7 +1426,9 @@ inline auto wannier90_library_run_from_files(utils::mpi_context_t<mpi3::communic
       int n_neigh, int nwann, nda::array<int, 1> const& kp_map, nda::array<double,2> const& wann_kp, 
       nda::array<int,1> const& band_list, bool write_to_file) 
 {
+  auto outdir = io::get_value_with_default<std::string>(pt,"outdir","./");
   auto prefix = io::get_value<std::string>(pt,"prefix");
+  auto resolved_prefix = outdir + "/" + prefix;
   int nband = band_list.size();  
   auto nspin = mf.nspin();
   ::nda::array<double,2> lattv = mf.lattv()*0.529177210544;
@@ -1433,10 +1439,10 @@ inline auto wannier90_library_run_from_files(utils::mpi_context_t<mpi3::communic
   ::nda::array<double,2> wann_spreads(nspin,nwann);
 
   if(mpi.comm.root()) {
-    auto eigv = get_eig(mpi,mf,prefix,kp_map,band_list,false);
+    auto eigv = get_eig(mpi,mf,resolved_prefix,kp_map,band_list,false);
     eigv() /= 3.674932540e-2;
 #if defined(ENABLE_WANNIER90)
-    FC_wann90_run_from_files(prefix.c_str(),prefix.size(),nband,nwann,eigv.data(),lattv.data(),
+    FC_wann90_run_from_files(resolved_prefix.c_str(),resolved_prefix.size(),nband,nwann,eigv.data(),lattv.data(),
                        mf.nkpts(),mf.kp_grid().data(),wann_kp.data(),n_neigh,
                        Pkam.data(),wann_center.data(),wann_spreads.data(),ierr);
 #else
@@ -1461,29 +1467,31 @@ inline auto wannier90_library_run_from_files(utils::mpi_context_t<mpi3::communic
 inline void mlwf_h5_from_wannier90_output_impl(
   utils::mpi_context_t<mpi3::communicator> &mpi, mf::MF &mf, ptree &pt)
 {
+  auto outdir = io::get_value_with_default<std::string>(pt, "outdir", "./");
   auto prefix = io::get_value<std::string>(pt, "prefix");
+  auto resolved_prefix = outdir + "/" + prefix;
   
   if(!mpi.comm.root()) return;
 
   // =======================================================================
   // Check for required files and determine disentanglement
   // =======================================================================
-  utils::check(std::filesystem::exists(prefix + "_u.mat"),
+  utils::check(std::filesystem::exists(resolved_prefix + "_u.mat"),
                "wan90_aux.hpp::mlwf_h5_from_wannier90_output_impl: U matrix file not found: {}_u.mat",
-               prefix);
-  utils::check(std::filesystem::exists(prefix + "_centres.xyz"),
+               resolved_prefix);
+  utils::check(std::filesystem::exists(resolved_prefix + "_centres.xyz"),
                "wan90_aux.hpp::mlwf_h5_from_wannier90_output_impl: Centres file not found: {}_centres.xyz",
-               prefix);
+               resolved_prefix);
 
   // Auto-determine disentanglement based on file existence
-  bool use_disentangle = std::filesystem::exists(prefix + "_u_dis.mat");
+  bool use_disentangle = std::filesystem::exists(resolved_prefix + "_u_dis.mat");
 
   app_log(2, "All required input files found.\n");
 
   // =======================================================================
   // Read win file to extract nwann, nband, and band_list
   // =======================================================================
-  auto file_data = utils::read_file_to_string(prefix + ".win");
+  auto file_data = utils::read_file_to_string(resolved_prefix + ".win");
   auto file_data_lower = io::tolower_copy(file_data);
 
   int nwann = read_key<true, int>(file_data, "num_wann");
@@ -1524,17 +1532,17 @@ inline void mlwf_h5_from_wannier90_output_impl(
   auto nspin = mf.nspin();
   nda::array<double, 3> eigv;
 
-  if(std::filesystem::exists(prefix + ".eig")) {
-    app_log(2, "Reading eigenvalues from {}.eig...\n", prefix);
+  if(std::filesystem::exists(resolved_prefix + ".eig")) {
+    app_log(2, "Reading eigenvalues from {}.eig...\n", resolved_prefix);
     // When reading from standalone Wannier90 output, the .eig file contains eigenvalues
     // for Wannier bands (1 to nwann), not absolute band indices from DFT.
     // Create a temporary band_list for the Wannier bands
     auto wan_band_list = nda::arange<int>(nband);
-    eigv = read_eig_file(prefix + ".eig", nkpts, wan_band_list);
+    eigv = read_eig_file(resolved_prefix + ".eig", nkpts, wan_band_list);
   } else {
     app_log(2, "Eigenvalue file not found, generating from DFT calculation\n");
     auto kp_map = nda::arange<int>(nkpts);
-    eigv = get_eig(mpi, mf, prefix, kp_map, band_list, false);
+    eigv = get_eig(mpi, mf, resolved_prefix, kp_map, band_list, false);
     // Convert Hartree -> eV for HDF5 output
     eigv() /= 3.674932540e-2;
   }
@@ -1542,23 +1550,23 @@ inline void mlwf_h5_from_wannier90_output_impl(
   // =======================================================================
   // Read U matrix
   // =======================================================================
-  app_log(2, "Reading U matrix from {}_u.mat...\n", prefix);
-  auto U_matrix = read_u_matrix_file(prefix + "_u.mat", nkpts, nwann);
+  app_log(2, "Reading U matrix from {}_u.mat...\n", resolved_prefix);
+  auto U_matrix = read_u_matrix_file(resolved_prefix + "_u.mat", nkpts, nwann);
 
   // =======================================================================
   // Read U_dis matrix if present
   // =======================================================================
   nda::array<ComplexType, 3> U_dis_matrix;
   if(use_disentangle) {
-    app_log(2, "Reading U_dis matrix from {}_u_dis.mat...\n", prefix);
-    U_dis_matrix = read_u_dis_matrix_file(prefix + "_u_dis.mat", nkpts, nband, nwann);
+    app_log(2, "Reading U_dis matrix from {}_u_dis.mat...\n", resolved_prefix);
+    U_dis_matrix = read_u_dis_matrix_file(resolved_prefix + "_u_dis.mat", nkpts, nband, nwann);
   }
 
   // =======================================================================
   // Read Wannier centres
   // =======================================================================
-  app_log(2, "Reading Wannier centres from {}_centres.xyz...", prefix);
-  auto wan_centres = read_wan_centres_file(prefix + "_centres.xyz", nwann);
+  app_log(2, "Reading Wannier centres from {}_centres.xyz...", resolved_prefix);
+  auto wan_centres = read_wan_centres_file(resolved_prefix + "_centres.xyz", nwann);
 
   // =======================================================================
   // Construct projection matrix Pkwa = U_dis * U (or just U if no disentanglement)

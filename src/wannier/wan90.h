@@ -2,7 +2,7 @@
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,11 @@ namespace wannier {
    *
    * Input options:
    * Required:
-   *  - prefix                     [string] Wannier90 file name prefix. prefix.nnkp must exist.
+   *  - prefix                     [string] Wannier90 file name prefix.
+   * Optional with default value:
+   *  - outdir = "./"              [string] Directory where input/output Wannier90 files live.
+   *                                CoQuí resolves seedname as outdir + "/" + prefix.
+   *                                Input prefix.nnkp is resolved at that location.
    * Optionals with default value
    *  - mmn = "true"               [bool] If true, will compute Mmn and write to file prefix.mmn  
    *  - amn = "true"               [bool] If true, will compute Amn and write to file prefix.amn  
@@ -71,7 +75,11 @@ namespace wannier {
    *
    * Input options:
    * Required:
-   *  - prefix                     [string] Wannier90 file name prefix. prefix.nnkp must exist.
+   *  - prefix                     [string] Wannier90 file name prefix.
+   * Optional with default value:
+   *  - outdir = "./"             [string] Directory where input/output Wannier90 files live.
+   *                                CoQuí resolves seedname as outdir + "/" + prefix.
+   *                                Input prefix.win and prefix.nnkp are resolved at that location.
    * Optional Parameters for calculation of initial projections.
    *  - r0  = std::exp(-6.0)       [double] Initial point of radial grid in spherical bessel transform.
    *  - rN  = 10.0                 [double] Last point of radial grid in spherical bessel transform.
@@ -91,7 +99,11 @@ namespace wannier {
    *
    * Input options:
    * Required:
-   *  - prefix                     [string] Wannier90 file name prefix. prefix.nnkp must exist.
+   *  - prefix                     [string] Wannier90 file name prefix.
+   * Optional with default value:
+   *  - outdir = "./"              [string] Directory where input/output Wannier90 files live.
+   *                                 CoQuí resolves seedname as outdir + "/" + prefix.
+   *                                 Input prefix.win is resolved at that location.
    * Optionals with default value
    *  - mmn = "true"               [bool] If true, will write the prefix.mmn file. 
    *  - amn = "true"               [bool] If true, will write the prefix.amn. 
@@ -111,7 +123,11 @@ namespace wannier {
    *
    * Input options:
    * Required:
-   *  - prefix                     [string] Wannier90 file name prefix. prefix.win must exist.
+   *  - prefix                      [string] Wannier90 file name prefix.
+   * Optional with default value:
+   *  - outdir = "./"               [string] Directory where input/output Wannier90 files live.
+   *                                  CoQuí resolves seedname as outdir + "/" + prefix.
+   *                                  Input prefix.win is resolved at that location.
    * Optional Parameters for appending *.win file
    *  - atoms = "true"               [bool] If true, will add atom positions to win file. 
    *  - kpts = "true"                [bool] If true, will add kpoints to win file. 
@@ -132,17 +148,20 @@ namespace wannier {
    * Required:
    *  - prefix                     [string] Wannier90 file name prefix (seedname)
    * Optional:
-   *  - h5_filename                [string] Output HDF5 filename. Default: prefix.mlwf.h5
+   *  - outdir = "./"              [string] Directory where input/output Wannier90 files live.
+   *                                 CoQuí resolves seedname as outdir + "/" + prefix.
+   * Optional:
+   *  - h5_filename                [string] Output HDF5 filename. Default: outdir/prefix.mlwf.h5
    *  - dset_name                  [string] Dataset name in HDF5. Default: "dft_input"
    *  - shells.atoms, shells.sort, shells.l, shells.dim, shells.SO, shells.irrep
    *                               [array]  Shell information for orbitals
    *
    * Input files:
-   *  - seedname.win               [required] Wannier90 input file (used to read num_wann, num_bands, exclude_bands)
-   *  - seedname.eig               [optional] Eigenvalues file. If not present, computed from the MF object.
-   *  - seedname_u.mat             [required] Unitary projection matrix 
-   *  - seedname_u_dis.mat         [optional] Disentanglement matrix (auto-detected)
-   *  - seedname_centres.xyz       [required] Wannier function centres
+   *  - outdir/prefix.win          [required] Wannier90 input file (used to read num_wann, num_bands, exclude_bands)
+   *  - outdir/prefix.eig          [optional] Eigenvalues file. If not present, computed from the MF object.
+   *  - outdir/prefix_u.mat        [required] Unitary projection matrix 
+   *  - outdir/prefix_u_dis.mat    [optional] Disentanglement matrix (auto-detected)
+   *  - outdir/prefix_centres.xyz  [required] Wannier function centres
    */
   void mlwf_h5_from_wannier90_output(mf::MF &mf, ptree &pt);
 

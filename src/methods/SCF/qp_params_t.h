@@ -2,7 +2,7 @@
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,15 +24,29 @@
 
 namespace methods {
 
-struct qp_context_t {
+struct qp_params_t {
   std::string qp_type = "sc";
   std::string ac_alg = "pade";
   int Nfit = 18;
   double eta = 0.0001;
   double tol = 1e-8;
 
+  // SCF mode selector:
+  // - evscf: update only QP energies and keep QP wavefunctions fixed to mean-field ones.
+  // - qpscf: update both QP energies and QP wavefunctions.
+  std::string qp_scf_mode = "qpscf";
+
+  // whether to update dynamically screened interaction W in evscf.
+  bool keep_scr_coulomb_fixed = false;
+
   // off-diagonal mode defined in T. Kotani et. al., Phys. Rev. B 76, 165106 (2007)
+  // "fermi": evaluate off-diagonal elements of self-energy at the Fermi level;
+  // "qp_energy": evaluate off-diagonal elements of self-energy at the quasiparticle energy
+  // (defined as the average of the two diagonal elements)
   std::string off_diag_mode = "fermi";
+
+  double mu_tolerance = 1e-9;
+  std::string mu_update_alg = "bisection";
 };
 
 } // methods

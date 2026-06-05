@@ -37,7 +37,7 @@ beta = 100.0  # Inverse temperature (a.u.)
 wmax = 10.0   # Frequency cutoff (a.u.)
 prec = 1e-10  # Precision for IR basis 
 
-iaft = IAFT(beta=beta, wmax=wmax, prec=prec, verbose=True)
+iaft = IAFT(beta=beta, wmax=wmax, prec=prec, verbose=True, basis='ir')
 
 # ===================================================
 # 2. Explore mesh information
@@ -56,9 +56,9 @@ print(f"  Number of tau points (nt_b):  {iaft.nt_b}")
 print(f"  Number of freq points (nw_b): {iaft.nw_b}")
 print(f"  tau mesh (first 3 points):    {iaft.tau_mesh_b[:3]}")
 
-# Matsubara frequency indices (ir_notation: iwn = n*pi/beta)
-wn_f = iaft.wn_mesh('f', ir_notation=True)
-wn_b = iaft.wn_mesh('b', ir_notation=True)
+# Matsubara frequency indices (CoQuí/IR convention: iwn = n*pi/beta)
+wn_f = iaft.wn_mesh('f', phys_notation=False)
+wn_b = iaft.wn_mesh('b', phys_notation=False)
 print(f"\nMatsubara indices (fermion, first 3): {wn_f[:3]}")
 print(f"Matsubara indices (boson, first 3):   {wn_b[:3]}")
 
@@ -109,9 +109,9 @@ print(f"\nInterpolation to {len(tau_interp)} arbitrary tau points:")
 print(f"  original shape: {Gt_f.shape}")
 print(f"  interpolated shape: {Gt_f_interp.shape}")
 
-# Interpolate to arbitrary Matsubara frequency points (ir_notation)
+# Interpolate to arbitrary Matsubara frequency points (CoQuí/IR convention)
 wn_interp = np.array([-5, -3, -1, 1, 3, 5], dtype=int)
-Gw_f_interp = iaft.w_interpolate(Gw_f, wn_interp, stats='f', ir_notation=True)
+Gw_f_interp = iaft.w_interpolate(Gw_f, wn_interp, stats='f', phys_notation=False)
 print(f"\nInterpolation to {len(wn_interp)} arbitrary Matsubara points:")
 print(f"  original shape: {Gw_f.shape}")
 print(f"  interpolated shape: {Gw_f_interp.shape}")

@@ -2,7 +2,7 @@
 ==========================================================================
 CoQuí: Correlated Quantum ínterface
 
-Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,6 @@ limitations under the License.
 ==========================================================================
 """
 
-from .mbpt_driver import run_hf, run_gw, run_qpg0w0
+from .mbpt_driver import run_hf, run_gw, run_evgw, run_qpgw
 
-__all__ = ["run_hf", "run_gw", "run_qpg0w0"]
+__all__ = ["run_hf", "run_gw", "run_evgw", "run_qpgw"]

@@ -13,13 +13,14 @@ chol_block_size = 8
 r_blk       = 20
 distr_tol   = 0.4
 
-[evgw0]
+[evgw]
 interaction = "eri"
 beta      = 2000
 lambda    = 1200.0
 iaft_prec = "high"
 niter     = 1
-output    = "g0w0"
+outdir    = "./"
+prefix    = "g0w0"
 div_treatment = "gygi"
 qp_type   = "sc"
 ac_alg    = "pade"

@@ -2,7 +2,7 @@
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -238,7 +238,7 @@ void run(mpi3::communicator &comm, InputParser &parser)
       app_error("calculation type: {} not implemented yet \n",cname.c_str());
 
     } else if (cname == "hf" or cname == "qphf" or cname == "rpa" or cname == "gw" or cname == "qpgw" or cname == "gw_dca"
-               or cname == "evgw0" or cname == "gf2") {
+               or cname == "evgw" or cname == "gf2") {
 
       // all based on mbpt, lump together
       ptree pt = it.second;

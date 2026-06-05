@@ -20,66 +20,64 @@ mf_params = {
     "outdir": qe_dir,
     "nbnd": 40
 }
-si_mf = coqui.make_mf(mpi, params=mf_params, mf_type="qe")
+svo_mf = coqui.make_mf(mpi, params=mf_params, mf_type="qe")
 
 # construct thc handler and compute the thc integrals during initialization
 eri_params = {
-    "ecut": svo_mf.ecutwfc()*1.2,
-    "thresh": 1e-3,
+    "ecut": svo_mf.ecutrho()*0.4,
+    "thresh": 1e-5,
 }
 svo_thc = coqui.make_thc_coulomb(mf=svo_mf, params=eri_params)
 
 # GW
 gw_params = {
-    "output": "qpg0w0",
+    "outdir": "./",
+    "prefix": "svo.qpgw",
     "niter": 1,
     "beta": 200,
-    "wmax": 3.0,
-    "iaft_prec": "medium",
-    "qp_type": "sc",
-    "ac_alg": "pade",
-    "eta": 1e-6,
-    "Nfit": 26
+    "iaft": {
+        "prec": "medium"
+    },
+    "Nfit": -1, 
+    "off_diag_mode": "fermi" # "fermi" or "qp_energy"
 }
-coqui.run_qpg0w0(params=gw_params, h_int=svo_thc)
+coqui.run_qpgw(params=gw_params, h_int=svo_thc)
 
 # Wannier interpolation for G0W0
 winter_params = {
-        "outdir": "./",
-        "prefix": "qpg0w0",
-        "iteration": 1,
-        "wannier_file": wan_h5, 
-        "bands_num_npoints": 100, 
-        "kpath": """
-          W 0.50 0.25 0.75 
-          G 0.00 0.00 0.00
-          X 0.50 0.00 0.50
-          W 0.50 0.25 0.75
-          L 0.50 0.50 0.50
-          G 0.00 0.00 0.00
-        """
-    }
+    "outdir": "./",
+    "prefix": "svo.qpgw",
+    "iteration": 1,
+    "wannier_file": wan_h5, 
+    "bands_num_npoints": 100, 
+    "kpath": """
+      G 0.00 0.00 0.00
+      X 0.00 0.50 0.00
+      M 0.50 0.50 0.00
+      G 0.00 0.00 0.00
+    """
+}
 
-band_interpolation(si_mf, winter_params)
+band_interpolation(svo_mf, winter_params)
 
 # Wannier interpolation for PBE 
 winter_params["iteration"] = 0
-band_interpolation(si_mf, winter_params)
+band_interpolation(svo_mf, winter_params)
 
 mpi.barrier()
 
 # Plotting
 if mpi.root():
   fig, ax = plt.subplots(1, figsize=(7,5.5), dpi=80)
-  plot_utils.band_plot(ax, "qpg0w0.mbpt.h5", iteration=0, color='tab:blue', linestyle="--",  
+  plot_utils.band_plot(ax, "svo.qpgw.mbpt.h5", iteration=0, color='tab:blue', linestyle="--",  
                        linewidth=2.0, label='PBE', fontsize=16)
-  plot_utils.band_plot(ax, "qpg0w0.mbpt.h5", iteration=1, color='tab:red', linestyle="-", 
-                       linewidth=2.0, label='G0W0@PBE', fontsize=16)
+  plot_utils.band_plot(ax, "svo.qpgw.mbpt.h5", iteration=1, color='tab:red', linestyle="-", 
+                       linewidth=2.0, label='qpgw', fontsize=16)
   ax.axhline(y=0, color = 'black', linestyle = '-', linewidth=2.0, alpha=0.5)
   #ax.set_ylim(-10.884, 10.884)
   ax.legend(loc=1, fontsize=16)
   plt.tight_layout()
   
-  plt.savefig("qpg0w0.png", format="png")
+  plt.savefig("svo.qpgw.png", format="png")
 
 mpi.barrier()

@@ -1,10 +1,8 @@
 import numpy as np
 import tomllib
 
-import triqs.utility.mpi as mpi
-
+from mpi4py import MPI
 import coqui
-import coqui.dmft as coqui_dmft
 
 qe_dir = coqui.TEST_INPUT_DIR + "qe/svo_kp222_nbnd40/out"
 wan_h5 = coqui.TEST_INPUT_DIR + "qe/svo_kp222_nbnd40/mlwf/svo.mlwf.h5"
@@ -12,21 +10,23 @@ wan_h5 = coqui.TEST_INPUT_DIR + "qe/svo_kp222_nbnd40/mlwf/svo.mlwf.h5"
 coqui_mpi = coqui.MpiHandler()
 coqui.set_verbosity(coqui_mpi, output_level=2)
 
-beta, wmax = 20, 3.0
+beta = 20
 
-with open("gw_edmft_params.toml", "rb") as f:
-    coqui_params = tomllib.load(f)
+mf_params = {"prefix": "svo", "outdir": qe_dir, "nbnd": 40}
+mf = coqui.make_mf(coqui_mpi, params=mf_params, mf_type='qe')
 
-mf = coqui.make_mf(coqui_mpi, coqui_params['mean_field']['qe'], mf_type='qe')
-thc = coqui.make_thc_coulomb(mf=mf, params=coqui_params['interaction']['thc'])
+thc_params = {"thresh": 1e-5, "ecut": 60, "save": "thc.coulomb.h5"}
+thc = coqui.make_thc_coulomb(mf=mf, params=thc_params)
 
 # self-consistent GW as starting point
 gw_params = {
     "restart": False,
-    "output": coqui_params["gw_edmft"]["outdir"]+"/"+coqui_params["gw_edmft"]["prefix"],
+    "outdir": "./",
+    "prefix": "svo",
     "beta": beta,
-    "wmax": wmax,
-    "iaft_prec": "high",
+    "iaft": {
+        "prec": "high"
+    },
     "niter": 10,
     "div_treatment": "gygi_metal",
     "iter_alg": {

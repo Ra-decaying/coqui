@@ -24,10 +24,13 @@ svo_thc = coqui.make_thc_coulomb(mf=svo_mf, params=eri_params)
 # GW
 gw_params = {
     "beta": 200,
-    "wmax": 3.0,
-    "iaft_prec": "medium",
+    "iaft": {
+        "wmax": 3.0,
+        "prec": "medium"
+    },
     "niter": 10,
-    "output": "svo_gw",
+    "outdir": "./",
+    "prefix": "svo_gw",
     "iter_alg": {
         "alg": "diis",       # Use DIIS algorithm for self-consistency
         "max_subsp_size": 6, # maximum size of the DIIS subspace

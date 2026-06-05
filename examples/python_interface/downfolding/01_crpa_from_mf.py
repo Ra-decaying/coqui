@@ -51,8 +51,10 @@ crpa_params = {
     "wannier_file": wan_h5, 
     "greens_func_source": "mf", 
     "beta": 200,
-    "wmax": 2.0,
-    "iaft_prec": "medium",
+    "iaft": {
+        "wmax": 2.0, 
+        "prec": "medium"
+    }
 }
 Vloc, Wloc_iw = coqui.downfold_coulomb(params=crpa_params, h_int=svo_thc)
 

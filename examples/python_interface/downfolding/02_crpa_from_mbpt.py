@@ -48,12 +48,15 @@ thc_params = {
 svo_thc = coqui.make_thc_coulomb(svo_mf, thc_params)
 
 gw_params = {
-    "restart": False,    # read prior GW state if available
-    "output":  "svo",     # label/prefix for outputs
-    "niter":   1,        # number of Dyson–SCF iterations
-    "beta":    300,      # inverse temperature (Ha^{-1})
-    "lambda":  900,     # high-frequency cutoff controlling IR/DLR size
-    "iaft_prec": "medium", # imaginary-axis FFT/IR accuracy target
+    "restart": False,     # read prior GW state if available
+    "outdir":  "./",
+    "prefix":  "svo",    # prefix for the checkpoint file
+    "niter":   1,         # number of Dyson–SCF iterations
+    "beta":    300,       # inverse temperature (Ha^{-1})
+    "iaft": {
+        "wmax": 3.0,
+        "prec": "medium"
+    }
 }
 coqui.run_gw(gw_params, h_int=svo_thc)
 

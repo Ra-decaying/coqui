@@ -45,6 +45,7 @@ svo_mf = coqui.make_mf(mpi, params=mf_params, mf_type="qe")
 
 # prepare Wannier90 inputs (amn/mmn), analogous to pw2wannier90.x
 w90_params = {
+    "outdir": "./",
     "prefix": "svo",     # equivalent to wannier90's seedname
 }
 coqui.coqui2wannier90(mf=svo_mf, params=w90_params)

@@ -2,7 +2,7 @@
 ==========================================================================
 CoQuí: Correlated Quantum ínterface
 
-Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,16 +31,22 @@ def test_gw_thc(mpi):
     mf = construct_qe_mf(mpi, "qe_lih222_sym")
     eri_params = {
         "storage": "incore",
-        "nIpts": mf.nbnd() * 10,
-        "thresh": 1e-10,
+        "thresh": 1e-4,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }
     thc = coqui.make_thc_coulomb(mf, eri_params)
 
     gw_params = {
-        "restart": False, "output": "gw", "niter": 1,
-        "beta": 300, "wmax": 4.0, "iaft_prec": "medium",
+        "restart": False, 
+        "output": "gw", 
+        "niter": 1,
+        "beta": 100, 
+        "iaft": {
+            "prec": "medium", 
+            "basis": "dlr"
+        },
         "iter_alg": {"alg": "damping", "mixing": 0.7}
     }
     coqui.run_gw(gw_params, h_int=thc)
@@ -51,17 +57,26 @@ def test_gw_mix_thc_chol(mpi):
     mf = construct_qe_mf(mpi, "qe_lih222")
     thc_params = {
         "storage": "incore",
-        "nIpts": mf.nbnd() * 10,
-        "thresh": 1e-10,
+        "thresh": 1e-4,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }
     thc = coqui.make_thc_coulomb(mf, thc_params)
 
     gw_params = {
-        "restart": False, "output": "gw", "niter": 1,
-        "beta": 300, "wmax": 4.0, "iaft_prec": "medium",
-        "iter_alg": {"alg": "damping", "mixing": 0.7}
+        "restart": False, 
+        "output": "gw", 
+        "niter": 1,
+        "beta": 100, 
+        "iaft": {
+            "prec": "medium", 
+            "basis": "dlr"
+        },
+        "iter_alg": {
+            "alg": "damping", 
+            "mixing": 0.7
+        }
     }
     coqui.run_gw(gw_params, h_int=thc)
     mpi.barrier()
@@ -88,18 +103,25 @@ def test_g0w0_thc(mpi):
     mf = construct_qe_mf(mpi, "qe_lih222_sym")
     eri_params = {
         "storage": "incore",
-        "nIpts": mf.nbnd() * 10,
-        "thresh": 1e-10,
+        "thresh": 1e-4,
+        "ecut": mf.ecutrho(),
         "chol_block_size": 1,
         "init": True
     }
     thc = coqui.make_thc_coulomb(mf, eri_params)
 
     gw_params = {
-        "restart": False, "output": "gw", "niter": 1,
-        "beta": 300, "wmax": 4.0, "iaft_prec": "medium",
-        "qp_type": "sc", "ac_alg": "pade", "eta": 1e-6, "Nfit": 26
+        "restart": False, 
+        "output": "gw", 
+        "niter": 1,
+        "beta": 100, 
+        "iaft": {
+            "prec": "medium",
+            "basis": "dlr"
+        },
+        "qp_type": "sc", 
+        "eta": 1e-6, 
     }
-    coqui.run_qpg0w0(gw_params, h_int=thc)
+    coqui.run_evgw(gw_params, h_int=thc)
     mpi.barrier()
 

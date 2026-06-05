@@ -2,7 +2,7 @@
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -194,22 +194,30 @@ namespace methods {
     // upfold and add corrections from active spaces
     if (!corr_only) add_Vhf_correction(mb_state);
     add_Sigma_dyn_correction(mb_state);
+
+    if (_context->node_comm.root()) {
+      hermitize_in_tau(sVhf_skij.local(), "Fock matrix");
+      hermitize_in_tau(sSigma_tskij.local(), "dynamic self-energy");
+    }
     _context->comm.barrier();
     _Timer.stop("EMBED_UPFOLD");
 
     _Timer.start("EMBED_ITERATIVE");
     // if embed_iter is -1 -> mix with the previous gw results
     // if embed_iter != -1 -> mix with embed_iter-1
-    auto [Vhf_conv, Sigma_conv] = solve_iterative(
-        *_context, *iter_solver, (embed_iter==-1)? gw_iter+1 : embed_iter+1,
-        mb_state.coqui_prefix, sVhf_skij, sSigma_tskij, &ft,
-        (embed_iter==-1)? std::array<std::string, 3>{"scf", "F_skij", "Sigma_tskij"} :
-                          std::array<std::string, 3>{"embed", "F_skij", "Sigma_tskij"});
+    double Vhf_conv, Sigma_conv;
+    if (iter_solver != nullptr) {
+      std::tie(Vhf_conv, Sigma_conv) = solve_iterative(
+          *_context, *iter_solver, (embed_iter==-1)? gw_iter+1 : embed_iter+1,
+          mb_state.coqui_prefix, sVhf_skij, sSigma_tskij, &ft,
+          (embed_iter==-1)? std::array<std::string, 3>{"scf", "F_skij", "Sigma_tskij"} :
+                            std::array<std::string, 3>{"embed", "F_skij", "Sigma_tskij"});
+    }
     _Timer.stop("EMBED_ITERATIVE");
 
     _Timer.start("EMBED_FIND_MU");
     // find chemical potential
-    mu = update_mu(mu, dyson, *_MF, ft, sVhf_skij, sG_tskij, sSigma_tskij);
+    mu = update_mu(mu, dyson, *_MF, ft, sVhf_skij, sSigma_tskij);
     _Timer.stop("EMBED_FIND_MU");
 
     _Timer.start("EMBED_DYSON");
@@ -228,7 +236,7 @@ namespace methods {
     app_log(1, "  correlation:                 {} a.u.", e_corr);
     app_log(1, "  total energy:                {} a.u.\n", e_tot_new);
     
-    if (embed_iter == -1 or embed_iter >= 1) {
+    if (iter_solver != nullptr && (embed_iter == -1 || embed_iter >= 1)) {
       app_log(1, "abs max diff of Fock matrix:   {}", Vhf_conv);
       app_log(1, "abs max diff of self-energy:   {}\n", Sigma_conv);
     }
@@ -399,7 +407,7 @@ namespace methods {
     sVcorr_skij.communicator()->barrier();
 
     // find chemical potential
-    mu = update_mu(mu, dyson, *_MF, ft, sVcorr_skij, sG_tskij, sSigma_tskij);
+    mu = update_mu(mu, dyson, *_MF, ft, sVcorr_skij, sSigma_tskij);
     _Timer.stop("EMBED_FIND_MU");
 
     _Timer.start("EMBED_DYSON");
@@ -481,13 +489,13 @@ namespace methods {
     sSigma_correction_upfold.set_zero();
 
     nda::array<ComplexType, 5> Sigma_imp_tsIab(mb_state.ft->nt_f(), _MF->nspin(), nImps, nImpOrbs, nImpOrbs);
-    mb_state.ft->w_to_tau(mb_state.Sigma_imp_wsIab.value(), Sigma_imp_tsIab, imag_axes_ft::fermi);
-    mb_state.ft->check_leakage(Sigma_imp_tsIab, imag_axes_ft::fermi, sSigma_tskij.communicator(), "impurity self-energy");
+    mb_state.ft->w_to_tau(mb_state.Sigma_imp_wsIab.value(), Sigma_imp_tsIab, imag_axes_ft::fermion);
+    mb_state.ft->check_leakage(Sigma_imp_tsIab, imag_axes_ft::fermion, sSigma_tskij.communicator(), "impurity self-energy");
 
     if (subtract_dc) {
       nda::array<ComplexType, 5> Sigma_dc_tsIab(mb_state.ft->nt_f(), _MF->nspin(), nImps, nImpOrbs, nImpOrbs);
-      mb_state.ft->w_to_tau(mb_state.Sigma_dc_wsIab.value(), Sigma_dc_tsIab, imag_axes_ft::fermi);
-      mb_state.ft->check_leakage(Sigma_dc_tsIab, imag_axes_ft::fermi, sSigma_tskij.communicator(), "DC self-energy");
+      mb_state.ft->w_to_tau(mb_state.Sigma_dc_wsIab.value(), Sigma_dc_tsIab, imag_axes_ft::fermion);
+      mb_state.ft->check_leakage(Sigma_dc_tsIab, imag_axes_ft::fermion, sSigma_tskij.communicator(), "DC self-energy");
       Sigma_imp_tsIab -= Sigma_dc_tsIab;
     }
 

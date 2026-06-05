@@ -44,6 +44,7 @@ svo_mf = coqui.make_mf(mpi, params=mf_params, mf_type="qe")
 
 # append Wannier90 win file
 w90_params = {
-    "prefix": "svo",     # equivalent to wannier90's seedname
+    "outdir": "./",
+  "prefix": "svo",     # equivalent to wannier90's seedname
 }
 coqui.append_wannier90_win(mf=svo_mf, params=w90_params)

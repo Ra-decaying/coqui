@@ -2,7 +2,7 @@
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,11 @@
 #include "nda/linalg/eigenelements.hpp"
 
 namespace methods {
-dca_dyson::dca_dyson(utils::mpi_context_t<mpi3::communicator> &context, mf::MF *mf, imag_axes_ft::IAFT *ft, mf::MF &dca_mf, double mu_tol) :
-    _context(context), _MF(mf), _FT(ft), _PSP(hamilt::make_pseudopot(*_MF)), _nk_tilde(dca_mf.nkpts()/mf->nkpts()), _mu_tol(mu_tol),
+dca_dyson::dca_dyson(utils::mpi_context_t<mpi3::communicator> &context, mf::MF *mf,
+           imag_axes_ft::IAFT *ft, mf::MF &dca_mf, double mu_tol,
+           std::string mu_update_alg) :
+  _context(context), _MF(mf), _FT(ft), _PSP(hamilt::make_pseudopot(*_MF)), _nk_tilde(dca_mf.nkpts()/mf->nkpts()), _mu_tol(mu_tol),
+  _mu_update_alg(mu_update_alg),
     _sH0_skij(math::shm::make_shared_array<Array_view_4D_t>(context.comm, context.internode_comm, context.node_comm,
                                                             {mf->nspin(), mf->nkpts(), mf->nbnd(), mf->nbnd()})),
     _sS_skij(math::shm::make_shared_array<Array_view_4D_t>(context.comm, context.internode_comm, context.node_comm,
@@ -198,10 +201,10 @@ void dca_dyson::solve_dyson(Dm_t&_sDm_skij, G_t&_G_shm, const F_t&_sF_skij, cons
                                                        {_FT->nt_f(), _MF->nspin(), _MF->nkpts(), _MF->nbnd(), _MF->nbnd()});
     auto Gt_loc = dG_tskij.local();
     auto Gw_loc = dG_wskij_tmp.local();
-    _FT->w_to_tau(Gw_loc, Gt_loc, imag_axes_ft::fermi);
+    _FT->w_to_tau(Gw_loc, Gt_loc, imag_axes_ft::fermion);
     dG_wskij_tmp.reset();
 
-    _FT->check_leakage(dG_tskij, imag_axes_ft::fermi, "Green's function");
+    _FT->check_leakage(dG_tskij, imag_axes_ft::fermion, "Green's function");
 
     // Gather to shared memory
     auto G_shm = _G_shm.local();
@@ -263,7 +266,7 @@ void dca_dyson::compute_eigenspectra(double mu, [[maybe_unused]] const X_t&_sF_s
   auto S_inv = sS_inv.local();
 
   for (size_t n = _context.comm.rank(); n < _FT->nw_f(); n+= _context.comm.size()) {
-    _FT->tau_to_w(_G_shm.local(), Gw_skij, imag_axes_ft::fermi, n);
+    _FT->tau_to_w(_G_shm.local(), Gw_skij, imag_axes_ft::fermion, n);
     long wn = _FT->wn_mesh()(n);
     ComplexType omega_mu = _FT->omega(wn) + mu;
     for (size_t i = 0; i < _MF->nspin()*_MF->nkpts(); ++i) {

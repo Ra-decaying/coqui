@@ -21,7 +21,8 @@ iaft_prec = "high"
 niter     = 12
 restart   = false
 conv_thr  = 1e-6
-output    = "scgw"
+outdir    = "./"
+prefix    = "scgw"
 div_treatment = "gygi"
 [gw.iter_alg]
 alg            = "diis"

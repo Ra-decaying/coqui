@@ -2,7 +2,7 @@
  * ==========================================================================
  * CoQuí: Correlated Quantum ínterface
  *
- * Copyright (c) 2022-2025 Simons Foundation & The CoQuí developer team
+ * Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ namespace bdft_tests {
   template<int N>
   using shape_t = std::array<long,N>;
 
-  TEST_CASE("ir_read", "[ir_read]") {
+  TEST_CASE("ir_read", "[iaft][ir]") {
     double beta = 1000;
     double lambda = 1.2e4;
     imag_axes_ft::ir::IR myir(beta, lambda/beta, "high");

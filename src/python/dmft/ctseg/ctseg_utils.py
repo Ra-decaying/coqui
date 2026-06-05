@@ -1,15 +1,31 @@
+"""
+==========================================================================
+CoQuí: Correlated Quantum ínterface
+
+Copyright (c) 2022-2026 Simons Foundation & The CoQuí developer team
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==========================================================================
+"""
+
 import triqs.utility.mpi as mpi
 import numpy as np
 from itertools import product
 
-from triqs.gf import (iOmega_n, MeshImFreq, MeshDLRImFreq, Gf, BlockGf,
-                      make_gf_dlr, make_gf_imfreq, make_gf_imtime,
-                      make_gf_from_fourier, Idx, make_hermitian, is_gf_hermitian)
-from triqs.gf.gf_fnt import fit_hermitian_tail_on_window, replace_by_tail
-from triqs.gf.tools import inverse, make_zero_tail
-from triqs.gf.descriptors import Fourier
-from triqs.operators.util.extractors import block_matrix_from_op
-from triqs.operators.util.U_matrix import reduce_4index_to_2index
+from triqs.gfs import (iOmega_n, MeshImFreq, MeshDLRImFreq, Gf, BlockGf,
+                      make_gf_dlr, make_gf_imfreq, make_hermitian) 
+from triqs.gfs.gf_fnt import fit_hermitian_tail_on_window, replace_by_tail
+from triqs.gfs.tools import inverse, make_zero_tail
 
 import triqs_modest as modest
 from triqs_ctseg import Solver as CTSEG_Solver
@@ -18,7 +34,7 @@ def post_process(solver, **post_proc_params):
     
     post_process_sigma(solver, **post_proc_params)
     
-    if solver.D0_tau is not None and solver.results.nn_nu is not None:
+    if solver.D0_tau is not None and solver.results.nn_nu_dlr is not None:
         if post_proc_params['degenerate_blk']:
             deg_blk_2e = []
             for blks in post_proc_params['degenerate_blk']:
@@ -32,8 +48,8 @@ def post_process(solver, **post_proc_params):
 
 def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
                     truncate_uchi=False):
-    mpi.report("Charge susceptibility is measured for a impurity with dynamic interactions")
-    mpi.report('--> Post-processing the density-density susceptibility to obtain the impurity polarizability.\n')
+    #mpi.report("Charge susceptibility is measured for a impurity with dynamic interactions")
+    #mpi.report('--> Post-processing the density-density susceptibility to obtain the impurity polarizability.\n')
 
     n_color = 0
     for _, blk_dim in solver.gf_struct:
@@ -51,13 +67,13 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
     
     # initialization
     tau_mesh = solver.D0_tau[block_name[0], block_name[0]].mesh
-    iw_mesh_dlr = solver.results.nn_nu[block_name[0], block_name[0]].mesh
+    iw_mesh_dlr = solver.results.nn_nu_dlr[block_name[0], block_name[0]].mesh
 
     D0_tau = Gf(mesh=tau_mesh, target_shape=(n_color, n_color))
     nn_iw_dlr = Gf(mesh=iw_mesh_dlr, target_shape=(n_color, n_color))
     for c1, c2 in product(range(n_color), repeat=2):
         nn_iw_dlr.data[:, c1, c2] = (
-            solver.results.nn_nu[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
+            solver.results.nn_nu_dlr[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
         )
         D0_tau.data[:, c1, c2] = (
             solver.D0_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
@@ -68,11 +84,11 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
     densities = np.zeros(n_color, dtype=float)
     for c1 in range(n_color):
         densities[c1] = solver.results.densities[block_name[c1]][index_in_block[c1]]
-    mpi.report(f"Average of time-dependent occupations: {densities}")
+    #mpi.report(f"Average of time-dependent occupations: {densities}")
 
-    mpi.report("Subtracting the constant component, and then symmetrizing the density-density susceptibility: \n"
-               "  1. nn(t).imag = 0.0\n"
-               "  2. nn(i, j) = nn(j, i)\n")
+    #mpi.report("Subtracting the constant component, and then symmetrizing the density-density susceptibility: \n"
+    #           "  1. nn(t).imag = 0.0\n"
+    #           "  2. nn(i, j) = nn(j, i)\n")
 
     for c1, c2 in product(range(n_color), repeat=2):
         iw_idx = np.array([ iw.index for iw in nn_iw_dlr[c1,c2].mesh ])
@@ -151,7 +167,7 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
         UX = check_spectrum(UX, truncation=truncate_uchi)
         denom = UX - ones
         cond = np.linalg.cond(denom)
-        if cond > 20: 
+        if cond > 100: 
             mpi.report(f"WARNING: Large condition number for [U(w) * Chi(w) - I] = {cond} at n = {iwn.index}.")        
         Pi_iw_pb[iwn] = nn_iw_pb[iwn] @ np.linalg.pinv(denom)
         # explicit set Pi(iw).imag = 0.0
@@ -202,10 +218,11 @@ def post_process_pi(solver, degenerate_blk=None, output_in_4idx=False,
             solver.W_iw[i,j,k,l] << W_iw_pb[i*n_orb+j, k*n_orb+l]
 
 
+# TODO return raw Sigma to solver.Sigma_iw_raw
 def post_process_sigma(solver, **post_proc_params):
     
     # initialization
-    mesh = MeshImFreq(beta = solver.beta, S="Fermion", n_iw = solver.n_iw)
+    mesh = MeshImFreq(beta = solver.beta, statistic = "Fermion", n_iw = solver.n_iw)
     solver.Sigma_iw = BlockGf(mesh = mesh, gf_struct = solver.gf_struct)
     solver.Sigma_iw.zero()
     solver.Sigma_moments = None
@@ -246,10 +263,10 @@ def post_process_sigma(solver, **post_proc_params):
 
     # Compute Self-energy
     if solver.results.F_tau is None:
-        mpi.report("F(tau) is not measured -> Compute the self-energy via the Dyson equation.\n")
+        mpi.report("Compute the self-energy via the Dyson equation.\n")
         solver.Sigma_iw = inverse(solver.G0_iw) - inverse(solver.G_iw)
     else:
-        mpi.report("F(tau) is measured -> Compute the self-energy via the improved estimator.\n")
+        mpi.report("Compute the self-energy via the improved estimator.\n")
         F_iw = solver.G_iw.copy()
         F_iw << 0.0
         F_known_moments = make_zero_tail(F_iw, n_moments=1)
@@ -267,7 +284,6 @@ def post_process_sigma(solver, **post_proc_params):
         solver.Sigma_iw << modest.symmetrize(solver.Sigma_iw, post_proc_params['degenerate_blk'])
 
     if post_proc_params['perform_tail_fit']:
-        # tail fitting for the self-energy 
         solver.Sigma_iw = tail_fit(
             solver.Sigma_iw,
             fit_min_n=post_proc_params['fit_min_n'],
@@ -303,25 +319,36 @@ def post_process_sigma(solver, **post_proc_params):
         solver.Sigma_iw[blk] = solver.Sigma_iw[blk] - sigma_infty_value
 
     
-def tail_fit(Sigma_iw, 
-             fit_min_n=None, fit_max_n=None, fit_min_w=None, fit_max_w=None, 
+def tail_fit(Sigma_iw,
+             fit_min_n=None, fit_max_n=None, fit_min_w=None, fit_max_w=None,
              fit_max_moment=None, fit_known_moments=None):
 
-    # Define default tail quantities
-    if fit_min_w is not None: fit_min_n = int(0.5*(fit_min_w*Sigma_iw.mesh.beta/np.pi - 1.0))
-    if fit_max_w is not None: fit_max_n = int(0.5*(fit_max_w*Sigma_iw.mesh.beta/np.pi - 1.0))
+    Sigma_iw_fit = Sigma_iw.copy()
+
+    # Resolve defaults
+    beta = Sigma_iw.mesh.beta
+    if fit_min_w is not None: fit_min_n = int(0.5*(fit_min_w*beta/np.pi - 1.0))
+    if fit_max_w is not None: fit_max_n = int(0.5*(fit_max_w*beta/np.pi - 1.0))
     if fit_min_n is None: fit_min_n = int(0.8*len(Sigma_iw.mesh)/2)
     if fit_max_n is None: fit_max_n = int(len(Sigma_iw.mesh)/2)
     if fit_max_moment is None: fit_max_moment = 3
 
+    w_min = (2*fit_min_n + 1) * np.pi / beta
+    w_max = (2*fit_max_n + 1) * np.pi / beta
+    mpi.report("Tail fit for Σ(iω):")
+    mpi.report(f"  fit window : ω = [{w_min:.4f}, {w_max:.4f}] a.u.")
+    mpi.report(f"  max moment : {fit_max_moment}")
+    mpi.report(f"  known moments provided : {'yes' if fit_known_moments is not None else 'no (using zero)'}")
+    mpi.report("")
+
     if fit_known_moments is None:
         fit_known_moments = {}
-        for name, sig in Sigma_iw:
+        for name, sig in Sigma_iw_fit:
             shape = [0] + list(sig.target_shape)
             fit_known_moments[name] = np.zeros(shape, dtype=complex) # no known moments
 
     # Now fit the tails of Sigma_iw and replace the high frequency part with the tail expansion
-    for name, sig in Sigma_iw:
+    for name, sig in Sigma_iw_fit:
 
         tail, err = fit_hermitian_tail_on_window(
             sig,
@@ -335,7 +362,7 @@ def tail_fit(Sigma_iw,
         
         replace_by_tail(sig, tail, n_min=fit_min_n)        
 
-    return Sigma_iw
+    return Sigma_iw_fit
 
 
 def extract_u_tensor_from_h_int(h_int, gf_struct, return_4idx=False):
@@ -393,7 +420,7 @@ def extract_screen_matrix_from_D0_tau(blk2_D0_tau, gf_struct, return_4idx=False)
                 blk2_D0_tau[block_name[c1], block_name[c2]].data[:, index_in_block[c1], index_in_block[c2]]
             )
 
-    w0_mesh = MeshImFreq(beta = D0_tau.mesh.beta, S="Boson", n_iw = 1)
+    w0_mesh = MeshImFreq(beta = D0_tau.mesh.beta, statistic = "Boson", n_iw = 1)
     D0_iw = Gf(mesh=w0_mesh, target_shape=D0_tau.target_shape)
     D0_iw.set_from_fourier(D0_tau, make_zero_tail(D0_iw, n_moments=2))
     Dw0_dd = D0_iw.data[0].real
