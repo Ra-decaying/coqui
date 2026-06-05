@@ -57,7 +57,7 @@
   - default basis changed to `dlr` (from `ir`) for both `iaft.basis` and legacy `iaft_basis` interfaces.
   - default `prec` changed to `medium` (from `high`) when `eps` is not provided.
 - Updated THC defaults:
-  - default `ecut` changed to `0.4 * mf->ecutrho()` (from `mf->ecutrho()`).
+  - default `ecut` changed to `1.4 * mf->ecutwfc()` if wavefunction fft grid is available, otherwise to `1.4 * mf->ecutrho()`.
   - default `thresh` changed to `1e-5` (from `1e-10`).
   - when `nIpts` is set and `thresh` is not explicitly provided, `thresh` is auto-resolved to `1e-13` to avoid premature termination before reaching requested `nIpts`.
 
