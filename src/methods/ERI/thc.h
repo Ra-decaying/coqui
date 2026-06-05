@@ -69,7 +69,8 @@ class thc
   /*
    * Creates a thc object with arguments in property tree.
    *  Important options:
-   *  - ecut: "0.4 * ecutrho", Plane wave cutoff used for the evaluation of coulomb matrix elements.
+   *  - ecut: "1.4 * ecutwfc" (falls back to "0.4 * ecutrho" when no wfc grid is available),
+   *          Plane wave cutoff used for the evaluation of coulomb matrix elements.
    *  - thresh: "1e-5", Threshold in cholesky decomposition.
    *  Performance related options:
    *  - matrix_block_size: 1024, Block size used in distributed arrays.
